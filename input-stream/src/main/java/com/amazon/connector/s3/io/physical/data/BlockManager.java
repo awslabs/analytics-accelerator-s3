@@ -40,19 +40,21 @@ public class BlockManager implements Closeable {
    * @param telemetry an instance of {@link Telemetry} to use
    * @param metadataStore the metadata cache
    * @param configuration the physicalIO configuration
+   * @param memoryTracker the memory tracker
    */
   public BlockManager(
       @NonNull S3URI s3URI,
       @NonNull ObjectClient objectClient,
       @NonNull MetadataStore metadataStore,
       @NonNull Telemetry telemetry,
-      @NonNull PhysicalIOConfiguration configuration) {
+      @NonNull PhysicalIOConfiguration configuration,
+      @NonNull MemoryTracker memoryTracker) {
     this.s3URI = s3URI;
     this.objectClient = objectClient;
     this.metadataStore = metadataStore;
     this.telemetry = telemetry;
     this.configuration = configuration;
-    this.blockStore = new BlockStore(s3URI, metadataStore);
+    this.blockStore = new BlockStore(s3URI, metadataStore, configuration, memoryTracker);
     this.patternDetector = new SequentialPatternDetector(blockStore);
     this.sequentialReadProgression = new SequentialReadProgression();
     this.ioPlanner = new IOPlanner(blockStore);

@@ -29,7 +29,8 @@ public class BlobStoreTest {
                 null,
                 mock(ObjectClient.class),
                 mock(Telemetry.class),
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                mock(MemoryTracker.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -37,7 +38,8 @@ public class BlobStoreTest {
                 mock(MetadataStore.class),
                 null,
                 mock(Telemetry.class),
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                mock(MemoryTracker.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -45,12 +47,26 @@ public class BlobStoreTest {
                 mock(MetadataStore.class),
                 mock(ObjectClient.class),
                 null,
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                mock(MemoryTracker.class)));
     assertThrows(
         NullPointerException.class,
         () ->
             new BlobStore(
-                mock(MetadataStore.class), mock(ObjectClient.class), mock(Telemetry.class), null));
+                mock(MetadataStore.class),
+                mock(ObjectClient.class),
+                mock(Telemetry.class),
+                null,
+                mock(MemoryTracker.class)));
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            new BlobStore(
+                mock(MetadataStore.class),
+                mock(ObjectClient.class),
+                mock(Telemetry.class),
+                mock(PhysicalIOConfiguration.class),
+                null));
   }
 
   @Test
@@ -63,7 +79,11 @@ public class BlobStoreTest {
         .thenReturn(ObjectMetadata.builder().contentLength(TEST_DATA.length()).build());
     BlobStore blobStore =
         new BlobStore(
-            metadataStore, objectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
+            metadataStore,
+            objectClient,
+            TestTelemetry.DEFAULT,
+            PhysicalIOConfiguration.DEFAULT,
+            mock(MemoryTracker.class));
 
     // When: a Blob is asked for
     Blob blob = blobStore.get(S3URI.of("test", "test"));

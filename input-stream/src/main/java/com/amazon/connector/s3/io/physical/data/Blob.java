@@ -37,7 +37,6 @@ public class Blob implements Closeable {
       @NonNull MetadataStore metadataStore,
       @NonNull BlockManager blockManager,
       @NonNull Telemetry telemetry) {
-
     this.s3URI = s3URI;
     this.metadataStore = metadataStore;
     this.blockManager = blockManager;

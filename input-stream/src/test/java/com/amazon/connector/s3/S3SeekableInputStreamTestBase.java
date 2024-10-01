@@ -6,6 +6,7 @@ import com.amazon.connector.s3.io.logical.impl.ParquetColumnPrefetchStore;
 import com.amazon.connector.s3.io.logical.impl.ParquetLogicalIOImpl;
 import com.amazon.connector.s3.io.physical.PhysicalIOConfiguration;
 import com.amazon.connector.s3.io.physical.data.BlobStore;
+import com.amazon.connector.s3.io.physical.data.MemoryTracker;
 import com.amazon.connector.s3.io.physical.data.MetadataStore;
 import com.amazon.connector.s3.io.physical.impl.PhysicalIOImpl;
 import com.amazon.connector.s3.util.FakeObjectClient;
@@ -18,11 +19,16 @@ public class S3SeekableInputStreamTestBase {
 
   protected final PhysicalIOConfiguration physicalIOConfiguration = PhysicalIOConfiguration.DEFAULT;
   protected final FakeObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
+  protected final MemoryTracker memoryTracker = new MemoryTracker();
   protected final MetadataStore metadataStore =
       new MetadataStore(fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
   protected final BlobStore blobStore =
       new BlobStore(
-          metadataStore, fakeObjectClient, TestTelemetry.DEFAULT, physicalIOConfiguration);
+          metadataStore,
+          fakeObjectClient,
+          TestTelemetry.DEFAULT,
+          physicalIOConfiguration,
+          memoryTracker);
   protected final LogicalIOConfiguration logicalIOConfiguration = LogicalIOConfiguration.DEFAULT;
 
   protected final LogicalIO fakeLogicalIO =

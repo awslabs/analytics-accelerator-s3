@@ -1,10 +1,13 @@
 package com.amazon.connector.s3.io.physical.data;
 
 import com.amazon.connector.s3.common.Preconditions;
+import com.amazon.connector.s3.io.physical.PhysicalIOConfiguration;
 import com.amazon.connector.s3.util.S3URI;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 import java.io.Closeable;
-import java.util.LinkedList;
-import java.util.List;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalLong;
 import org.apache.logging.log4j.LogManager;
@@ -17,21 +20,62 @@ public class BlockStore implements Closeable {
 
   private final S3URI s3URI;
   private final MetadataStore metadataStore;
-  private final List<Block> blocks;
+  private final Cache<Integer, Block> blocks;
+  private final PhysicalIOConfiguration configuration;
+  private int blockCount;
+  private final MemoryTracker memoryTracker;
 
   /**
    * Constructs a new instance of a BlockStore.
    *
    * @param s3URI the object's S3 URI
    * @param metadataStore the metadata cache
+   * @param configuration physicalIO configuration
+   * @param memoryTracker the memory tracker
    */
-  public BlockStore(S3URI s3URI, MetadataStore metadataStore) {
+  public BlockStore(
+      S3URI s3URI,
+      MetadataStore metadataStore,
+      PhysicalIOConfiguration configuration,
+      MemoryTracker memoryTracker) {
+
+    this(
+        s3URI,
+        metadataStore,
+        configuration,
+        memoryTracker,
+        Caffeine.newBuilder()
+            .maximumSize(configuration.getBlobStoreCapacity())
+            .expireAfterWrite(Duration.ofMillis(configuration.getCacheEvictionTimeMillis()))
+            .removalListener(
+                (Integer key, Block block, RemovalCause cause) ->
+                    memoryTracker.freeMemory(block.getLength()))
+            .build());
+  }
+
+  /**
+   * Constructs a new instance of a BlockStore. This version helps with dependency injection.
+   *
+   * @param s3URI s3URI the object's S3 URI
+   * @param metadataStore the metadata cache
+   * @param configuration physicalIO configuration
+   * @param memoryTracker the memory tracker
+   * @param blockCache block cache to use
+   */
+  protected BlockStore(
+      S3URI s3URI,
+      MetadataStore metadataStore,
+      PhysicalIOConfiguration configuration,
+      MemoryTracker memoryTracker,
+      Cache<Integer, Block> blockCache) {
+
     Preconditions.checkNotNull(s3URI, "`s3URI` must not be null");
     Preconditions.checkNotNull(metadataStore, "`metadataStore` must not be null");
-
     this.s3URI = s3URI;
     this.metadataStore = metadataStore;
-    this.blocks = new LinkedList<>();
+    this.configuration = configuration;
+    this.memoryTracker = memoryTracker;
+    this.blocks = blockCache;
   }
 
   /**
@@ -43,8 +87,7 @@ public class BlockStore implements Closeable {
    */
   public Optional<Block> getBlock(long pos) {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
-
-    return blocks.stream().filter(b -> b.contains(pos)).findFirst();
+    return blocks.asMap().values().stream().filter(b -> b.contains(pos)).findFirst();
   }
 
   /**
@@ -62,7 +105,10 @@ public class BlockStore implements Closeable {
       return OptionalLong.of(pos);
     }
 
-    return blocks.stream().mapToLong(Block::getStart).filter(startPos -> pos < startPos).min();
+    return blocks.asMap().values().stream()
+        .mapToLong(Block::getStart)
+        .filter(startPos -> pos < startPos)
+        .min();
   }
 
   /**
@@ -95,7 +141,9 @@ public class BlockStore implements Closeable {
   public void add(Block block) {
     Preconditions.checkNotNull(block, "`block` must not be null");
 
-    this.blocks.add(block);
+    this.blocks.put(blockCount, block);
+    this.blockCount++;
+    this.memoryTracker.incrementMemoryUsed(block.getLength());
   }
 
   private long getLastObjectByte() {
@@ -112,6 +160,7 @@ public class BlockStore implements Closeable {
 
   @Override
   public void close() {
-    blocks.forEach(this::safeClose);
+    blocks.asMap().values().forEach(this::safeClose);
+    blocks.invalidateAll();
   }
 }

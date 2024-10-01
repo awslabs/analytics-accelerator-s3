@@ -11,6 +11,7 @@ import com.amazon.connector.s3.io.logical.impl.ParquetLogicalIOImpl;
 import com.amazon.connector.s3.io.physical.PhysicalIO;
 import com.amazon.connector.s3.io.physical.PhysicalIOConfiguration;
 import com.amazon.connector.s3.io.physical.data.BlobStore;
+import com.amazon.connector.s3.io.physical.data.MemoryTracker;
 import com.amazon.connector.s3.io.physical.data.MetadataStore;
 import com.amazon.connector.s3.io.physical.impl.PhysicalIOImpl;
 import com.amazon.connector.s3.request.ObjectMetadata;
@@ -347,7 +348,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
             metadataStore,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            PhysicalIOConfiguration.DEFAULT);
+            PhysicalIOConfiguration.DEFAULT,
+            mock(MemoryTracker.class));
 
     AtomicReference<Throwable> thrown = new AtomicReference<>();
 
@@ -407,7 +409,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
             metadataStore,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            PhysicalIOConfiguration.DEFAULT);
+            PhysicalIOConfiguration.DEFAULT,
+            mock(MemoryTracker.class));
 
     return new S3SeekableInputStream(
         TEST_URI,

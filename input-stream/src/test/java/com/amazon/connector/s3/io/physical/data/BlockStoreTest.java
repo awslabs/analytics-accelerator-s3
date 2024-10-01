@@ -12,6 +12,11 @@ import com.amazon.connector.s3.io.physical.PhysicalIOConfiguration;
 import com.amazon.connector.s3.request.ReadMode;
 import com.amazon.connector.s3.util.FakeObjectClient;
 import com.amazon.connector.s3.util.S3URI;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalLong;
 import org.junit.jupiter.api.Test;
@@ -26,7 +31,9 @@ public class BlockStoreTest {
     FakeObjectClient fakeObjectClient = new FakeObjectClient("test-data");
     MetadataStore metadataStore =
         new MetadataStore(fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
-    BlockStore blockStore = new BlockStore(TEST_URI, metadataStore);
+    BlockStore blockStore =
+        new BlockStore(
+            TEST_URI, metadataStore, PhysicalIOConfiguration.DEFAULT, mock(MemoryTracker.class));
 
     // When: a new block is added
     blockStore.add(
@@ -48,7 +55,9 @@ public class BlockStoreTest {
     FakeObjectClient fakeObjectClient = new FakeObjectClient(X_TIMES_16);
     MetadataStore metadataStore =
         new MetadataStore(fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
-    BlockStore blockStore = new BlockStore(TEST_URI, metadataStore);
+    BlockStore blockStore =
+        new BlockStore(
+            TEST_URI, metadataStore, PhysicalIOConfiguration.DEFAULT, mock(MemoryTracker.class));
 
     blockStore.add(
         new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 2, 3, 0, ReadMode.SYNC));
@@ -75,7 +84,9 @@ public class BlockStoreTest {
     FakeObjectClient fakeObjectClient = new FakeObjectClient(X_TIMES_16);
     MetadataStore metadataStore =
         new MetadataStore(fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
-    BlockStore blockStore = new BlockStore(TEST_URI, metadataStore);
+    BlockStore blockStore =
+        new BlockStore(
+            TEST_URI, metadataStore, PhysicalIOConfiguration.DEFAULT, mock(MemoryTracker.class));
 
     blockStore.add(
         new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 2, 3, 0, ReadMode.SYNC));
@@ -98,7 +109,12 @@ public class BlockStoreTest {
   @Test
   public void test__blockStore__closesBlocks() {
     // Given: BlockStore with a block
-    BlockStore blockStore = new BlockStore(TEST_URI, mock(MetadataStore.class));
+    BlockStore blockStore =
+        new BlockStore(
+            TEST_URI,
+            mock(MetadataStore.class),
+            PhysicalIOConfiguration.DEFAULT,
+            mock(MemoryTracker.class));
     Block block = mock(Block.class);
     blockStore.add(block);
 
@@ -112,7 +128,12 @@ public class BlockStoreTest {
   @Test
   public void test__blockStore__closeWorksWithExceptions() {
     // Given: BlockStore with two blocks
-    BlockStore blockStore = new BlockStore(TEST_URI, mock(MetadataStore.class));
+    BlockStore blockStore =
+        new BlockStore(
+            TEST_URI,
+            mock(MetadataStore.class),
+            PhysicalIOConfiguration.DEFAULT,
+            mock(MemoryTracker.class));
     Block b1 = mock(Block.class);
     Block b2 = mock(Block.class);
     blockStore.add(b1);
@@ -124,5 +145,49 @@ public class BlockStoreTest {
 
     // Then: 1\ blockStore.close did not throw, 2\ b2 was closed
     verify(b2, times(1)).close();
+  }
+
+  @Test
+  public void testMemoryTrackedOnEviction() {
+    // Given: BlockStore with a block
+    MemoryTracker memoryTracker = mock(MemoryTracker.class);
+    PhysicalIOConfiguration configuration =
+        PhysicalIOConfiguration.builder().blobStoreCapacity(3).build();
+
+    // Cache which will do evictions synchronously to aid testing.
+    Cache<Integer, Block> blockCache =
+        Caffeine.newBuilder()
+            .maximumSize(configuration.getBlobStoreCapacity())
+            .expireAfterWrite(Duration.ofMillis(configuration.getCacheEvictionTimeMillis()))
+            .executor(Runnable::run)
+            .removalListener(
+                (Integer key, Block block, RemovalCause cause) ->
+                    memoryTracker.freeMemory(block.getLength()))
+            .build();
+
+    BlockStore blockStore =
+        new BlockStore(
+            TEST_URI, mock(MetadataStore.class), configuration, memoryTracker, blockCache);
+
+    byte[] content = new byte[101];
+    FakeObjectClient fakeObjectClient =
+        new FakeObjectClient(new String(content, StandardCharsets.UTF_8));
+    Block block =
+        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 100, 200, 0, ReadMode.SYNC);
+
+    blockStore.add(block);
+    blockStore.add(block);
+    blockStore.add(block);
+
+    verify(memoryTracker, times(3)).incrementMemoryUsed(101);
+
+    // Cache is of size 3, check that an element is evicted when a fourth element is added.
+    blockStore.add(block);
+    verify(memoryTracker, times(1)).freeMemory(101);
+
+    // When: blockStore is closed
+    blockStore.close();
+    // All allocated
+    verify(memoryTracker, times(4)).freeMemory(101);
   }
 }

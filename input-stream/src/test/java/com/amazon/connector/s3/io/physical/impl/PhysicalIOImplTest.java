@@ -1,10 +1,12 @@
 package com.amazon.connector.s3.io.physical.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
 
 import com.amazon.connector.s3.TestTelemetry;
 import com.amazon.connector.s3.io.physical.PhysicalIOConfiguration;
 import com.amazon.connector.s3.io.physical.data.BlobStore;
+import com.amazon.connector.s3.io.physical.data.MemoryTracker;
 import com.amazon.connector.s3.io.physical.data.MetadataStore;
 import com.amazon.connector.s3.util.FakeObjectClient;
 import com.amazon.connector.s3.util.S3URI;
@@ -27,7 +29,8 @@ public class PhysicalIOImplTest {
             metadataStore,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            PhysicalIOConfiguration.DEFAULT);
+            PhysicalIOConfiguration.DEFAULT,
+            mock(MemoryTracker.class));
     PhysicalIOImpl physicalIOImplV2 =
         new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
 
@@ -50,7 +53,8 @@ public class PhysicalIOImplTest {
             metadataStore,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            PhysicalIOConfiguration.DEFAULT);
+            PhysicalIOConfiguration.DEFAULT,
+            mock(MemoryTracker.class));
     PhysicalIOImpl physicalIOImplV2 =
         new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
 

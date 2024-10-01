@@ -37,7 +37,8 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 mock(MetadataStore.class),
                 mock(Telemetry.class),
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                mock(MemoryTracker.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -46,7 +47,8 @@ public class BlockManagerTest {
                 null,
                 mock(MetadataStore.class),
                 mock(Telemetry.class),
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                mock(MemoryTracker.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -55,7 +57,8 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 null,
                 mock(Telemetry.class),
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                mock(MemoryTracker.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -64,7 +67,8 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 mock(MetadataStore.class),
                 null,
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                mock(MemoryTracker.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -73,6 +77,17 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 mock(MetadataStore.class),
                 mock(Telemetry.class),
+                null,
+                mock(MemoryTracker.class)));
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            new BlockManager(
+                mock(S3URI.class),
+                mock(ObjectClient.class),
+                mock(MetadataStore.class),
+                mock(Telemetry.class),
+                mock(PhysicalIOConfiguration.class),
                 null));
   }
 
@@ -179,6 +194,7 @@ public class BlockManagerTest {
         objectClient,
         metadataStore,
         TestTelemetry.DEFAULT,
-        PhysicalIOConfiguration.DEFAULT);
+        PhysicalIOConfiguration.DEFAULT,
+        mock(MemoryTracker.class));
   }
 }

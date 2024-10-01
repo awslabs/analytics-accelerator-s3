@@ -6,6 +6,7 @@ import com.amazon.connector.s3.io.logical.impl.DefaultLogicalIOImpl;
 import com.amazon.connector.s3.io.logical.impl.ParquetColumnPrefetchStore;
 import com.amazon.connector.s3.io.logical.impl.ParquetLogicalIOImpl;
 import com.amazon.connector.s3.io.physical.data.BlobStore;
+import com.amazon.connector.s3.io.physical.data.MemoryTracker;
 import com.amazon.connector.s3.io.physical.data.MetadataStore;
 import com.amazon.connector.s3.io.physical.impl.PhysicalIOImpl;
 import com.amazon.connector.s3.request.ObjectClient;
@@ -35,6 +36,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   private final BlobStore objectBlobStore;
   private final Telemetry telemetry;
   private final ObjectFormatSelector objectFormatSelector;
+  private final MemoryTracker memoryTracker;
 
   /**
    * Creates a new instance of {@link S3SeekableInputStreamFactory}. This factory should be used to
@@ -54,13 +56,17 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
         new ParquetColumnPrefetchStore(configuration.getLogicalIOConfiguration());
     this.objectMetadataStore =
         new MetadataStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration());
+
     this.objectFormatSelector = new ObjectFormatSelector(configuration.getLogicalIOConfiguration());
+    this.memoryTracker = new MemoryTracker();
+
     this.objectBlobStore =
         new BlobStore(
             objectMetadataStore,
             objectClient,
             telemetry,
-            configuration.getPhysicalIOConfiguration());
+            configuration.getPhysicalIOConfiguration(),
+            memoryTracker);
   }
 
   /**

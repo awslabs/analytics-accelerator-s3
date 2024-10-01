@@ -13,6 +13,7 @@ log4j = "2.23.1"
 jqwik = "1.8.5"
 jqwik-testcontainers = "0.5.2"
 testcontainers-testcontainers = "1.16.2"
+caffeine = "2.9.3"
 
 [libraries]
 # S3-related dependencies
@@ -22,6 +23,7 @@ sdk-bom = { group = "software.amazon.awssdk", name = "bom", version.ref = "s3" }
 crt = { module = "software.amazon.awssdk.crt:aws-crt", version.ref = "crt" }
 netty-nio-client = { module = "software.amazon.awssdk:netty-nio-client", version.ref = "s3" }
 parquet-format = { module = "org.apache.parquet:parquet-format", version.ref = "parquetFormat" }
+caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 
 # Code maintenance and best practices
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }

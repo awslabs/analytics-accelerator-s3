@@ -8,6 +8,8 @@ import static org.mockito.Mockito.when;
 import com.amazon.connector.s3.TestTelemetry;
 import com.amazon.connector.s3.request.ObjectMetadata;
 import com.amazon.connector.s3.request.Range;
+import com.amazon.connector.s3.common.telemetry.Telemetry;
+import com.amazon.connector.s3.io.physical.PhysicalIOConfiguration;
 import com.amazon.connector.s3.request.ReadMode;
 import com.amazon.connector.s3.util.FakeObjectClient;
 import com.amazon.connector.s3.util.S3URI;
@@ -35,8 +37,10 @@ public class IOPlannerTest {
     MetadataStore mockMetadataStore = mock(MetadataStore.class);
     when(mockMetadataStore.get(any()))
         .thenReturn(ObjectMetadata.builder().contentLength(OBJECT_SIZE).build());
-    BlockStore blockStore = new BlockStore(TEST_URI, mockMetadataStore);
+
+    BlockStore blockStore = new BlockStore(TEST_URI, mockMetadataStore, PhysicalIOConfiguration.DEFAULT, mock(MemoryTracker.class));
     IOPlanner ioPlanner = new IOPlanner(blockStore);
+
 
     assertThrows(IllegalArgumentException.class, () -> ioPlanner.planRead(-5, 10, 100));
     assertThrows(IllegalArgumentException.class, () -> ioPlanner.planRead(10, 5, 100));
@@ -50,7 +54,8 @@ public class IOPlannerTest {
     MetadataStore mockMetadataStore = mock(MetadataStore.class);
     when(mockMetadataStore.get(any()))
         .thenReturn(ObjectMetadata.builder().contentLength(OBJECT_SIZE).build());
-    BlockStore blockStore = new BlockStore(TEST_URI, mockMetadataStore);
+
+    BlockStore blockStore = new BlockStore(TEST_URI, mockMetadataStore, PhysicalIOConfiguration.DEFAULT, mock(MemoryTracker.class));
     IOPlanner ioPlanner = new IOPlanner(blockStore);
 
     // When: a read plan is requested for a range
@@ -69,7 +74,9 @@ public class IOPlannerTest {
     final int OBJECT_SIZE = 10_000;
     byte[] content = new byte[OBJECT_SIZE];
     MetadataStore metadataStore = getTestMetadataStoreWithContentLength(OBJECT_SIZE);
-    BlockStore blockStore = new BlockStore(TEST_URI, metadataStore);
+    BlockStore blockStore =
+        new BlockStore(
+            TEST_URI, metadataStore, PhysicalIOConfiguration.DEFAULT, mock(MemoryTracker.class));
     FakeObjectClient fakeObjectClient =
         new FakeObjectClient(new String(content, StandardCharsets.UTF_8));
     blockStore.add(
@@ -92,8 +99,10 @@ public class IOPlannerTest {
     // Given: a single byte object and an empty block store
     final int OBJECT_SIZE = 1;
     MetadataStore metadataStore = getTestMetadataStoreWithContentLength(OBJECT_SIZE);
-    BlockStore blockStore = new BlockStore(TEST_URI, metadataStore);
+
+    BlockStore blockStore = new BlockStore(TEST_URI, metadataStore, PhysicalIOConfiguration.DEFAULT, mock(MemoryTracker.class));
     IOPlanner ioPlanner = new IOPlanner(blockStore);
+
 
     // When: a read plan is requested for a range (0, 400)
     List<Range> missingRanges = ioPlanner.planRead(0, 400, OBJECT_SIZE - 1);

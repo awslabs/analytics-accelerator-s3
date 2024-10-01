@@ -35,6 +35,8 @@ dependencies {
     implementation(libs.parquet.format)
     implementation(libs.log4j.api)
     implementation(libs.log4j.core)
+    implementation(libs.caffeine)
+
 
     jmhImplementation(libs.s3)
 
@@ -78,6 +80,7 @@ val shadowJar = tasks.withType<ShadowJar> {
     relocate("org.apache.parquet.format", "com.amazon.shaded.apache.parquet.format")
     relocate("shaded.parquet.org.apache.thrift", "com.amazon.shaded.parquet.org.apache.thrift")
     relocate("org.apache.commons.io", "com.amazon.shaded.org.apache.commons.io")
+    relocate("com.github.benmanes.caffeine", "com.amazon.shaded.github.benmanes.caffeine")
 }
 
 val refTest = task<Test>("referenceTest") {

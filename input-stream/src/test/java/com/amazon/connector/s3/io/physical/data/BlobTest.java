@@ -156,7 +156,8 @@ public class BlobTest {
             fakeObjectClient,
             metadataStore,
             TestTelemetry.DEFAULT,
-            PhysicalIOConfiguration.DEFAULT);
+            PhysicalIOConfiguration.DEFAULT,
+            mock(MemoryTracker.class));
 
     return new Blob(TEST_URI, metadataStore, blockManager, TestTelemetry.DEFAULT);
   }

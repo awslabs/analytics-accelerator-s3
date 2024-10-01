@@ -36,7 +36,7 @@ public class Block implements Closeable {
   private static final String OPERATION_BLOCK_GET_JOIN = "block.get.join";
 
   /**
-   * Constructs a Block. data.
+   * Constructs a Block.
    *
    * @param s3URI the S3 URI of the object
    * @param objectClient the object client to use to interact with the object store
@@ -135,6 +135,15 @@ public class Block implements Closeable {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
     return start <= pos && pos <= end;
+  }
+
+  /**
+   * Gets size of the block
+   *
+   * @return size of the block in bytes
+   */
+  public long getLength() {
+    return end - start + 1;
   }
 
   /**
