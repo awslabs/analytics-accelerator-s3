@@ -164,5 +164,7 @@ public class PhysicalIOImpl implements PhysicalIO {
   }
 
   @Override
-  public void close() throws IOException {}
+  public void close() throws IOException {
+    this.blobStore.removeFromBlob(s3URI);
+  }
 }

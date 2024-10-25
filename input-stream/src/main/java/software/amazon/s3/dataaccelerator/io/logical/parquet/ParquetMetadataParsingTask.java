@@ -108,6 +108,8 @@ public class ParquetMetadataParsingTask {
               new ColumnMetadata(
                   rowGroupIndex,
                   columnName,
+                  columnChunk.getMeta_data().getData_page_offset(),
+                  columnChunk.getMeta_data().getDictionary_page_offset(),
                   columnChunk.getMeta_data().getDictionary_page_offset(),
                   columnChunk.getMeta_data().getTotal_compressed_size(),
                   concatenatedColumnNames.hashCode());
@@ -121,6 +123,8 @@ public class ParquetMetadataParsingTask {
               new ColumnMetadata(
                   rowGroupIndex,
                   columnName,
+                  columnChunk.getMeta_data().getData_page_offset(),
+                  0,
                   columnChunk.getFile_offset(),
                   columnChunk.getMeta_data().getTotal_compressed_size(),
                   concatenatedColumnNames.hashCode());

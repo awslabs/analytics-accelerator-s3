@@ -15,6 +15,7 @@
  */
 package software.amazon.s3.dataaccelerator.io.logical.impl;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -185,10 +186,12 @@ public class ParquetPrefetcher {
    *
    * @param position the position to record
    */
-  public void addToRecentColumnList(long position) {
+  public Optional<String> addToRecentColumnList(long position, int len) {
     if (logicalIOConfiguration.getPrefetchingMode() != PrefetchMode.OFF) {
-      this.parquetPredictivePrefetchingTask.addToRecentColumnList(position);
+      return this.parquetPredictivePrefetchingTask.addToRecentColumnList(position, len);
     }
+
+    return Optional.empty();
   }
 
   private boolean shouldPrefetch() {

@@ -15,6 +15,7 @@
  */
 package software.amazon.s3.dataaccelerator.io.logical;
 
+import static software.amazon.s3.dataaccelerator.util.Constants.ONE_KB;
 import static software.amazon.s3.dataaccelerator.util.Constants.ONE_MB;
 
 import lombok.Builder;
@@ -29,7 +30,7 @@ import software.amazon.s3.dataaccelerator.util.PrefetchMode;
 @EqualsAndHashCode
 public class LogicalIOConfiguration {
   private static final boolean DEFAULT_FOOTER_CACHING_ENABLED = true;
-  private static final long DEFAULT_FOOTER_CACHING_SIZE = ONE_MB;
+  private static final long DEFAULT_FOOTER_CACHING_SIZE = 32 * ONE_KB;
   private static final boolean DEFAULT_SMALL_OBJECT_PREFETCHING_ENABLED = true;
   private static final long DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD = 3 * ONE_MB;
   private static final int DEFAULT_PARQUET_METADATA_STORE_SIZE = 45;

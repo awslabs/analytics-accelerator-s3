@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.NonNull;
+import org.omg.CORBA.TypeCodePackage.BadKind;
 import software.amazon.s3.dataaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.dataaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.dataaccelerator.request.ObjectClient;
@@ -80,6 +81,16 @@ public class BlobStore implements Closeable {
                 metadataStore,
                 new BlockManager(uri, objectClient, metadataStore, telemetry, configuration),
                 telemetry));
+  }
+
+  public void removeFromBlob(S3URI s3URI) {
+    Blob blob = blobMap.get(s3URI);
+
+    if (blob != null) {
+      blob.close();
+    }
+
+    blobMap.remove(s3URI);
   }
 
   /** Closes the {@link BlobStore} and frees up all resources it holds. */

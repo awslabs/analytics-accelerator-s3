@@ -127,6 +127,7 @@ public class BlockStore implements Closeable {
 
   @Override
   public void close() {
+    LOG.info("Closing BlockStore {}", s3URI);
     blocks.forEach(this::safeClose);
   }
 }

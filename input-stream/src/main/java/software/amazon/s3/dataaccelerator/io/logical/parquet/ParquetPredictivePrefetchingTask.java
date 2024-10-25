@@ -112,18 +112,24 @@ public class ParquetPredictivePrefetchingTask {
    * @param position current read position
    * @return name of column added as recent column
    */
-  public Optional<String> addToRecentColumnList(long position) {
+  public Optional<String> addToRecentColumnList(long position, int len) {
     if (parquetColumnPrefetchStore.getColumnMappers(s3Uri) != null) {
       ColumnMappers columnMappers = parquetColumnPrefetchStore.getColumnMappers(s3Uri);
       if (columnMappers.getOffsetIndexToColumnMap().containsKey(position)) {
         ColumnMetadata columnMetadata = columnMappers.getOffsetIndexToColumnMap().get(position);
         parquetColumnPrefetchStore.addRecentColumn(columnMetadata);
 
+        LOG.info("READING COLUMN {}", columnMetadata.getColumnName());
+
         // Maybe prefetch all recent columns for the current row group, if they have not been
         // prefetched already.
         prefetchCurrentRowGroup(columnMappers, columnMetadata);
 
-        return Optional.of(columnMetadata.getColumnName());
+        if (len / (double) columnMetadata.getCompressedSize() > 0.3) {
+          return Optional.of(columnMetadata.getColumnName());
+        }
+
+        return Optional.empty();
       }
     }
 
@@ -171,14 +177,27 @@ public class ParquetPredictivePrefetchingTask {
           List<Range> prefetchRanges = new ArrayList<>();
           for (String recentColumn : getRecentColumns(columnMappers.getOffsetIndexToColumnMap())) {
             if (columnMappers.getColumnNameToColumnMap().containsKey(recentColumn)) {
-              LOG.debug(
+              LOG.info(
                   "Column {} found in schema for {}, adding to prefetch list",
                   recentColumn,
                   this.s3Uri.getKey());
+
               List<ColumnMetadata> columnMetadataList =
                   columnMappers.getColumnNameToColumnMap().get(recentColumn);
               for (ColumnMetadata columnMetadata : columnMetadataList) {
                 if (rowGroupsToPrefetch.contains(columnMetadata.getRowGroupIndex())) {
+
+                  // A separate request for the dictionary
+                  if (columnMetadata.getDictionaryOffset() != 0) {
+                    prefetchRanges.add(
+                        new Range(
+                            columnMetadata.getDictionaryOffset(),
+                            columnMetadata.getDictionaryOffset() + (columnMetadata.getDataPageOffset() - columnMetadata.getDictionaryOffset() - 1))
+                        );
+
+                    LOG.info("PREFETCHING DICTIONARY {} - {}", columnMetadata.getDictionaryOffset(), columnMetadata.getDictionaryOffset() + (columnMetadata.getDataPageOffset() - columnMetadata.getDictionaryOffset() - 1));
+                  }
+
                   prefetchRanges.add(
                       new Range(
                           columnMetadata.getStartPos(),

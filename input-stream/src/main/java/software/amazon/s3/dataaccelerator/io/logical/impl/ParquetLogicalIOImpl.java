@@ -16,9 +16,14 @@
 package software.amazon.s3.dataaccelerator.io.logical.impl;
 
 import java.io.IOException;
+import java.util.Optional;
+
 import lombok.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.s3.dataaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.dataaccelerator.io.logical.LogicalIOConfiguration;
+import software.amazon.s3.dataaccelerator.io.logical.parquet.ParquetMetadataParsingTask;
 import software.amazon.s3.dataaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.dataaccelerator.util.S3URI;
 
@@ -29,6 +34,11 @@ import software.amazon.s3.dataaccelerator.util.S3URI;
 public class ParquetLogicalIOImpl extends DefaultLogicalIOImpl {
   // Dependencies
   private final ParquetPrefetcher parquetPrefetcher;
+  private final PhysicalIO physicalIO;
+
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetLogicalIOImpl.class);
+
+  boolean columnsRead = false;
 
   /**
    * Constructs an instance of LogicalIOImpl.
@@ -51,6 +61,8 @@ public class ParquetLogicalIOImpl extends DefaultLogicalIOImpl {
     this.parquetPrefetcher =
         new ParquetPrefetcher(
             s3Uri, physicalIO, telemetry, logicalIOConfiguration, parquetColumnPrefetchStore);
+
+    this.physicalIO = physicalIO;
     this.parquetPrefetcher.prefetchFooterAndBuildMetadata();
   }
 
@@ -68,8 +80,22 @@ public class ParquetLogicalIOImpl extends DefaultLogicalIOImpl {
   public int read(byte[] buf, int off, int len, long position) throws IOException {
     // Perform async prefetching before doing the blocking read
     this.parquetPrefetcher.prefetchRemainingColumnChunk(position, len);
-    this.parquetPrefetcher.addToRecentColumnList(position);
+    Optional<String> columnName = this.parquetPrefetcher.addToRecentColumnList(position, len);
+
+    if (columnName.isPresent()) {
+      columnsRead = true;
+    }
 
     return super.read(buf, off, len, position);
   }
+
+  @Override
+  public void close() throws IOException {
+    if (columnsRead) {
+      LOG.info("Columns read!, removing from cache");
+      physicalIO.close();
+    }
+
+  }
+
 }

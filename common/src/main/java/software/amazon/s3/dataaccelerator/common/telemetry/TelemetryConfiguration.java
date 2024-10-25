@@ -42,7 +42,7 @@ public class TelemetryConfiguration {
 
   // Logging reporting is on by default
   public static final String LOGGING_ENABLED_KEY = "logging.enabled";
-  public static final boolean DEFAULT_LOGGING_ENABLED = true;
+  public static final boolean DEFAULT_LOGGING_ENABLED = false;
 
   // Aggregations are off by default
   public static final String AGGREGATIONS_ENABLED_KEY = "aggregations.enabled";
