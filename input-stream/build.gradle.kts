@@ -244,24 +244,44 @@ tasks.named<Test>("test") {
 }
 
 // Custom Sources JAR
-//  TODO: This would only generate Javadoc from input-stream. We should find a way to include sub projects too.
 tasks.register<Jar>("customSourcesJar") {
     archiveBaseName.set(artefact)
     archiveClassifier.set("sources")
     archiveVersion.set(currentVersion)
+
     from(sourceSets["main"].allSource)
+
+    val includedProjects = listOf(":common", ":input-stream", ":object-client")
+    includedProjects.forEach {projectPath ->
+        val subproject = project(projectPath)
+        subproject.plugins.withType(JavaPlugin::class.java) {
+            val sourceSets = subproject.extensions.getByName("sourceSets") as SourceSetContainer
+            from(sourceSets["main"].allSource)
+        }
+    }
 }
 
 // Custom Javadoc JAR.
-// TODO: This would only generate Javadoc from input-stream. We should find a way to include sub projects too.
 tasks.register<Jar>("customJavadocJar") {
     archiveBaseName.set(artefact)
     archiveClassifier.set("javadoc")
     archiveVersion.set(currentVersion)
-    dependsOn(tasks.named("javadoc"))
-    from(tasks.javadoc.get().destinationDir)
-}
 
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    dependsOn(tasks.javadoc)
+    from(tasks.javadoc.get().destinationDir)
+
+    val includedProjects = listOf(":common", ":input-stream", ":object-client")
+    includedProjects.forEach {projectPath ->
+        val subproject = project(projectPath)
+        subproject.plugins.withType(JavaPlugin::class.java) {
+            val javadocTask = subproject.tasks.named("javadoc", Javadoc::class.java).get()
+            dependsOn(javadocTask)
+            from(javadocTask.destinationDir)
+        }
+    }
+}
 
 tasks.javadoc {
     options {
