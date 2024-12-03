@@ -87,6 +87,10 @@ public class ParquetColumnPrefetchStore {
    */
   private final Map<Integer, LinkedList<String>> recentlyReadColumnsPerSchema;
 
+
+
+  private final Map<Integer, LinkedList<String>> recentlyReadDictionariesPerSchema;
+
   /**
    * This is a mapping of S3 URI's of Parquet files to a list of row group indexes prefetched. This
    * is used when {@link PrefetchMode} is equal to ROW_GROUP. In this mode, prefetching only happens
@@ -103,7 +107,9 @@ public class ParquetColumnPrefetchStore {
    * will then be added to this rowGroupsPrefetched map, so that if another read happens to a column
    * in this row group, prefetches for the row group are not triggerred again.
    */
-  private final Map<S3URI, List<Integer>> rowGroupsPrefetched;
+  private final Map<S3URI, List<Integer>> columnRowGroupsPrefetched;
+
+  private final Map<S3URI, List<Integer>> dictionaryRowGroupsPrefetched;
 
   private final LogicalIOConfiguration configuration;
 
@@ -127,6 +133,18 @@ public class ParquetColumnPrefetchStore {
             return this.size() > configuration.getMaxColumnAccessCountStoreSize();
           }
         },
+        new LinkedHashMap<Integer, LinkedList<String>>() {
+          @Override
+          protected boolean removeEldestEntry(final Map.Entry<Integer, LinkedList<String>> eldest) {
+            return this.size() > configuration.getMaxColumnAccessCountStoreSize();
+          }
+        },
+        new LinkedHashMap<S3URI, List<Integer>>() {
+          @Override
+          protected boolean removeEldestEntry(final Map.Entry<S3URI, List<Integer>> eldest) {
+            return this.size() > configuration.getParquetMetadataStoreSize();
+          }
+        },
         new LinkedHashMap<S3URI, List<Integer>>() {
           @Override
           protected boolean removeEldestEntry(final Map.Entry<S3URI, List<Integer>> eldest) {
@@ -142,18 +160,23 @@ public class ParquetColumnPrefetchStore {
    * @param configuration LogicalIO configuration
    * @param columnMappersStore Store of column mappings
    * @param recentlyReadColumnsPerSchema List of recent read columns for each schema
-   * @param rowGroupsPrefetched Map of Parquet file URI to row groups that have been prefetched for
+   * @param columnRowGroupsPrefetched Map of Parquet file URI to row groups that have been prefetched for
    *     it
    */
   ParquetColumnPrefetchStore(
       LogicalIOConfiguration configuration,
       Map<S3URI, ColumnMappers> columnMappersStore,
       Map<Integer, LinkedList<String>> recentlyReadColumnsPerSchema,
-      Map<S3URI, List<Integer>> rowGroupsPrefetched) {
+      Map<Integer, LinkedList<String>> recentlyReadDictionariesPerSchema,
+      Map<S3URI, List<Integer>> columnRowGroupsPrefetched,
+      Map<S3URI, List<Integer>> dictionaryRowGroupsPrefetched
+      ) {
     this.configuration = configuration;
     this.columnMappersStore = columnMappersStore;
     this.recentlyReadColumnsPerSchema = recentlyReadColumnsPerSchema;
-    this.rowGroupsPrefetched = rowGroupsPrefetched;
+    this.columnRowGroupsPrefetched = columnRowGroupsPrefetched;
+    this.recentlyReadDictionariesPerSchema = recentlyReadDictionariesPerSchema;
+    this.dictionaryRowGroupsPrefetched = dictionaryRowGroupsPrefetched;
   }
 
   /**
@@ -216,6 +239,16 @@ public class ParquetColumnPrefetchStore {
    * @param columnMetadata column to be added
    */
   public synchronized void addRecentColumn(ColumnMetadata columnMetadata) {
+    updateColumnAccessList(columnMetadata, recentlyReadColumnsPerSchema);
+  }
+
+  public synchronized void addRecentDictionary(ColumnMetadata columnMetadata) {
+    updateColumnAccessList(columnMetadata, recentlyReadDictionariesPerSchema);
+  }
+
+
+  private void updateColumnAccessList(ColumnMetadata columnMetadata,
+      Map<Integer, LinkedList<String>> recentlyReadColumnsPerSchema) {
 
     LinkedList<String> schemaRecentColumns =
         recentlyReadColumnsPerSchema.getOrDefault(
@@ -240,6 +273,14 @@ public class ParquetColumnPrefetchStore {
    * @return Unique set of recently read columns
    */
   public synchronized Set<String> getUniqueRecentColumnsForSchema(int schemaHash) {
+   return getRecentAccessList(recentlyReadColumnsPerSchema, schemaHash);
+  }
+
+  public synchronized Set<String> getUniqueRecentDictionaryForSchema(int schemaHash) {
+    return getRecentAccessList(recentlyReadDictionariesPerSchema, schemaHash);
+  }
+
+  private Set<String> getRecentAccessList(Map<Integer, LinkedList<String>> recentlyReadColumnsPerSchema, int schemaHash) {
     List<String> schemaRecentColumns = recentlyReadColumnsPerSchema.get(schemaHash);
 
     if (schemaRecentColumns != null) {
@@ -256,7 +297,15 @@ public class ParquetColumnPrefetchStore {
    * @param rowGroupIndex to check
    * @return Boolean returns true if this row group has been prefetched for this key
    */
-  public synchronized boolean isRowGroupPrefetched(S3URI s3URI, Integer rowGroupIndex) {
+  public synchronized boolean isColumnRowGroupPrefetched(S3URI s3URI, Integer rowGroupIndex) {
+   return isRowGroupPrefetched(s3URI, rowGroupIndex, columnRowGroupsPrefetched);
+  }
+
+  public synchronized boolean isDictionaryRowGroupPrefetched(S3URI s3URI, Integer rowGroupIndex) {
+   return isRowGroupPrefetched(s3URI, rowGroupIndex, dictionaryRowGroupsPrefetched);
+  }
+
+  private boolean isRowGroupPrefetched(S3URI s3URI, Integer rowGroupIndex, Map<S3URI, List<Integer>> rowGroupsPrefetched) {
     List<Integer> rowGroupsPrefetchedForKey = rowGroupsPrefetched.get(s3URI);
 
     if (rowGroupsPrefetchedForKey == null) {
@@ -267,6 +316,14 @@ public class ParquetColumnPrefetchStore {
     return rowGroupsPrefetchedForKey.contains(rowGroupIndex);
   }
 
+  public synchronized void storeColumnPrefetchedRowGroupIndex(S3URI s3URI, Integer rowGroupIndex) {
+   storePrefetchedRowGroupIndex(s3URI, rowGroupIndex, columnRowGroupsPrefetched);
+  }
+
+  public synchronized void storeDictionaryPrefetchedRowGroupIndex(S3URI s3URI, Integer rowGroupIndex) {
+    storePrefetchedRowGroupIndex(s3URI, rowGroupIndex, dictionaryRowGroupsPrefetched);
+  }
+
   /**
    * Stores row group indexes for which columns have been prefetched for a particular S3 URI. This
    * is required when prefetch mode is ROW_GROUP, where only recent columns for the current row
@@ -275,7 +332,7 @@ public class ParquetColumnPrefetchStore {
    * @param s3URI to store prefetched row indexes for
    * @param rowGroupIndex for which recent columns have been prefetched
    */
-  public synchronized void storePrefetchedRowGroupIndex(S3URI s3URI, Integer rowGroupIndex) {
+  private void storePrefetchedRowGroupIndex(S3URI s3URI, Integer rowGroupIndex, Map<S3URI, List<Integer>> rowGroupsPrefetched) {
     List<Integer> rowGroupsPrefetchedForKey =
         rowGroupsPrefetched.getOrDefault(s3URI, new ArrayList<>());
     rowGroupsPrefetchedForKey.add(rowGroupIndex);

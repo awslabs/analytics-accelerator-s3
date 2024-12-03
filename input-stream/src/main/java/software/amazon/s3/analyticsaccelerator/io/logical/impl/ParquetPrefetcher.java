@@ -180,7 +180,7 @@ public class ParquetPrefetcher {
       return columnMappersCompletableFuture.thenApply(
           (ColumnMappers columnMappers) ->
               parquetPredictivePrefetchingTask.prefetchRecentColumns(
-                  columnMappers, ParquetUtils.constructRowGroupsToPrefetch()));
+                  columnMappers, ParquetUtils.constructRowGroupsToPrefetch(), false));
     }
 
     return CompletableFuture.completedFuture(
