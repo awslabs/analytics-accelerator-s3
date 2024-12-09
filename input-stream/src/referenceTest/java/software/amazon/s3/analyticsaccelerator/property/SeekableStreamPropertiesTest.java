@@ -43,10 +43,8 @@ public class SeekableStreamPropertiesTest extends StreamArbitraries {
       throws IOException {
     try (InMemoryS3SeekableInputStream s =
         new InMemoryS3SeekableInputStream("test-bucket", "test-key", size)) {
-
-      int jumpInSideObject = pos % size;
-      s.seek(jumpInSideObject);
-      return s.getPos() == jumpInSideObject;
+      s.seek(pos);
+      return s.getPos() == pos;
     }
   }
 
@@ -83,5 +81,14 @@ public class SeekableStreamPropertiesTest extends StreamArbitraries {
         new InMemoryS3SeekableInputStream("test-bucket", "test-key", size);
     s.close();
     s.close();
+  }
+
+  @Property
+  void accessToClosedStreamThrows(@ForAll("streamSizes") int size) throws IOException {
+    InMemoryS3SeekableInputStream s =
+        new InMemoryS3SeekableInputStream("test-bucket", "test-key", size);
+    s.close();
+    assertThrows(IOException.class, () -> s.seek(123));
+    assertThrows(IOException.class, () -> s.read());
   }
 }

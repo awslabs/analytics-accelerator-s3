@@ -20,7 +20,6 @@ import static org.mockito.Mockito.*;
 import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_MB;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -142,13 +141,12 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
 
   @Test
   void testSeekAfterEnd() throws IOException {
-    // Given
-    try (S3SeekableInputStream stream =
-        new S3SeekableInputStream(TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT)) {
-
-      // When: we seek past EOF we get EOFException
-      assertThrows(EOFException.class, () -> stream.seek(TEST_DATA.length() + 1));
-    }
+    S3SeekableInputStream stream = getTestStream();
+    assertDoesNotThrow(() -> stream.seek(Long.MAX_VALUE));
+    assertDoesNotThrow(() -> stream.seek(TEST_DATA.length()));
+    assertEquals(TEST_DATA.length(), stream.getPos());
+    assertDoesNotThrow(() -> stream.seek(TEST_DATA.length() + 10));
+    assertEquals(TEST_DATA.length() + 10, stream.getPos());
   }
 
   @Test
@@ -168,11 +166,7 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
   void testInvalidSeek() throws IOException {
     // Given
     try (S3SeekableInputStream stream = getTestStream()) {
-
       // When: seek is to an invalid position then exception is thrown
-      assertThrows(Exception.class, () -> stream.seek(TEST_DATA.length()));
-      assertThrows(Exception.class, () -> stream.seek(TEST_DATA.length() + 10));
-      assertThrows(Exception.class, () -> stream.seek(Long.MAX_VALUE));
       assertThrows(Exception.class, () -> stream.seek(-1));
       assertThrows(Exception.class, () -> stream.seek(Long.MIN_VALUE));
     }
@@ -403,6 +397,26 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
     if (thrown.get() != null) {
       fail("Unexpected exception", thrown.get());
     }
+  }
+
+  @Test
+  public void testReadOnClosedStream() throws IOException {
+    S3SeekableInputStream seekableInputStream = getTestStream();
+    seekableInputStream.close();
+    SpotBugsLambdaWorkaround.assertReadResult(IOException.class, seekableInputStream::read, -1);
+    SpotBugsLambdaWorkaround.assertReadResult(
+        IOException.class, () -> seekableInputStream.read(new byte[8]), -1);
+    SpotBugsLambdaWorkaround.assertReadResult(
+        IOException.class, () -> seekableInputStream.read(new byte[8], 0, 8), -1);
+    SpotBugsLambdaWorkaround.assertReadResult(
+        IOException.class, () -> seekableInputStream.readTail(new byte[8], 0, 8), -1);
+  }
+
+  @Test
+  public void testSeekOnClosedStream() throws IOException {
+    S3SeekableInputStream seekableInputStream = getTestStream();
+    seekableInputStream.close();
+    assertThrows(IOException.class, () -> seekableInputStream.seek(0));
   }
 
   private S3SeekableInputStream getTestStream() {
