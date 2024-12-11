@@ -48,4 +48,26 @@ public final class SpotBugsLambdaWorkaround {
     }
     fail(String.format("Exception of type '%s' was expected. Nothing was thrown", expectedType));
   }
+
+  /**
+   * In situations where a read method of a class extending InputStream, spotbugs wants to assert
+   * return value is checked (@link https://spotbugs.readthedocs.io/en/stable/bugDescriptions.html).
+   *
+   * @param expectedType exception type expected
+   * @param executable code that returns something, and expected to throw
+   * @param expected expected return value, though will never be executed as executable is throwing
+   * @param <T> exception type
+   * @param <R> return type
+   */
+  public static <T extends Throwable, R> void assertReadResult(
+      Class<T> expectedType, ThrowingSupplier<R> executable, R expected) {
+    try {
+      R result = executable.get();
+      assertEquals(expected, result);
+    } catch (Throwable throwable) {
+      assertInstanceOf(expectedType, throwable);
+      return;
+    }
+    fail(String.format("Exception of type '%s' was expected. Nothing was thrown", expectedType));
+  }
 }

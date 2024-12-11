@@ -15,7 +15,6 @@
  */
 package software.amazon.s3.analyticsaccelerator;
 
-import java.io.EOFException;
 import java.io.IOException;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
@@ -38,6 +37,7 @@ public class S3SeekableInputStream extends SeekableInputStream {
   private final Telemetry telemetry;
   private final S3URI s3URI;
   private long position;
+  private boolean closed;
   private static final int EOF = -1;
 
   private static final String OPERATION_READ = "stream.read";
@@ -60,6 +60,7 @@ public class S3SeekableInputStream extends SeekableInputStream {
     this.logicalIO = logicalIO;
     this.telemetry = telemetry;
     this.position = 0;
+    this.closed = false;
   }
 
   /**
@@ -75,6 +76,8 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   @Override
   public int read() throws IOException {
+    throwIfClosed("cannot read from closed stream");
+
     // -1 if we are past the end of the stream
     if (this.position >= getContentLength()) {
       return EOF;
@@ -130,6 +133,8 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   @Override
   public int read(byte @NonNull [] buffer, int offset, int length) throws IOException {
+    throwIfClosed("cannot read from closed stream");
+
     if (this.position >= getContentLength()) {
       return EOF;
     }
@@ -163,13 +168,9 @@ public class S3SeekableInputStream extends SeekableInputStream {
     // TODO: S3A throws an EOFException here, S3FileIO does IllegalArgumentException
     // TODO: https://github.com/awslabs/analytics-accelerator-s3/issues/84
     Preconditions.checkArgument(pos >= 0, "position must be non-negative");
+    throwIfClosed("cannot seek on closed stream");
 
-    // TODO: seeking past the end of the stream should be allowed.
-    // TODO: https://github.com/awslabs/analytics-accelerator-s3/issues/83
-    if (pos >= getContentLength()) {
-      throw new EOFException("zero-indexed seek position must be less than the object size");
-    }
-
+    // As we are seeking lazily, we support seek beyond the stream size .
     this.position = pos;
   }
 
@@ -194,6 +195,7 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   @Override
   public int readTail(byte[] buf, int off, int n) throws IOException {
+    throwIfClosed("cannot read from closed stream");
     return this.telemetry.measureVerbose(
         () ->
             Operation.builder()
@@ -223,6 +225,7 @@ public class S3SeekableInputStream extends SeekableInputStream {
 
     // Flush telemetry after a stream closes to have full coverage of all operations of this stream
     this.telemetry.flush();
+    this.closed = true;
   }
 
   /**
@@ -245,5 +248,11 @@ public class S3SeekableInputStream extends SeekableInputStream {
       this.position += bytesRead;
     }
     return bytesRead;
+  }
+
+  private void throwIfClosed(String msg) throws IOException {
+    if (closed) {
+      throw new IOException(msg);
+    }
   }
 }

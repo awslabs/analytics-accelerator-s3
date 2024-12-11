@@ -111,4 +111,9 @@ public class InMemoryS3SeekableInputStream extends SeekableInputStream {
   public int read() throws IOException {
     return this.delegate.read();
   }
+
+  @Override
+  public void close() throws IOException {
+    this.delegate.close();
+  }
 }
