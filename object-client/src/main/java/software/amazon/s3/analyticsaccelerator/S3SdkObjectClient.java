@@ -18,11 +18,16 @@ package software.amazon.s3.analyticsaccelerator;
 import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
 import lombok.NonNull;
+import software.amazon.awssdk.awscore.AwsClient;
 import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.ConfigurableTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
@@ -33,20 +38,20 @@ public class S3SdkObjectClient implements ObjectClient {
   private static final String HEADER_USER_AGENT = "User-Agent";
   private static final String HEADER_REFERER = "Referer";
 
-  @Getter @NonNull private final S3AsyncClient s3AsyncClient;
+  @Getter @NonNull private final AwsClient s3Client;
   @NonNull private final Telemetry telemetry;
   @NonNull private final UserAgent userAgent;
-  private final boolean closeAsyncClient;
+  private final boolean closeClient;
 
   /**
    * Create an instance of a S3 client, with default configuration, for interaction with Amazon S3
    * compatible object stores. This takes ownership of the passed client and will close it on its
    * own close().
    *
-   * @param s3AsyncClient Underlying client to be used for making requests to S3.
+   * @param s3Client Underlying client to be used for making requests to S3.
    */
-  public S3SdkObjectClient(S3AsyncClient s3AsyncClient) {
-    this(s3AsyncClient, ObjectClientConfiguration.DEFAULT);
+  public S3SdkObjectClient(AwsClient s3Client) {
+    this(s3Client, ObjectClientConfiguration.DEFAULT);
   }
 
   /**
@@ -54,38 +59,38 @@ public class S3SdkObjectClient implements ObjectClient {
    * compatible object stores. This takes ownership of the passed client and will close it on its
    * own close().
    *
-   * @param s3AsyncClient Underlying client to be used for making requests to S3.
-   * @param closeAsyncClient if true, close the passed client on close.
+   * @param s3Client Underlying client to be used for making requests to S3.
+   * @param closeClient if true, close the passed client on close.
    */
-  public S3SdkObjectClient(S3AsyncClient s3AsyncClient, boolean closeAsyncClient) {
-    this(s3AsyncClient, ObjectClientConfiguration.DEFAULT, closeAsyncClient);
+  public S3SdkObjectClient(AwsClient s3Client, boolean closeClient) {
+    this(s3Client, ObjectClientConfiguration.DEFAULT, closeClient);
   }
 
   /**
    * Create an instance of a S3 client, for interaction with Amazon S3 compatible object stores.
    * This takes ownership of the passed client and will close it on its own close().
    *
-   * @param s3AsyncClient Underlying client to be used for making requests to S3.
+   * @param s3Client Underlying client to be used for making requests to S3.
    * @param objectClientConfiguration Configuration for object client.
    */
   public S3SdkObjectClient(
-      S3AsyncClient s3AsyncClient, ObjectClientConfiguration objectClientConfiguration) {
-    this(s3AsyncClient, objectClientConfiguration, true);
+      AwsClient s3Client, ObjectClientConfiguration objectClientConfiguration) {
+    this(s3Client, objectClientConfiguration, true);
   }
 
   /**
    * Create an instance of a S3 client, for interaction with Amazon S3 compatible object stores.
    *
-   * @param s3AsyncClient Underlying client to be used for making requests to S3.
+   * @param s3Client Underlying client to be used for making requests to S3.
    * @param objectClientConfiguration Configuration for object client.
-   * @param closeAsyncClient if true, close the passed client on close.
+   * @param closeClient if true, close the passed client on close.
    */
   public S3SdkObjectClient(
-      @NonNull S3AsyncClient s3AsyncClient,
+      @NonNull AwsClient s3Client,
       @NonNull ObjectClientConfiguration objectClientConfiguration,
-      boolean closeAsyncClient) {
-    this.s3AsyncClient = s3AsyncClient;
-    this.closeAsyncClient = closeAsyncClient;
+      boolean closeClient) {
+    this.s3Client = s3Client;
+    this.closeClient = closeClient;
     this.telemetry =
         new ConfigurableTelemetry(objectClientConfiguration.getTelemetryConfiguration());
     this.userAgent = new UserAgent();
@@ -95,8 +100,8 @@ public class S3SdkObjectClient implements ObjectClient {
   /** Closes the underlying client if instructed by the constructor. */
   @Override
   public void close() {
-    if (this.closeAsyncClient) {
-      s3AsyncClient.close();
+    if (this.closeClient) {
+      s3Client.close();
     }
   }
 
@@ -125,13 +130,22 @@ public class S3SdkObjectClient implements ObjectClient {
                 .name(ObjectClientTelemetry.OPERATION_HEAD)
                 .attribute(ObjectClientTelemetry.uri(headRequest.getS3Uri()))
                 .build(),
-        s3AsyncClient
-            .headObject(builder.build())
+        headObjectForClient(builder.build())
             .thenApply(
                 headObjectResponse ->
                     ObjectMetadata.builder()
                         .contentLength(headObjectResponse.contentLength())
                         .build()));
+  }
+
+  private CompletableFuture<HeadObjectResponse> headObjectForClient(HeadObjectRequest request) {
+    if (s3Client instanceof S3AsyncClient) {
+      return ((S3AsyncClient) s3Client).headObject(request);
+    } else if (s3Client instanceof S3Client) {
+      return CompletableFuture.completedFuture(((S3Client) s3Client).headObject(request));
+    } else {
+      throw new UnsupportedOperationException("Unsupported client type for headObject operation");
+    }
   }
 
   /**
@@ -164,10 +178,21 @@ public class S3SdkObjectClient implements ObjectClient {
                 .attribute(ObjectClientTelemetry.rangeLength(getRequest.getRange()))
                 .attribute(ObjectClientTelemetry.range(getRequest.getRange()))
                 .build(),
-        s3AsyncClient
-            .getObject(builder.build(), AsyncResponseTransformer.toBlockingInputStream())
+        getObjectForClient(builder.build())
             .thenApply(
                 responseInputStream ->
                     ObjectContent.builder().stream(responseInputStream).build()));
+  }
+
+  private CompletableFuture<ResponseInputStream<GetObjectResponse>> getObjectForClient(
+      GetObjectRequest request) {
+    if (s3Client instanceof S3AsyncClient) {
+      return ((S3AsyncClient) s3Client)
+          .getObject(request, AsyncResponseTransformer.toBlockingInputStream());
+    } else if (s3Client instanceof S3Client) {
+      return CompletableFuture.completedFuture(((S3Client) s3Client).getObject(request));
+    } else {
+      throw new UnsupportedOperationException("Unsupported client type for getObject operation");
+    }
   }
 }
