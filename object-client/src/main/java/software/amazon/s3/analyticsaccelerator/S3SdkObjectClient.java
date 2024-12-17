@@ -37,6 +37,7 @@ public class S3SdkObjectClient implements ObjectClient {
   @NonNull private final Telemetry telemetry;
   @NonNull private final UserAgent userAgent;
   private final boolean closeAsyncClient;
+  public AuditHeaders auditHeaders;
 
   /**
    * Create an instance of a S3 client, with default configuration, for interaction with Amazon S3
@@ -58,7 +59,7 @@ public class S3SdkObjectClient implements ObjectClient {
    * @param closeAsyncClient if true, close the passed client on close.
    */
   public S3SdkObjectClient(S3AsyncClient s3AsyncClient, boolean closeAsyncClient) {
-    this(s3AsyncClient, ObjectClientConfiguration.DEFAULT, closeAsyncClient);
+    this(s3AsyncClient, ObjectClientConfiguration.DEFAULT, closeAsyncClient, null);
   }
 
   /**
@@ -70,7 +71,18 @@ public class S3SdkObjectClient implements ObjectClient {
    */
   public S3SdkObjectClient(
       S3AsyncClient s3AsyncClient, ObjectClientConfiguration objectClientConfiguration) {
-    this(s3AsyncClient, objectClientConfiguration, true);
+    this(s3AsyncClient, objectClientConfiguration, true, null);
+  }
+
+  /**
+   * Create an instance of a S3 client, for interaction with Amazon S3 compatible object stores.
+   * This takes ownership of the passed client and will close it on its own close().
+   *
+   * @param s3AsyncClient Underlying client to be used for making requests to S3.
+   * @param auditHeaders audit headers
+   */
+  public S3SdkObjectClient(S3AsyncClient s3AsyncClient, AuditHeaders auditHeaders) {
+    this(s3AsyncClient, ObjectClientConfiguration.DEFAULT, true, auditHeaders);
   }
 
   /**
@@ -79,17 +91,20 @@ public class S3SdkObjectClient implements ObjectClient {
    * @param s3AsyncClient Underlying client to be used for making requests to S3.
    * @param objectClientConfiguration Configuration for object client.
    * @param closeAsyncClient if true, close the passed client on close.
+   * @param auditHeaders audit headers
    */
   public S3SdkObjectClient(
       @NonNull S3AsyncClient s3AsyncClient,
       @NonNull ObjectClientConfiguration objectClientConfiguration,
-      boolean closeAsyncClient) {
+      boolean closeAsyncClient,
+      AuditHeaders auditHeaders) {
     this.s3AsyncClient = s3AsyncClient;
     this.closeAsyncClient = closeAsyncClient;
     this.telemetry =
         new ConfigurableTelemetry(objectClientConfiguration.getTelemetryConfiguration());
     this.userAgent = new UserAgent();
     this.userAgent.prepend(objectClientConfiguration.getUserAgentPrefix());
+    this.auditHeaders = auditHeaders;
   }
 
   /** Closes the underlying client if instructed by the constructor. */
@@ -142,6 +157,7 @@ public class S3SdkObjectClient implements ObjectClient {
    */
   @Override
   public CompletableFuture<ObjectContent> getObject(GetRequest getRequest) {
+
     GetObjectRequest.Builder builder =
         GetObjectRequest.builder()
             .bucket(getRequest.getS3Uri().getBucket())
@@ -150,9 +166,21 @@ public class S3SdkObjectClient implements ObjectClient {
     String range = getRequest.getRange().toHttpString();
     builder.range(range);
 
+    String referrerHeader;
+
+    if (auditHeaders != null) {
+
+      auditHeaders.setGetRange(range);
+      referrerHeader = auditHeaders.buildReferrerHeader();
+      System.out.println("auditHeaders with: " + referrerHeader);
+
+    } else {
+      referrerHeader = getRequest.getReferrer().toString();
+      System.out.println("auditHeaders without: " + referrerHeader);
+    }
     builder.overrideConfiguration(
         AwsRequestOverrideConfiguration.builder()
-            .putHeader(HEADER_REFERER, getRequest.getReferrer().toString())
+            .putHeader(HEADER_REFERER, referrerHeader)
             .putHeader(HEADER_USER_AGENT, this.userAgent.getUserAgent())
             .build());
 
