@@ -22,7 +22,7 @@ To get started, import the library dependency from Maven into your project:
     <dependency>
       <groupId>software.amazon.s3.analyticsaccelerator</groupId>
       <artifactId>analyticsaccelerator-s3</artifactId>
-      <version>0.0.1</version>
+      <version>0.0.2</version>
       <scope>compile</scope>
     </dependency>
 ```
@@ -85,15 +85,6 @@ The current benchmarking results are provided for reference only. It is importan
 To establish the performance impact of changes, we rely on a benchmark derived from an industry standard TPC-DS benchmark at a 3 TB scale. It is important to note that our TPC-DS derived benchmark results are not directly comparable with official TPC-DS benchmark results. We also found that the sizing of Apache Parquet files and partitioning of the dataset have a substantive impact on the workload performance. As a result, we have created several versions of the test dataset, with a focus on different object sizes, ranging from singular MiBs to tens of GiBs, as well as various partitioning approaches
 
 On S3A, we have observed a total suite execution acceleration between 10% and 27%, with some queries showing a speed-up of up to 40%. 
-
-**Known issue:** We are currently observing a regression of up to 8% on queries similar to the Q44 in [issue 173](https://github.com/awslabs/analytics-accelerator-s3/issues/173). We have determined the root cause of this issue is a data over-read due to overly eager columnar prefetching when all of the following is true: 
-1. The query is filtering on dictionary encoded columns.
-1. The query is selective, and most objects do not contain the required data.
-1. The query operates on a multi-GB dataset.
-   
-We are actively working on this issue. You can track the progress in the [issue 173](https://github.com/awslabs/analytics-accelerator-s3/issues/173) page. 
-
-The remaining TPC-DS queries show no regressions within the specified margin of error.
 
 ## Contributions
 
