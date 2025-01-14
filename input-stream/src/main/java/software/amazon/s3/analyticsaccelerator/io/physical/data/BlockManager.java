@@ -177,6 +177,9 @@ public class BlockManager implements Closeable {
 
     // Fix "effectiveEnd", so we can pass it into the lambda
     final long effectiveEndFinal = effectiveEnd;
+
+    String etag = this.metadataStore.get(s3URI).getEtag();
+
     this.telemetry.measureStandard(
         () ->
             Operation.builder()
@@ -202,7 +205,8 @@ public class BlockManager implements Closeable {
                         r.getEnd(),
                         generation,
                         readMode,
-                        streamContext);
+                        streamContext,
+                        etag);
                 blockStore.add(block);
               });
         });

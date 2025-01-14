@@ -23,6 +23,7 @@ To generate data and run benchmarks, you first need to configure your environmen
 
 ### Data Generation
 After your environment is configured, you can generate data to run benchmarks against.
+* If you haven't already done so create a new S3 Bucket and add the bucket name(`S3_TEST_BUCKET`) and prefix(`S3_TEST_PREFIX`) as env vars
 * Build the `jmhJar` : `./gradlew jmhJar`
 * Run the generator: `java -cp input-stream/build/libs/input-stream-jmh.jar software.amazon.s3.analyticsaccelerator.benchmarks.data.generation.BenchmarkDataGeneratorDriver`
 

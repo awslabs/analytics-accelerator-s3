@@ -23,7 +23,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Getter;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.s3.analyticsaccelerator.request.*;
+import software.amazon.s3.analyticsaccelerator.request.GetRequest;
+import software.amazon.s3.analyticsaccelerator.request.HeadRequest;
+import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
+import software.amazon.s3.analyticsaccelerator.request.ObjectContent;
+import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.request.Range;
 
 public class FakeObjectClient implements ObjectClient {
 
@@ -33,6 +40,7 @@ public class FakeObjectClient implements ObjectClient {
   @Getter private AtomicInteger getRequestCount = new AtomicInteger();
   @Getter private ConcurrentLinkedDeque<Range> requestedRanges = new ConcurrentLinkedDeque<>();
   private byte[] contentBytes;
+  @Getter private String etag = "RANDOM";
 
   /**
    * Instantiate a fake Object Client backed by some string as data.
@@ -50,11 +58,17 @@ public class FakeObjectClient implements ObjectClient {
   public CompletableFuture<ObjectMetadata> headObject(HeadRequest headRequest) {
     headRequestCount.incrementAndGet();
     return CompletableFuture.completedFuture(
-        ObjectMetadata.builder().contentLength(this.content.length()).build());
+        ObjectMetadata.builder().contentLength(this.content.length()).etag(this.etag).build());
   }
 
   @Override
   public CompletableFuture<ObjectContent> getObject(GetRequest getRequest) {
+    if (!getRequest.getEtag().equals(this.etag)) {
+      throw S3Exception.builder()
+          .message("At least one of the pre-conditions you specified did not hold")
+          .statusCode(412)
+          .build();
+    }
     return getObject(getRequest, null);
   }
 

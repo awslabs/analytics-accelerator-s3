@@ -43,6 +43,7 @@ public class Block implements Closeable {
   private final S3URI s3URI;
   private final Range range;
   private final Telemetry telemetry;
+  private final String etag;
 
   @Getter private final long start;
   @Getter private final long end;
@@ -61,6 +62,7 @@ public class Block implements Closeable {
    * @param end end of the block
    * @param generation generation of the block in a sequential read pattern (should be 0 by default)
    * @param readMode read mode describing whether this is a sync or async fetch
+   * @param etag the etag of the S3 object
    */
   public Block(
       @NonNull S3URI s3URI,
@@ -69,9 +71,10 @@ public class Block implements Closeable {
       long start,
       long end,
       long generation,
-      @NonNull ReadMode readMode) {
+      @NonNull ReadMode readMode,
+      String etag) {
 
-    this(s3URI, objectClient, telemetry, start, end, generation, readMode, null);
+    this(s3URI, objectClient, telemetry, start, end, generation, readMode, null, etag);
   }
 
   /**
@@ -85,6 +88,7 @@ public class Block implements Closeable {
    * @param generation generation of the block in a sequential read pattern (should be 0 by default)
    * @param readMode read mode describing whether this is a sync or async fetch
    * @param streamContext contains audit headers to be attached in the request header
+   * @param etag the etag of the S3 object
    */
   public Block(
       @NonNull S3URI s3URI,
@@ -94,7 +98,8 @@ public class Block implements Closeable {
       long end,
       long generation,
       @NonNull ReadMode readMode,
-      StreamContext streamContext) {
+      StreamContext streamContext,
+      String etag) {
 
     Preconditions.checkArgument(
         0 <= generation, "`generation` must be non-negative; was: %s", generation);
@@ -109,6 +114,7 @@ public class Block implements Closeable {
     this.telemetry = telemetry;
     this.s3URI = s3URI;
     this.range = new Range(start, end);
+    this.etag = etag;
 
     this.source =
         this.telemetry.measureCritical(
@@ -123,6 +129,7 @@ public class Block implements Closeable {
                 GetRequest.builder()
                     .s3Uri(this.s3URI)
                     .range(this.range)
+                    .etag(this.etag)
                     .referrer(new Referrer(range.toHttpString(), readMode))
                     .build(),
                 streamContext));

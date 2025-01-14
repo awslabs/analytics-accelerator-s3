@@ -17,6 +17,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -29,6 +30,7 @@ import java.io.ByteArrayInputStream;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
@@ -39,6 +41,10 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
     value = "NP_NONNULL_PARAM_VIOLATION",
     justification = "We mean to pass nulls to checks")
 public class BlockManagerTest {
+  private static String ETAG = "random";
+  private MetadataStore metadataStore;
+  S3URI testUri = S3URI.of("foo", "bar");
+
   @Test
   void testCreateBoundaries() {
     assertThrows(
@@ -174,6 +180,22 @@ public class BlockManagerTest {
   }
 
   @Test
+  void testMakeRangeAvailableThrowsExceptionWhenEtagChanges() {
+    ObjectClient objectClient = mock(ObjectClient.class);
+    BlockManager blockManager = getTestBlockManager(objectClient, 128 * ONE_MB);
+    blockManager.makePositionAvailable(0, ReadMode.SYNC);
+    int readAheadBytes = (int) PhysicalIOConfiguration.DEFAULT.getReadAheadBytes();
+
+    // Overwrite our metadata object to mock the etag changing, in reality this wouldn't happen, but
+    // it helps with testing.
+    metadataStore.storeObjectMetadata(
+        testUri, ObjectMetadata.builder().contentLength(128 * ONE_MB).etag("NEW_ETAG").build());
+    assertThrows(
+        S3Exception.class,
+        () -> blockManager.makePositionAvailable(readAheadBytes + 1, ReadMode.SYNC));
+  }
+
+  @Test
   void regressionTestSequentialPrefetchShouldNotShrinkRanges() {
     // Given: BlockManager with some blocks loaded
     ObjectClient objectClient = mock(ObjectClient.class);
@@ -214,14 +236,44 @@ public class BlockManagerTest {
 
   private BlockManager getTestBlockManager(
       ObjectClient objectClient, int size, PhysicalIOConfiguration configuration) {
-    S3URI testUri = S3URI.of("foo", "bar");
-    when(objectClient.getObject(any(), any()))
+    /*
+     The argument matcher is used to check if our arguments match the values we want to mock a return for
+     (https://www.baeldung.com/mockito-argument-matchers)
+     If the header doesn't exist or if the header matches we want to return our positive response.
+    */
+    when(objectClient.getObject(
+            argThat(
+                request -> {
+                  if (request == null) {
+                    return false;
+                  }
+                  // Check if the If-Match header matches expected ETag
+                  return request.getEtag() == null || request.getEtag().equals(ETAG);
+                }),
+            any()))
         .thenReturn(
             CompletableFuture.completedFuture(
                 ObjectContent.builder().stream(new ByteArrayInputStream(new byte[size])).build()));
 
-    MetadataStore metadataStore = mock(MetadataStore.class);
-    when(metadataStore.get(any())).thenReturn(ObjectMetadata.builder().contentLength(size).build());
+    /*
+     Here we check if our header is present and the etags don't match then we expect an error to be thrown.
+    */
+    when(objectClient.getObject(
+            argThat(
+                request -> {
+                  if (request == null) {
+                    return false;
+                  }
+                  // Check if the If-Match header matches expected ETag
+                  return request.getEtag() != null && !request.getEtag().equals(ETAG);
+                }),
+            any()))
+        .thenThrow(S3Exception.builder().message("PreconditionFailed").statusCode(412).build());
+
+    metadataStore =
+        new MetadataStore(objectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
+    metadataStore.storeObjectMetadata(
+        testUri, ObjectMetadata.builder().contentLength(size).etag(ETAG).build());
     return new BlockManager(
         testUri, objectClient, metadataStore, TestTelemetry.DEFAULT, configuration);
   }

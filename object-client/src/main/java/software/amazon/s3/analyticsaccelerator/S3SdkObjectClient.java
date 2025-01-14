@@ -134,6 +134,7 @@ public class S3SdkObjectClient implements ObjectClient {
                 headObjectResponse ->
                     ObjectMetadata.builder()
                         .contentLength(headObjectResponse.contentLength())
+                        .etag(headObjectResponse.eTag())
                         .build()));
   }
 
@@ -163,6 +164,10 @@ public class S3SdkObjectClient implements ObjectClient {
         GetObjectRequest.builder()
             .bucket(getRequest.getS3Uri().getBucket())
             .key(getRequest.getS3Uri().getKey());
+
+    if (getRequest.getEtag() != null) {
+      builder.ifMatch(getRequest.getEtag());
+    }
 
     final String range = getRequest.getRange().toHttpString();
     builder.range(range);

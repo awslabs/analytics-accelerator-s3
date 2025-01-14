@@ -23,4 +23,5 @@ import lombok.Data;
 @Builder
 public class ObjectMetadata {
   long contentLength;
+  String etag;
 }

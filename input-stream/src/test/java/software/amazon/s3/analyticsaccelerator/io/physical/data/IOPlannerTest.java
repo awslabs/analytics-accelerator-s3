@@ -37,6 +37,7 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
     justification = "We mean to pass nulls to checks")
 public class IOPlannerTest {
   private static final S3URI TEST_URI = S3URI.of("foo", "bar");
+  private static final String ETAG = "RandomString";
 
   @Test
   void testCreateBoundaries() {
@@ -88,7 +89,8 @@ public class IOPlannerTest {
     FakeObjectClient fakeObjectClient =
         new FakeObjectClient(new String(content, StandardCharsets.UTF_8));
     blockStore.add(
-        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 100, 200, 0, ReadMode.SYNC));
+        new Block(
+            TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 100, 200, 0, ReadMode.SYNC, ETAG));
     IOPlanner ioPlanner = new IOPlanner(blockStore);
 
     // When: a read plan is requested for a range (0, 400)

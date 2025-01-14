@@ -34,6 +34,7 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
 public class BlockStoreTest {
 
   private static final S3URI TEST_URI = S3URI.of("foo", "bar");
+  private static final String ETAG = "RandomString";
 
   @Test
   public void test__blockStore__getBlockAfterAddBlock() {
@@ -45,7 +46,7 @@ public class BlockStoreTest {
 
     // When: a new block is added
     blockStore.add(
-        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 3, 5, 0, ReadMode.SYNC));
+        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 3, 5, 0, ReadMode.SYNC, ETAG));
 
     // Then: getBlock can retrieve the same block
     Optional<Block> b = blockStore.getBlock(4);
@@ -66,11 +67,13 @@ public class BlockStoreTest {
     BlockStore blockStore = new BlockStore(TEST_URI, metadataStore);
 
     blockStore.add(
-        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 2, 3, 0, ReadMode.SYNC));
+        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 2, 3, 0, ReadMode.SYNC, ETAG));
     blockStore.add(
-        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 5, 10, 0, ReadMode.SYNC));
+        new Block(
+            TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 5, 10, 0, ReadMode.SYNC, ETAG));
     blockStore.add(
-        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 12, 15, 0, ReadMode.SYNC));
+        new Block(
+            TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 12, 15, 0, ReadMode.SYNC, ETAG));
 
     // When & Then: we query for the next missing byte, the result is correct
     assertEquals(OptionalLong.of(0), blockStore.findNextMissingByte(0));
@@ -93,11 +96,13 @@ public class BlockStoreTest {
     BlockStore blockStore = new BlockStore(TEST_URI, metadataStore);
 
     blockStore.add(
-        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 2, 3, 0, ReadMode.SYNC));
+        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 2, 3, 0, ReadMode.SYNC, ETAG));
     blockStore.add(
-        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 5, 10, 0, ReadMode.SYNC));
+        new Block(
+            TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 5, 10, 0, ReadMode.SYNC, ETAG));
     blockStore.add(
-        new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 12, 15, 0, ReadMode.SYNC));
+        new Block(
+            TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 12, 15, 0, ReadMode.SYNC, ETAG));
 
     // When & Then: we query for the next available byte, the result is correct
     assertEquals(OptionalLong.of(2), blockStore.findNextLoadedByte(0));

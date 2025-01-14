@@ -31,6 +31,7 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
     justification = "We mean to pass nulls to checks")
 public class BlockTest {
   private static final S3URI TEST_URI = S3URI.of("foo", "bar");
+  private static final String ETAG = "RandomString";
 
   @Test
   public void testSingleByteReadReturnsCorrectByte() {
@@ -45,7 +46,8 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            ETAG);
 
     // When: bytes are requested from the block
     int r1 = block.read(0);
@@ -71,7 +73,8 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            ETAG);
 
     // When: bytes are requested from the block
     byte[] b1 = new byte[4];
@@ -101,20 +104,37 @@ public class BlockTest {
                 0,
                 TEST_DATA.length(),
                 0,
-                ReadMode.SYNC));
+                ReadMode.SYNC,
+                null));
     assertThrows(
         NullPointerException.class,
         () ->
             new Block(
-                TEST_URI, null, TestTelemetry.DEFAULT, 0, TEST_DATA.length(), 0, ReadMode.SYNC));
-    assertThrows(
-        NullPointerException.class,
-        () -> new Block(TEST_URI, fakeObjectClient, null, 0, TEST_DATA.length(), 0, ReadMode.SYNC));
+                TEST_URI,
+                null,
+                TestTelemetry.DEFAULT,
+                0,
+                TEST_DATA.length(),
+                0,
+                ReadMode.SYNC,
+                null));
     assertThrows(
         NullPointerException.class,
         () ->
             new Block(
-                TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 0, TEST_DATA.length(), 0, null));
+                TEST_URI, fakeObjectClient, null, 0, TEST_DATA.length(), 0, ReadMode.SYNC, null));
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            new Block(
+                TEST_URI,
+                fakeObjectClient,
+                TestTelemetry.DEFAULT,
+                0,
+                TEST_DATA.length(),
+                0,
+                null,
+                null));
   }
 
   @Test
@@ -131,19 +151,23 @@ public class BlockTest {
                 -1,
                 TEST_DATA.length(),
                 0,
-                ReadMode.SYNC));
+                ReadMode.SYNC,
+                null));
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 0, -5, 0, ReadMode.SYNC));
+            new Block(
+                TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 0, -5, 0, ReadMode.SYNC, null));
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 20, 1, 0, ReadMode.SYNC));
+            new Block(
+                TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 20, 1, 0, ReadMode.SYNC, ETAG));
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            new Block(TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 0, 5, -1, ReadMode.SYNC));
+            new Block(
+                TEST_URI, fakeObjectClient, TestTelemetry.DEFAULT, 0, 5, -1, ReadMode.SYNC, ETAG));
     assertThrows(
         IllegalArgumentException.class,
         () ->
@@ -154,7 +178,8 @@ public class BlockTest {
                 -5,
                 0,
                 TEST_DATA.length(),
-                ReadMode.SYNC));
+                ReadMode.SYNC,
+                null));
   }
 
   @Test
@@ -170,7 +195,8 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            ETAG);
     assertThrows(IllegalArgumentException.class, () -> block.read(-10));
     assertThrows(NullPointerException.class, () -> block.read(null, 0, 3, 1));
     assertThrows(IllegalArgumentException.class, () -> block.read(b, -5, 3, 1));
@@ -190,7 +216,8 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            ETAG);
     assertTrue(block.contains(0));
     assertFalse(block.contains(TEST_DATA.length() + 1));
   }
@@ -207,7 +234,8 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            ETAG);
     assertThrows(IllegalArgumentException.class, () -> block.contains(-1));
   }
 
@@ -223,7 +251,8 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            ETAG);
     block.close();
     block.close();
   }
