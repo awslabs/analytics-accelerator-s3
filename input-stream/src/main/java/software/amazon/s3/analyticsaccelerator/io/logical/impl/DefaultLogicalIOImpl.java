@@ -116,7 +116,7 @@ public class DefaultLogicalIOImpl implements LogicalIO {
    * @return object metadata
    */
   @Override
-  public ObjectMetadata metadata() {
+  public ObjectMetadata metadata() throws IOException {
     return this.physicalIO.metadata();
   }
 

@@ -15,6 +15,7 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
+import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.OptionalLong;
@@ -47,7 +48,7 @@ public class IOPlanner {
    * @param lastObjectByte the zero-indexed position of the last object byte
    * @return a list of Ranges that need to be fetched
    */
-  public List<Range> planRead(long pos, long end, long lastObjectByte) {
+  public List<Range> planRead(long pos, long end, long lastObjectByte) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must be non-negative");
     Preconditions.checkArgument(pos <= end, "`pos` must be less than or equal to `end`");
     Preconditions.checkArgument(

@@ -16,6 +16,7 @@
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
 import lombok.NonNull;
@@ -135,7 +136,7 @@ public class Block implements Closeable {
    * @param pos The position to read
    * @return an unsigned int representing the byte that was read
    */
-  public int read(long pos) {
+  public int read(long pos) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
     byte[] content = this.getData();
@@ -151,7 +152,7 @@ public class Block implements Closeable {
    * @param pos the position to begin reading from
    * @return the total number of bytes read into the buffer
    */
-  public int read(byte @NonNull [] buf, int off, int len, long pos) {
+  public int read(byte @NonNull [] buf, int off, int len, long pos) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     Preconditions.checkArgument(0 <= off, "`off` must not be negative");
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
@@ -196,7 +197,7 @@ public class Block implements Closeable {
    *
    * @return the bytes fetched by the issued {@link GetRequest}.
    */
-  private byte[] getData() {
+  private byte[] getData() throws IOException {
     return this.telemetry.measureJoinCritical(
         () ->
             Operation.builder()

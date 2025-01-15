@@ -10,11 +10,13 @@ plugins {
 
 dependencies {
     implementation(libs.slf4j.api)
+    implementation(libs.s3)
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.inline)
     testImplementation(libs.mockito.junit.jupiter)
+    testImplementation(libs.s3)
 
     testRuntimeOnly(libs.junit.jupiter.launcher)
 }

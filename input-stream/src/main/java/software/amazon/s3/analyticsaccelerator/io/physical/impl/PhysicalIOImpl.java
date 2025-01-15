@@ -89,7 +89,7 @@ public class PhysicalIOImpl implements PhysicalIO {
    * @return the metadata of the object.
    */
   @Override
-  public ObjectMetadata metadata() {
+  public ObjectMetadata metadata() throws IOException {
     return metadataStore.get(s3URI);
   }
 
@@ -196,7 +196,7 @@ public class PhysicalIOImpl implements PhysicalIO {
         () -> blobStore.get(s3URI, streamContext).execute(ioPlan));
   }
 
-  private long contentLength() {
+  private long contentLength() throws IOException {
     return metadata().getContentLength();
   }
 
