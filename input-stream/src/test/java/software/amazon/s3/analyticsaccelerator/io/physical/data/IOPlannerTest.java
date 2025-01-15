@@ -21,6 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
@@ -44,7 +45,7 @@ public class IOPlannerTest {
   }
 
   @Test
-  void testPlanReadBoundaries() {
+  void testPlanReadBoundaries() throws IOException {
     // Given: an empty BlockStore
     final int OBJECT_SIZE = 10_000;
     MetadataStore mockMetadataStore = mock(MetadataStore.class);
@@ -59,7 +60,7 @@ public class IOPlannerTest {
   }
 
   @Test
-  public void testPlanReadNoopWhenBlockStoreEmpty() {
+  public void testPlanReadNoopWhenBlockStoreEmpty() throws IOException {
     // Given: an empty BlockStore
     final int OBJECT_SIZE = 10_000;
     MetadataStore mockMetadataStore = mock(MetadataStore.class);
@@ -79,7 +80,7 @@ public class IOPlannerTest {
   }
 
   @Test
-  public void testPlanReadDoesNotDoubleRead() {
+  public void testPlanReadDoesNotDoubleRead() throws IOException {
     // Given: a BlockStore with a (100,200) block in it
     final int OBJECT_SIZE = 10_000;
     byte[] content = new byte[OBJECT_SIZE];
@@ -103,7 +104,7 @@ public class IOPlannerTest {
   }
 
   @Test
-  public void testPlanReadRegressionSingleByteObject() {
+  public void testPlanReadRegressionSingleByteObject() throws IOException {
     // Given: a single byte object and an empty block store
     final int OBJECT_SIZE = 1;
     MetadataStore metadataStore = getTestMetadataStoreWithContentLength(OBJECT_SIZE);
@@ -120,7 +121,8 @@ public class IOPlannerTest {
     assertEquals(expected, missingRanges);
   }
 
-  private MetadataStore getTestMetadataStoreWithContentLength(long contentLength) {
+  private MetadataStore getTestMetadataStoreWithContentLength(long contentLength)
+      throws IOException {
     MetadataStore mockMetadataStore = mock(MetadataStore.class);
     when(mockMetadataStore.get(any()))
         .thenReturn(ObjectMetadata.builder().contentLength(contentLength).build());
