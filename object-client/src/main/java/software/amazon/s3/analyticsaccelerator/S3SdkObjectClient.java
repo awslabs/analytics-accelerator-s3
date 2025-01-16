@@ -15,7 +15,12 @@
  */
 package software.amazon.s3.analyticsaccelerator;
 
+import java.io.UncheckedIOException;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 import lombok.Getter;
 import lombok.NonNull;
 import org.slf4j.Logger;
@@ -28,7 +33,9 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.ConfigurableTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
+import software.amazon.s3.analyticsaccelerator.exceptions.ExceptionHandler;
 import software.amazon.s3.analyticsaccelerator.request.*;
+import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 /** Object client, based on AWS SDK v2 */
 public class S3SdkObjectClient implements ObjectClient {
@@ -134,7 +141,8 @@ public class S3SdkObjectClient implements ObjectClient {
                 headObjectResponse ->
                     ObjectMetadata.builder()
                         .contentLength(headObjectResponse.contentLength())
-                        .build()));
+                        .build())
+            .exceptionally(handleException(headRequest.getS3Uri())));
   }
 
   /**
@@ -193,7 +201,20 @@ public class S3SdkObjectClient implements ObjectClient {
         s3AsyncClient
             .getObject(builder.build(), AsyncResponseTransformer.toBlockingInputStream())
             .thenApply(
-                responseInputStream ->
-                    ObjectContent.builder().stream(responseInputStream).build()));
+                responseInputStream -> ObjectContent.builder().stream(responseInputStream).build())
+            .exceptionally(handleException(getRequest.getS3Uri())));
+  }
+
+  private <T> Function<Throwable, T> handleException(S3URI s3Uri) {
+    return throwable -> {
+      Throwable cause =
+          Optional.ofNullable(throwable.getCause())
+              .filter(
+                  t ->
+                      throwable instanceof CompletionException
+                          || throwable instanceof ExecutionException)
+              .orElse(throwable);
+      throw new UncheckedIOException(ExceptionHandler.toIOException(cause, s3Uri));
+    };
   }
 }

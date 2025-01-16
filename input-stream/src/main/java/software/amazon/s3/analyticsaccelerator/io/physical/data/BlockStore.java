@@ -16,6 +16,7 @@
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -87,8 +88,9 @@ public class BlockStore implements Closeable {
    * @param pos a byte position
    * @return the position of the next byte NOT present in the BlockStore or empty if all bytes are
    *     present
+   * @throws IOException if an I/O error occurs
    */
-  public OptionalLong findNextMissingByte(long pos) {
+  public OptionalLong findNextMissingByte(long pos) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
     long nextMissingByte = pos;
@@ -113,7 +115,7 @@ public class BlockStore implements Closeable {
     this.blocks.add(block);
   }
 
-  private long getLastObjectByte() {
+  private long getLastObjectByte() throws IOException {
     return this.metadataStore.get(s3URI).getContentLength() - 1;
   }
 

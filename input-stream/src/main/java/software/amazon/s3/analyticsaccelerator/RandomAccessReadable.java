@@ -25,8 +25,9 @@ public interface RandomAccessReadable extends Closeable {
    * Returns object metadata.
    *
    * @return the metadata of the object.
+   * @throws IOException if an I/O error occurs
    */
-  ObjectMetadata metadata();
+  ObjectMetadata metadata() throws IOException;
 
   /**
    * Reads a byte from the underlying object

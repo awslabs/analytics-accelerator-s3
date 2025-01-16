@@ -87,9 +87,10 @@ public class PhysicalIOImpl implements PhysicalIO {
    * Returns object metadata.
    *
    * @return the metadata of the object.
+   * @throws IOException if an I/O error occurs
    */
   @Override
-  public ObjectMetadata metadata() {
+  public ObjectMetadata metadata() throws IOException {
     return metadataStore.get(s3URI);
   }
 
@@ -98,6 +99,7 @@ public class PhysicalIOImpl implements PhysicalIO {
    *
    * @param pos the position to read
    * @return an unsigned int representing the byte that was read
+   * @throws IOException if an I/O error occurs
    */
   @Override
   public int read(long pos) throws IOException {
@@ -126,6 +128,7 @@ public class PhysicalIOImpl implements PhysicalIO {
    * @param len length of data to be read
    * @param pos the position to begin reading from
    * @return the total number of bytes read into the buffer
+   * @throws IOException if an I/O error occurs
    */
   @Override
   public int read(byte[] buf, int off, int len, long pos) throws IOException {
@@ -156,6 +159,7 @@ public class PhysicalIOImpl implements PhysicalIO {
    * @param off start position in buffer at which data is written
    * @param len the number of bytes to read; the n-th byte should be the last byte of the stream.
    * @return the total number of bytes read into the buffer
+   * @throws IOException if an I/O error occurs
    */
   @Override
   public int readTail(byte[] buf, int off, int len) throws IOException {
@@ -196,7 +200,7 @@ public class PhysicalIOImpl implements PhysicalIO {
         () -> blobStore.get(s3URI, streamContext).execute(ioPlan));
   }
 
-  private long contentLength() {
+  private long contentLength() throws IOException {
     return metadata().getContentLength();
   }
 

@@ -242,8 +242,9 @@ public class S3SeekableInputStream extends SeekableInputStream {
    * Returns the length of the byte content of the stream.
    *
    * @return the length of the byte content of the stream.
+   * @throws IOException if an I/O error occurs
    */
-  private long getContentLength() {
+  private long getContentLength() throws IOException {
     return this.logicalIO.metadata().getContentLength();
   }
 

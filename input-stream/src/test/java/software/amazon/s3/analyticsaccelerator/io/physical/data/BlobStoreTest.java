@@ -21,6 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
@@ -70,7 +71,7 @@ public class BlobStoreTest {
   }
 
   @Test
-  public void testGetReturnsReadableBlob() {
+  public void testGetReturnsReadableBlob() throws IOException {
     // Given: a BlobStore with an underlying metadata store and object client
     final String TEST_DATA = "test-data";
     ObjectClient objectClient = new FakeObjectClient("test-data");

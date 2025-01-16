@@ -15,8 +15,11 @@
  */
 package software.amazon.s3.analyticsaccelerator.common.telemetry;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.*;
@@ -261,6 +264,55 @@ public class DefaultTelemetry implements Telemetry {
                 .value(value)
                 .kind(MetricMeasurementKind.RAW)
                 .build());
+  }
+
+  /**
+   * This is a helper method to reduce verbosity on completed futures. Blocks on the execution on
+   * {@link CompletableFuture#join()} and records the telemetry as {@link Operation}. We do not
+   * currently carry the operation into the context of any continuations, so any {@link Operation}s
+   * that are created in that context need to carry the parenting chain. The telemetry is only
+   * recorded if the future was not completed, which is checked via {@link
+   * CompletableFuture#isDone()}
+   *
+   * @param <T> - return type of the {@link CompletableFuture<T>}.
+   * @param level telemetry level.
+   * @param operationSupplier operation to record this execution as.
+   * @param operationCode the future to measure the execution of.
+   * @return an instance of {@link T} that returns the same result as the one passed in.
+   * @throws IOException if the underlying operation threw an IOException
+   */
+  @Override
+  public <T> T measureJoin(
+      @NonNull TelemetryLevel level,
+      @NonNull OperationSupplier operationSupplier,
+      @NonNull CompletableFuture<T> operationCode)
+      throws IOException {
+    if (operationCode.isDone()) {
+      return handleCompletableFutureJoin(operationCode);
+    } else {
+      return this.measure(
+          level, operationSupplier, () -> handleCompletableFutureJoin(operationCode));
+    }
+  }
+
+  /**
+   * Helper method to handle CompletableFuture join() operation and properly unwrap exceptions
+   *
+   * @param <T> - return type of the CompletableFuture
+   * @param future the CompletableFuture to join
+   * @return the result of the CompletableFuture
+   * @throws IOException if the underlying future threw an IOException
+   */
+  private <T> T handleCompletableFutureJoin(CompletableFuture<T> future) throws IOException {
+    try {
+      return future.join();
+    } catch (CompletionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof UncheckedIOException) {
+        throw ((UncheckedIOException) cause).getCause();
+      }
+      throw e;
+    }
   }
 
   /**

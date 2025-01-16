@@ -79,7 +79,7 @@ public class ParquetPrefetchTailTaskTest {
   }
 
   @Test
-  void testTailPrefetch() {
+  void testTailPrefetch() throws IOException {
     LogicalIOConfiguration configuration =
         LogicalIOConfiguration.builder().prefetchFooterEnabled(true).build();
 

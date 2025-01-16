@@ -24,7 +24,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.io.UncheckedIOException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -239,6 +241,48 @@ public class S3SdkObjectClientTest {
         client.headObject(HeadRequest.builder().s3Uri(S3URI.of("bucket", "key")).build());
       }
       verify(s3AsyncClient, times(1)).close();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  void testHandleExceptionForHeadObject() {
+    S3AsyncClient mockS3AsyncClient = mock(S3AsyncClient.class);
+    CompletableFuture<HeadObjectResponse> failedFuture = new CompletableFuture<>();
+    failedFuture.completeExceptionally(new RuntimeException());
+    when(mockS3AsyncClient.headObject(any(HeadObjectRequest.class))).thenReturn(failedFuture);
+
+    S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
+    HeadRequest headRequest = HeadRequest.builder().s3Uri(S3URI.of("bucket", "key")).build();
+    try {
+      client.headObject(headRequest).join();
+    } catch (CompletionException e) {
+      assertInstanceOf(UncheckedIOException.class, e.getCause());
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  void testHandleExceptionForGetObject() {
+    S3AsyncClient mockS3AsyncClient = mock(S3AsyncClient.class);
+    CompletableFuture<ResponseInputStream<GetObjectResponse>> failedFuture =
+        new CompletableFuture<>();
+    failedFuture.completeExceptionally(new RuntimeException());
+    when(mockS3AsyncClient.getObject(
+            any(GetObjectRequest.class), any(AsyncResponseTransformer.class)))
+        .thenReturn(failedFuture);
+
+    S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
+    GetRequest getRequest =
+        GetRequest.builder()
+            .s3Uri(S3URI.of("bucket", "key"))
+            .range(new Range(0, 20))
+            .referrer(new Referrer("original-referrer", ReadMode.SYNC))
+            .build();
+    try {
+      client.getObject(getRequest).join();
+    } catch (CompletionException e) {
+      assertInstanceOf(UncheckedIOException.class, e.getCause());
     }
   }
 

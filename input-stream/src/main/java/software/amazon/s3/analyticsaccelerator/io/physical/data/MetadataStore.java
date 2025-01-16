@@ -17,6 +17,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -77,8 +78,9 @@ public class MetadataStore implements Closeable {
    *
    * @param s3URI the object to fetch the metadata for
    * @return returns the {@link ObjectMetadata}.
+   * @throws IOException if an I/O error occurs
    */
-  public ObjectMetadata get(S3URI s3URI) {
+  public ObjectMetadata get(S3URI s3URI) throws IOException {
     return telemetry.measureJoinCritical(
         () ->
             Operation.builder()
