@@ -35,20 +35,28 @@ public class BlockStore implements Closeable {
   private final ObjectKey s3URI;
   private final ObjectMetadata metadata;
   private final List<Block> blocks;
+  private final MemoryManager memoryManager;
 
   /**
    * Constructs a new instance of a BlockStore.
    *
    * @param objectKey the etag and S3 URI of the object
    * @param metadata the metadata for the object
+   * @param memoryManager memory manager for the blobstore
    */
-  public BlockStore(ObjectKey objectKey, ObjectMetadata metadata) {
+  public BlockStore(ObjectKey objectKey, ObjectMetadata metadata, MemoryManager memoryManager) {
     Preconditions.checkNotNull(objectKey, "`objectKey` must not be null");
     Preconditions.checkNotNull(metadata, "`metadata` must not be null");
 
     this.s3URI = objectKey;
     this.metadata = metadata;
     this.blocks = new LinkedList<>();
+    this.memoryManager = memoryManager;
+  }
+
+  /** @return the list of blocks in the blockstore. */
+  public List<Block> getBlocks() {
+    return blocks;
   }
 
   /**
@@ -114,6 +122,7 @@ public class BlockStore implements Closeable {
     Preconditions.checkNotNull(block, "`block` must not be null");
 
     this.blocks.add(block);
+    memoryManager.incrementBlobStoreMemoryUsage(block.getLength());
   }
 
   private long getLastObjectByte() {

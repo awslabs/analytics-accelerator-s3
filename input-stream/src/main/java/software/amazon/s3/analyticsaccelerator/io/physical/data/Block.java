@@ -136,6 +136,15 @@ public class Block implements Closeable {
   }
 
   /**
+   * Gets size of the block
+   *
+   * @return size of the block in bytes
+   */
+  public long getLength() {
+    return end - start + 1;
+  }
+
+  /**
    * Reads a byte from the underlying object
    *
    * @param pos The position to read

@@ -77,7 +77,9 @@ public class BlobStoreTest {
   @Test
   public void testGetReturnsReadableBlob() throws IOException {
     // When: a Blob is asked for
-    Blob blob = blobStore.get(objectKey, objectMetadata, mock(StreamContext.class));
+    Blob blob =
+        blobStore.get(
+            objectKey, objectMetadata, mock(StreamContext.class), mock(MemoryManager.class));
 
     // Then:
     byte[] b = new byte[TEST_DATA.length()];
@@ -89,7 +91,7 @@ public class BlobStoreTest {
   @Test
   void testEvictKey_ExistingKey() {
     // Setup
-    blobStore.get(objectKey, objectMetadata, mock(StreamContext.class));
+    blobStore.get(objectKey, objectMetadata, mock(StreamContext.class), mock(MemoryManager.class));
 
     // Test
     boolean result = blobStore.evictKey(objectKey);

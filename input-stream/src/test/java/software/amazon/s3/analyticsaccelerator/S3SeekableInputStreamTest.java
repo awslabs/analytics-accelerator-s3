@@ -36,6 +36,7 @@ import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOI
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
+import software.amazon.s3.analyticsaccelerator.io.physical.data.MemoryManager;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
@@ -363,7 +364,12 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
               () -> {
                 try {
                   PhysicalIO physicalIO =
-                      new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
+                      new PhysicalIOImpl(
+                          s3URI,
+                          metadataStore,
+                          blobStore,
+                          TestTelemetry.DEFAULT,
+                          mock(MemoryManager.class));
                   LogicalIO logicalIO =
                       new ParquetLogicalIOImpl(
                           TEST_OBJECT,
@@ -454,7 +460,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
         s3URI,
         new ParquetLogicalIOImpl(
             s3URI,
-            new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT),
+            new PhysicalIOImpl(
+                s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT, mock(MemoryManager.class)),
             TestTelemetry.DEFAULT,
             LogicalIOConfiguration.DEFAULT,
             new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT)),

@@ -17,10 +17,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -47,7 +44,7 @@ public class BlockStoreTest {
     FakeObjectClient fakeObjectClient = new FakeObjectClient("test-data");
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
-    BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
+    BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore, mock(MemoryManager.class));
 
     // When: a new block is added
     blockStore.add(
@@ -70,7 +67,7 @@ public class BlockStoreTest {
     int size = X_TIMES_16.getBytes(StandardCharsets.UTF_8).length;
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(size).etag(ETAG).build();
-    BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
+    BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore, mock(MemoryManager.class));
 
     blockStore.add(
         new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 2, 3, 0, ReadMode.SYNC));
@@ -97,7 +94,7 @@ public class BlockStoreTest {
     FakeObjectClient fakeObjectClient = new FakeObjectClient(X_TIMES_16);
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
-    BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
+    BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore, mock(MemoryManager.class));
 
     blockStore.add(
         new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 2, 3, 0, ReadMode.SYNC));
@@ -122,7 +119,7 @@ public class BlockStoreTest {
     // Given: BlockStore with a block
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
-    BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
+    BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore, mock(MemoryManager.class));
     Block block = mock(Block.class);
     blockStore.add(block);
 
@@ -138,7 +135,7 @@ public class BlockStoreTest {
     // Given: BlockStore with two blocks
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
-    BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
+    BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore, mock(MemoryManager.class));
     Block b1 = mock(Block.class);
     Block b2 = mock(Block.class);
     blockStore.add(b1);

@@ -27,6 +27,7 @@ import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
+import software.amazon.s3.analyticsaccelerator.io.physical.data.MemoryManager;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.request.HeadRequest;
@@ -140,7 +141,8 @@ public class ParquetLogicalIOImplTest {
     BlobStore blobStore =
         new BlobStore(mockClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
     PhysicalIOImpl physicalIO =
-        new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
+        new PhysicalIOImpl(
+            s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT, mock(MemoryManager.class));
     assertDoesNotThrow(
         () ->
             new ParquetLogicalIOImpl(
@@ -164,7 +166,8 @@ public class ParquetLogicalIOImplTest {
     BlobStore blobStore =
         new BlobStore(mockClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
     PhysicalIOImpl physicalIO =
-        new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
+        new PhysicalIOImpl(
+            s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT, mock(MemoryManager.class));
     assertDoesNotThrow(
         () ->
             new ParquetLogicalIOImpl(

@@ -71,6 +71,7 @@ public class S3MockVsInMemoryReferenceTest extends StreamArbitraries {
   @BeforeContainer
   static void setup() {
     s3Client = createS3ClientV2(S3_MOCK.getHttpsEndpoint());
+    System.out.println("S3 client created successfully");
     // Initialise streams
     s3SeekableInputStreamFactory =
         new S3SeekableInputStreamFactory(
@@ -96,6 +97,7 @@ public class S3MockVsInMemoryReferenceTest extends StreamArbitraries {
         .join();
 
     s3SeekableInputStream = s3SeekableInputStreamFactory.createStream(uri);
+
     inMemorySeekableStream = new InMemorySeekableStream(data);
   }
 
@@ -106,6 +108,7 @@ public class S3MockVsInMemoryReferenceTest extends StreamArbitraries {
    */
   @Example
   public void regressionTest_S3MockInitThenSeekThenRead() throws IOException {
+    setup();
     setupStreams(100);
 
     s3SeekableInputStream.seek(0);

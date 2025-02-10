@@ -58,7 +58,8 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 mock(ObjectMetadata.class),
                 mock(Telemetry.class),
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                mock(MemoryManager.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -67,7 +68,8 @@ public class BlockManagerTest {
                 null,
                 mock(ObjectMetadata.class),
                 mock(Telemetry.class),
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                mock(MemoryManager.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -76,7 +78,8 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 null,
                 mock(Telemetry.class),
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                mock(MemoryManager.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -85,7 +88,8 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 mock(ObjectMetadata.class),
                 null,
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                mock(MemoryManager.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -94,7 +98,8 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 mock(ObjectMetadata.class),
                 mock(Telemetry.class),
-                null));
+                null,
+                mock(MemoryManager.class)));
   }
 
   @Test
@@ -286,6 +291,11 @@ public class BlockManagerTest {
     metadataStore = ObjectMetadata.builder().contentLength(size).etag(ETAG).build();
 
     return new BlockManager(
-        objectKey, objectClient, metadataStore, TestTelemetry.DEFAULT, configuration);
+        objectKey,
+        objectClient,
+        metadataStore,
+        TestTelemetry.DEFAULT,
+        configuration,
+        mock(MemoryManager.class));
   }
 }

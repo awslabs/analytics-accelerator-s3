@@ -18,13 +18,25 @@ package software.amazon.s3.analyticsaccelerator.access;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamConfiguration;
+import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 
 /** Enum representing meaningful configuration samples for {@link S3ExecutionConfiguration} */
 @AllArgsConstructor
 @Getter
 public enum AALInputStreamConfigurationKind {
-  DEFAULT("DEFAULT", S3SeekableInputStreamConfiguration.DEFAULT);
+  DEFAULT("DEFAULT", S3SeekableInputStreamConfiguration.DEFAULT),
+  SMALL_MEMORY_LIMIT(
+      "SMALL_MEMORY_LIMIT", createConfigWithMemoryLimit(100 * 1024 * 1024)); // 100 MB
 
   private final String name;
   private final S3SeekableInputStreamConfiguration value;
+
+  private static S3SeekableInputStreamConfiguration createConfigWithMemoryLimit(long memoryLimit) {
+    PhysicalIOConfiguration physicalIOConfig =
+        PhysicalIOConfiguration.builder().maxMemoryLimitAAL(memoryLimit).build();
+
+    return S3SeekableInputStreamConfiguration.builder()
+        .physicalIOConfiguration(physicalIOConfig)
+        .build();
+  }
 }
