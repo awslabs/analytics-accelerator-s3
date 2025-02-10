@@ -20,6 +20,9 @@ import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
 import lombok.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.s3.analyticsaccelerator.S3SdkObjectClient;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
@@ -44,6 +47,10 @@ public class Block implements Closeable {
   private final ObjectKey objectKey;
   private final Range range;
   private final Telemetry telemetry;
+  private final ObjectClient objectClient;
+  private final StreamContext streamContext;
+  private final ReadMode readMode;
+  private final Referrer referrer;
 
   @Getter private final long start;
   @Getter private final long end;
@@ -51,6 +58,10 @@ public class Block implements Closeable {
 
   private static final String OPERATION_BLOCK_GET_ASYNC = "block.get.async";
   private static final String OPERATION_BLOCK_GET_JOIN = "block.get.join";
+
+  private static final int MAX_RETRIES = 20;
+
+  private static final Logger LOG = LoggerFactory.getLogger(Block.class);
 
   /**
    * Constructs a Block data.
@@ -110,16 +121,24 @@ public class Block implements Closeable {
     this.telemetry = telemetry;
     this.objectKey = objectKey;
     this.range = new Range(start, end);
+    this.objectClient = objectClient;
+    this.streamContext = streamContext;
+    this.readMode = readMode;
+    this.referrer = new Referrer(range.toHttpString(), readMode);
 
+    generateSourceAndData();
+  }
+
+  /** Method to help construct source and data */
+  private void generateSourceAndData() {
     GetRequest.GetRequestBuilder getRequestBuilder =
         GetRequest.builder()
             .s3Uri(this.objectKey.getS3URI())
             .range(this.range)
             .etag(this.objectKey.getEtag())
-            .referrer(new Referrer(range.toHttpString(), readMode));
+            .referrer(referrer);
 
     GetRequest getRequest = getRequestBuilder.build();
-
     this.source =
         this.telemetry.measureCritical(
             () ->
@@ -145,7 +164,7 @@ public class Block implements Closeable {
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
-    byte[] content = this.getData();
+    byte[] content = this.getDataWithRetries();
     return Byte.toUnsignedInt(content[posToOffset(pos)]);
   }
 
@@ -165,7 +184,7 @@ public class Block implements Closeable {
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
     Preconditions.checkArgument(off < buf.length, "`off` must be less than size of buffer");
 
-    byte[] content = this.getData();
+    byte[] content = this.getDataWithRetries();
     int contentOffset = posToOffset(pos);
     int available = content.length - contentOffset;
     int bytesToCopy = Math.min(len, available);
@@ -197,6 +216,34 @@ public class Block implements Closeable {
    */
   private int posToOffset(long pos) {
     return (int) (pos - start);
+  }
+
+  /**
+   * Returns the bytes fetched by the issued {@link GetRequest}. If it receives an IOException from
+   * {@link S3SdkObjectClient}, retries for MAX_RETRIES count.
+   *
+   * @return the bytes fetched by the issued {@link GetRequest}.
+   * @throws IOException if an I/O error occurs after maximum retry counts
+   */
+  private byte[] getDataWithRetries() throws IOException {
+    for (int i = 0; i < MAX_RETRIES; i++) {
+      try {
+        return this.getData();
+      } catch (IOException ex) {
+        if (ex.getClass() == IOException.class) {
+          if (i < MAX_RETRIES - 1) {
+            LOG.info("Get data failed. Retrying. Retry Count {}", i);
+            generateSourceAndData();
+          } else {
+            LOG.error("Cannot read block file. Retry reached the limit");
+            throw new IOException("Cannot read block file", ex.getCause());
+          }
+        } else {
+          throw ex;
+        }
+      }
+    }
+    throw new IOException("Cannot read block file", new IOException("Error while getting block"));
   }
 
   /**

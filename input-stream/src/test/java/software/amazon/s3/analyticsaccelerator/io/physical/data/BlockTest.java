@@ -25,6 +25,7 @@ import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
+import software.amazon.s3.analyticsaccelerator.util.FakeStuckObjectClient;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
@@ -233,6 +234,25 @@ public class BlockTest {
             0,
             ReadMode.SYNC);
     assertThrows(IllegalArgumentException.class, () -> block.contains(-1));
+  }
+
+  @Test
+  void testReadTimeoutAndRetry() throws IOException {
+    final String TEST_DATA = "test-data";
+    ObjectKey stuckObjectKey =
+        ObjectKey.builder().s3URI(S3URI.of("stuck-client", "bar")).etag(ETAG).build();
+    ObjectClient fakeStuckObjectClient = new FakeStuckObjectClient(TEST_DATA);
+
+    Block block =
+        new Block(
+            stuckObjectKey,
+            fakeStuckObjectClient,
+            TestTelemetry.DEFAULT,
+            0,
+            TEST_DATA.length(),
+            0,
+            ReadMode.SYNC);
+    assertThrows(IOException.class, () -> block.read(4));
   }
 
   @Test

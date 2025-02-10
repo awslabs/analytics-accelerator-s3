@@ -17,13 +17,11 @@ package software.amazon.s3.analyticsaccelerator.access;
 
 import java.io.IOException;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /** Tests read stream behaviour with untrusted S3ClientKinds on multiple sizes and read patterns */
-@Disabled("Disabled as AAL is not resilient to Faulty S3 Clients yet.")
 public class GrayFailureTest extends IntegrationTestBase {
   @ParameterizedTest
   @MethodSource("sequentialReads")

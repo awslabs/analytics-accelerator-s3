@@ -217,4 +217,32 @@ public class PhysicalIOImplTest {
     assertEquals(0, blobStore.blobCount());
     assertThrows(Exception.class, () -> metadataStore.get(s3URI));
   }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void test_FailureEvictsObjectsAsExpected_WhenSDKClientGetsStuck() throws IOException {
+    IOException ioException = new IOException(new IOException("Error while getting block"));
+
+    S3AsyncClient mockS3AsyncClient = mock(S3AsyncClient.class);
+    CompletableFuture<ResponseInputStream<GetObjectResponse>> failedFuture =
+        new CompletableFuture<>();
+    failedFuture.completeExceptionally(ioException);
+    when(mockS3AsyncClient.getObject(
+            any(GetObjectRequest.class), any(AsyncResponseTransformer.class)))
+        .thenReturn(failedFuture);
+    S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
+
+    MetadataStore metadataStore =
+        new MetadataStore(client, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
+    ObjectMetadata objectMetadata = ObjectMetadata.builder().contentLength(100).etag(etag).build();
+    metadataStore.storeObjectMetadata(s3URI, objectMetadata);
+    BlobStore blobStore =
+        new BlobStore(client, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
+    PhysicalIOImpl physicalIOImplV2 =
+        new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
+
+    assertThrows(IOException.class, () -> physicalIOImplV2.read(0));
+    assertEquals(0, blobStore.blobCount());
+    assertThrows(Exception.class, () -> metadataStore.get(s3URI));
+  }
 }
