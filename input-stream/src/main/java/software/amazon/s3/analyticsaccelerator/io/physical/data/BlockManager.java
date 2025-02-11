@@ -59,14 +59,16 @@ public class BlockManager implements Closeable {
    * @param telemetry an instance of {@link Telemetry} to use
    * @param metadata the metadata for the object we are reading
    * @param configuration the physicalIO configuration
+   * @param memoryManager memory manager for the blobstore
    */
   public BlockManager(
       @NonNull ObjectKey objectKey,
       @NonNull ObjectClient objectClient,
       @NonNull ObjectMetadata metadata,
       @NonNull Telemetry telemetry,
-      @NonNull PhysicalIOConfiguration configuration) {
-    this(objectKey, objectClient, metadata, telemetry, configuration, null);
+      @NonNull PhysicalIOConfiguration configuration,
+      @NonNull MemoryManager memoryManager) {
+    this(objectKey, objectClient, metadata, telemetry, configuration, null, memoryManager);
   }
 
   /**
@@ -78,6 +80,7 @@ public class BlockManager implements Closeable {
    * @param metadata the metadata for the object
    * @param configuration the physicalIO configuration
    * @param streamContext contains audit headers to be attached in the request header
+   * @param memoryManager memory manager for the blobstore
    */
   public BlockManager(
       @NonNull ObjectKey objectKey,
@@ -85,18 +88,24 @@ public class BlockManager implements Closeable {
       @NonNull ObjectMetadata metadata,
       @NonNull Telemetry telemetry,
       @NonNull PhysicalIOConfiguration configuration,
-      StreamContext streamContext) {
+      StreamContext streamContext,
+      @NonNull MemoryManager memoryManager) {
     this.objectKey = objectKey;
     this.objectClient = objectClient;
     this.metadata = metadata;
     this.telemetry = telemetry;
     this.configuration = configuration;
-    this.blockStore = new BlockStore(objectKey, metadata);
+    this.blockStore = new BlockStore(objectKey, metadata, memoryManager);
     this.patternDetector = new SequentialPatternDetector(blockStore);
     this.sequentialReadProgression = new SequentialReadProgression(configuration);
     this.ioPlanner = new IOPlanner(blockStore);
     this.rangeOptimiser = new RangeOptimiser(configuration);
     this.streamContext = streamContext;
+  }
+
+  /** @return the BlockStore */
+  public BlockStore getBlockStore() {
+    return blockStore;
   }
 
   /**

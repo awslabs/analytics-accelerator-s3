@@ -15,6 +15,8 @@
  */
 package software.amazon.s3.analyticsaccelerator;
 
+import static org.mockito.Mockito.mock;
+
 import java.io.IOException;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIO;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
@@ -22,6 +24,7 @@ import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetColumnPref
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
+import software.amazon.s3.analyticsaccelerator.io.physical.data.MemoryManager;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
@@ -47,7 +50,12 @@ public class S3SeekableInputStreamTestBase {
       fakeLogicalIO =
           new ParquetLogicalIOImpl(
               TEST_OBJECT,
-              new PhysicalIOImpl(TEST_OBJECT, metadataStore, blobStore, TestTelemetry.DEFAULT),
+              new PhysicalIOImpl(
+                  TEST_OBJECT,
+                  metadataStore,
+                  blobStore,
+                  TestTelemetry.DEFAULT,
+                  mock(MemoryManager.class)),
               TestTelemetry.DEFAULT,
               logicalIOConfiguration,
               new ParquetColumnPrefetchStore(logicalIOConfiguration));

@@ -17,6 +17,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +42,7 @@ public class Blob implements Closeable {
   private final BlockManager blockManager;
   private final ObjectMetadata metadata;
   private final Telemetry telemetry;
+  private AtomicInteger activeReaders;
 
   /**
    * Construct a new Blob.
@@ -60,6 +62,32 @@ public class Blob implements Closeable {
     this.metadata = metadata;
     this.blockManager = blockManager;
     this.telemetry = telemetry;
+    this.activeReaders = new AtomicInteger(0);
+  }
+
+  /**
+   * Updates and returns the active readers of this blob
+   *
+   * @param readers The delta to be added to the current active readers of this blob
+   * @return the updated active readers for this blob
+   */
+  public int updateActiveReaders(int readers) {
+    return activeReaders.addAndGet(readers);
+  }
+
+  /** @return the current active readers of this blob */
+  public int getActiveReaders() {
+    return activeReaders.get();
+  }
+
+  /** @return the object key of this blob */
+  public ObjectKey getObjectKey() {
+    return objectKey;
+  }
+
+  /** @return the blockManager of this blob */
+  public BlockManager getBlockManager() {
+    return blockManager;
   }
 
   /**
@@ -71,8 +99,13 @@ public class Blob implements Closeable {
    */
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(pos >= 0, "`pos` must be non-negative");
-    blockManager.makePositionAvailable(pos, ReadMode.SYNC);
-    return blockManager.getBlock(pos).get().read(pos);
+    try {
+      blockManager.makePositionAvailable(pos, ReadMode.SYNC);
+      int bytesRead = blockManager.getBlock(pos).get().read(pos);
+      return bytesRead;
+    } finally {
+      updateActiveReaders(-1);
+    }
   }
 
   /**
@@ -92,34 +125,37 @@ public class Blob implements Closeable {
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
     Preconditions.checkArgument(off < buf.length, "`off` must be less than size of buffer");
 
-    blockManager.makeRangeAvailable(pos, len, ReadMode.SYNC);
+    try {
+      blockManager.makeRangeAvailable(pos, len, ReadMode.SYNC);
 
-    long nextPosition = pos;
-    int numBytesRead = 0;
+      long nextPosition = pos;
+      int numBytesRead = 0;
 
-    while (numBytesRead < len && nextPosition < contentLength()) {
-      final long nextPositionFinal = nextPosition;
-      Block nextBlock =
-          blockManager
-              .getBlock(nextPosition)
-              .orElseThrow(
-                  () ->
-                      new IllegalStateException(
-                          String.format(
-                              "This block (for position %s) should have been available.",
-                              nextPositionFinal)));
+      while (numBytesRead < len && nextPosition < contentLength()) {
+        final long nextPositionFinal = nextPosition;
+        Block nextBlock =
+            blockManager
+                .getBlock(nextPosition)
+                .orElseThrow(
+                    () ->
+                        new IllegalStateException(
+                            String.format(
+                                "This block (for position %s) should have been available.",
+                                nextPositionFinal)));
 
-      int bytesRead = nextBlock.read(buf, off + numBytesRead, len - numBytesRead, nextPosition);
+        int bytesRead = nextBlock.read(buf, off + numBytesRead, len - numBytesRead, nextPosition);
 
-      if (bytesRead == -1) {
-        return numBytesRead;
+        if (bytesRead == -1) {
+          return numBytesRead;
+        }
+
+        numBytesRead = numBytesRead + bytesRead;
+        nextPosition += bytesRead;
       }
-
-      numBytesRead = numBytesRead + bytesRead;
-      nextPosition += bytesRead;
+      return numBytesRead;
+    } finally {
+      updateActiveReaders(-1);
     }
-
-    return numBytesRead;
   }
 
   /**
@@ -148,6 +184,8 @@ public class Blob implements Closeable {
           } catch (Exception e) {
             LOG.error("Failed to submit IOPlan to PhysicalIO", e);
             return IOPlanExecution.builder().state(IOPlanState.FAILED).build();
+          } finally {
+            updateActiveReaders(-1);
           }
         });
   }

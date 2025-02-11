@@ -30,7 +30,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.Sequential
 @Builder
 @EqualsAndHashCode
 public class PhysicalIOConfiguration {
-  private static final int DEFAULT_CAPACITY_BLOB_STORE = 50;
+  private static final long DEFAULT_MAX_MEMORY_LIMIT_AAL = Long.MAX_VALUE;
   private static final int DEFAULT_CAPACITY_METADATA_STORE = 50;
   private static final boolean DEFAULT_USE_SINGLE_CACHE = true;
   private static final long DEFAULT_BLOCK_SIZE_BYTES = 8 * ONE_MB;
@@ -40,10 +40,13 @@ public class PhysicalIOConfiguration {
   private static final double DEFAULT_SEQUENTIAL_PREFETCH_BASE = 2.0;
   private static final double DEFAULT_SEQUENTIAL_PREFETCH_SPEED = 1.0;
 
-  /** Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_CAPACITY_BLOB_STORE} by default. */
-  @Builder.Default private int blobStoreCapacity = DEFAULT_CAPACITY_BLOB_STORE;
+  /**
+   * Max memory to be used by library. {@link PhysicalIOConfiguration#DEFAULT_MAX_MEMORY_LIMIT_AAL}
+   * by default.
+   */
+  @Builder.Default private long maxMemoryLimitAAL = DEFAULT_MAX_MEMORY_LIMIT_AAL;
 
-  private static final String BLOB_STORE_CAPACITY_KEY = "blobstore.capacity";
+  private static final String MAX_MEMORY_LIMIT_AAL_KEY = "aal.maxmemory";
 
   /**
    * Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_CAPACITY_METADATA_STORE} by default.
@@ -104,8 +107,8 @@ public class PhysicalIOConfiguration {
    */
   public static PhysicalIOConfiguration fromConfiguration(ConnectorConfiguration configuration) {
     return PhysicalIOConfiguration.builder()
-        .blobStoreCapacity(
-            configuration.getInt(BLOB_STORE_CAPACITY_KEY, DEFAULT_CAPACITY_BLOB_STORE))
+        .maxMemoryLimitAAL(
+            configuration.getLong(MAX_MEMORY_LIMIT_AAL_KEY, DEFAULT_MAX_MEMORY_LIMIT_AAL))
         .metadataStoreCapacity(
             configuration.getInt(METADATA_STORE_CAPACITY_KEY, DEFAULT_CAPACITY_METADATA_STORE))
         .blockSizeBytes(configuration.getLong(BLOCK_SIZE_BYTES_KEY, DEFAULT_BLOCK_SIZE_BYTES))
@@ -123,7 +126,7 @@ public class PhysicalIOConfiguration {
   /**
    * Constructs {@link PhysicalIOConfiguration}.
    *
-   * @param blobStoreCapacity The capacity of the BlobStore
+   * @param maxMemoryLimitAAL The memory limit for library
    * @param metadataStoreCapacity The capacity of the MetadataStore
    * @param blockSizeBytes Block size, in bytes
    * @param readAheadBytes Read ahead, in bytes
@@ -136,7 +139,7 @@ public class PhysicalIOConfiguration {
    */
   @Builder
   private PhysicalIOConfiguration(
-      int blobStoreCapacity,
+      long maxMemoryLimitAAL,
       int metadataStoreCapacity,
       long blockSizeBytes,
       long readAheadBytes,
@@ -144,7 +147,7 @@ public class PhysicalIOConfiguration {
       long partSizeBytes,
       double sequentialPrefetchBase,
       double sequentialPrefetchSpeed) {
-    Preconditions.checkArgument(blobStoreCapacity > 0, "`blobStoreCapacity` must be positive");
+    Preconditions.checkArgument(maxMemoryLimitAAL > 0, "`maxMemoryLimitAAL` must be positive");
     Preconditions.checkArgument(
         metadataStoreCapacity > 0, "`metadataStoreCapacity` must be positive");
     Preconditions.checkArgument(blockSizeBytes > 0, "`blockSizeBytes` must be positive");
@@ -156,7 +159,7 @@ public class PhysicalIOConfiguration {
     Preconditions.checkArgument(
         sequentialPrefetchSpeed > 0, "`sequentialPrefetchSpeed` must be positive");
 
-    this.blobStoreCapacity = blobStoreCapacity;
+    this.maxMemoryLimitAAL = maxMemoryLimitAAL;
     this.metadataStoreCapacity = metadataStoreCapacity;
     this.blockSizeBytes = blockSizeBytes;
     this.readAheadBytes = readAheadBytes;
@@ -171,7 +174,7 @@ public class PhysicalIOConfiguration {
     final StringBuilder builder = new StringBuilder();
 
     builder.append("PhysicalIO configuration:\n");
-    builder.append("\tblobStoreCapacity: " + blobStoreCapacity + "\n");
+    builder.append("\tmaxMemoryLimitAAL: " + maxMemoryLimitAAL + "\n");
     builder.append("\tmetadataStoreCapacity: " + metadataStoreCapacity + "\n");
     builder.append("\tblockSizeBytes: " + blockSizeBytes + "\n");
     builder.append("\treadAheadBytes: " + readAheadBytes + "\n");

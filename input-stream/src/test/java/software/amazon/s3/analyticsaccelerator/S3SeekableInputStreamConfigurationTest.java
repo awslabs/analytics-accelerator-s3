@@ -90,10 +90,6 @@ public class S3SeekableInputStreamConfigurationTest {
     assertNotNull(streamConfiguration.getPhysicalIOConfiguration());
     assertEquals(10, streamConfiguration.getPhysicalIOConfiguration().getMetadataStoreCapacity());
     assertEquals(20, streamConfiguration.getPhysicalIOConfiguration().getBlockSizeBytes());
-    // This should be equal to default since Property Prefix is not s3.connector.
-    assertEquals(
-        PhysicalIOConfiguration.DEFAULT.getBlobStoreCapacity(),
-        streamConfiguration.getPhysicalIOConfiguration().getBlobStoreCapacity());
 
     assertFalse(streamConfiguration.getTelemetryConfiguration().isStdOutEnabled());
     assertFalse(streamConfiguration.getTelemetryConfiguration().isLoggingEnabled());

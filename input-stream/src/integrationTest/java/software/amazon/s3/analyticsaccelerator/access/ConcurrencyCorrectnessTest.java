@@ -38,6 +38,7 @@ public class ConcurrencyCorrectnessTest extends IntegrationTestBase {
       StreamReadPatternKind streamReadPattern,
       AALInputStreamConfigurationKind configuration)
       throws IOException, InterruptedException, ExecutionException {
+
     testAALReadConcurrency(
         s3ClientKind,
         s3Object,
@@ -45,6 +46,17 @@ public class ConcurrencyCorrectnessTest extends IntegrationTestBase {
         configuration,
         CONCURRENCY_LEVEL,
         CONCURRENCY_ITERATIONS);
+  }
+
+  @ParameterizedTest
+  @MethodSource("evictionTests")
+  void testReadsWithEviction(
+      S3ClientKind s3ClientKind,
+      StreamReadPatternKind streamReadPattern,
+      AALInputStreamConfigurationKind configuration)
+      throws IOException, InterruptedException, ExecutionException {
+
+    testAALReadConcurrencyWithEviction(s3ClientKind, streamReadPattern, configuration);
   }
 
   @ParameterizedTest
@@ -133,5 +145,10 @@ public class ConcurrencyCorrectnessTest extends IntegrationTestBase {
         S3Object.smallObjects(),
         parquetPatterns(),
         getS3SeekableInputStreamConfigurations());
+  }
+
+  static Stream<Arguments> evictionTests() {
+    return argumentsForEvictionTest(
+        getS3ClientKinds(), parquetPatterns(), getS3SeekableInputStreamConfigurations());
   }
 }

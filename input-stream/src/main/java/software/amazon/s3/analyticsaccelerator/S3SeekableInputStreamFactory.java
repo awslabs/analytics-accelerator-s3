@@ -25,6 +25,7 @@ import software.amazon.s3.analyticsaccelerator.io.logical.impl.DefaultLogicalIOI
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetColumnPrefetchStore;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
+import software.amazon.s3.analyticsaccelerator.io.physical.data.MemoryManager;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
@@ -53,6 +54,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   private final BlobStore objectBlobStore;
   private final Telemetry telemetry;
   private final ObjectFormatSelector objectFormatSelector;
+  private final MemoryManager memoryManager;
 
   /**
    * Creates a new instance of {@link S3SeekableInputStreamFactory}. This factory should be used to
@@ -75,6 +77,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
     this.objectFormatSelector = new ObjectFormatSelector(configuration.getLogicalIOConfiguration());
     this.objectBlobStore =
         new BlobStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration());
+    this.memoryManager = new MemoryManager(objectBlobStore);
   }
 
   /**
@@ -125,7 +128,12 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
         return new ParquetLogicalIOImpl(
             s3URI,
             new PhysicalIOImpl(
-                s3URI, objectMetadataStore, objectBlobStore, telemetry, streamContext),
+                s3URI,
+                objectMetadataStore,
+                objectBlobStore,
+                telemetry,
+                streamContext,
+                memoryManager),
             telemetry,
             configuration.getLogicalIOConfiguration(),
             parquetColumnPrefetchStore);
@@ -134,7 +142,12 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
         return new DefaultLogicalIOImpl(
             s3URI,
             new PhysicalIOImpl(
-                s3URI, objectMetadataStore, objectBlobStore, telemetry, streamContext),
+                s3URI,
+                objectMetadataStore,
+                objectBlobStore,
+                telemetry,
+                streamContext,
+                memoryManager),
             telemetry);
     }
   }
