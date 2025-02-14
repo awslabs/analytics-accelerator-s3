@@ -17,8 +17,7 @@ package software.amazon.s3.analyticsaccelerator;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
@@ -40,6 +39,7 @@ import software.amazon.s3.analyticsaccelerator.io.logical.impl.DefaultLogicalIOI
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.util.InputPolicy;
 import software.amazon.s3.analyticsaccelerator.util.OpenFileInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
@@ -53,6 +53,19 @@ public class S3SeekableInputStreamFactoryTest {
       ObjectMetadata.builder().contentLength(CONTENT_LENGTH).etag("ETAG").build();
 
   private static final S3URI TEST_URI = S3URI.of("test-bucket", "test-key");
+
+  private static OpenFileInformation createMockOpenFileInfo() {
+    OpenFileInformation mockObj = mock(OpenFileInformation.class);
+    OpenFileInformation.OpenFileInformationBuilder mockBuilder =
+        mock(OpenFileInformation.OpenFileInformationBuilder.class);
+
+    when(mockObj.getInputPolicy()).thenReturn(null);
+    when(mockBuilder.inputPolicy(any(InputPolicy.class))).thenReturn(mockBuilder);
+    when(mockBuilder.build()).thenReturn(mockObj);
+    when(mockObj.toBuilder()).thenReturn(mockBuilder);
+
+    return mockObj;
+  }
 
   @Test
   void testConstructor() {
@@ -99,7 +112,7 @@ public class S3SeekableInputStreamFactoryTest {
 
     inputStream =
         s3SeekableInputStreamFactory.createStream(
-            S3URI.of("bucket", "key"), mock(OpenFileInformation.class));
+            S3URI.of("bucket", "key"), createMockOpenFileInfo());
     assertNotNull(inputStream);
   }
 
@@ -155,8 +168,7 @@ public class S3SeekableInputStreamFactoryTest {
 
     S3SeekableInputStream inputStream = s3SeekableInputStreamFactory.createStream(s3URI);
     assertNotNull(inputStream);
-
-    inputStream = s3SeekableInputStreamFactory.createStream(s3URI, mock(OpenFileInformation.class));
+    inputStream = s3SeekableInputStreamFactory.createStream(s3URI, createMockOpenFileInfo());
     assertNotNull(inputStream);
   }
 
@@ -203,20 +215,19 @@ public class S3SeekableInputStreamFactoryTest {
     s3SeekableInputStreamFactory
         .getObjectMetadataStore()
         .storeObjectMetadata(testURITXT, objectMetadata);
-
+    OpenFileInformation mockFileInfo = createMockOpenFileInfo();
     assertTrue(
-        s3SeekableInputStreamFactory.createLogicalIO(
-                testURIParquet, mock(OpenFileInformation.class))
+        s3SeekableInputStreamFactory.createLogicalIO(testURIParquet, mockFileInfo)
             instanceof ParquetLogicalIOImpl);
     assertTrue(
-        s3SeekableInputStreamFactory.createLogicalIO(testURIKEYPAR, mock(OpenFileInformation.class))
+        s3SeekableInputStreamFactory.createLogicalIO(testURIKEYPAR, mockFileInfo)
             instanceof ParquetLogicalIOImpl);
 
     assertTrue(
-        s3SeekableInputStreamFactory.createLogicalIO(testURIJAVA, mock(OpenFileInformation.class))
+        s3SeekableInputStreamFactory.createLogicalIO(testURIJAVA, mockFileInfo)
             instanceof DefaultLogicalIOImpl);
     assertTrue(
-        s3SeekableInputStreamFactory.createLogicalIO(testURITXT, mock(OpenFileInformation.class))
+        s3SeekableInputStreamFactory.createLogicalIO(testURITXT, mockFileInfo)
             instanceof DefaultLogicalIOImpl);
   }
 
@@ -266,8 +277,7 @@ public class S3SeekableInputStreamFactoryTest {
     S3SeekableInputStreamFactory factory =
         new S3SeekableInputStreamFactory(
             new S3SdkObjectClient(mockS3AsyncClient), S3SeekableInputStreamConfiguration.DEFAULT);
-    S3SeekableInputStream inputStream =
-        factory.createStream(TEST_URI, mock(OpenFileInformation.class));
+    S3SeekableInputStream inputStream = factory.createStream(TEST_URI, createMockOpenFileInfo());
     Exception thrownException = assertThrows(Exception.class, inputStream::read);
     assertInstanceOf(IOException.class, thrownException);
     Optional.ofNullable(thrownException.getCause())
@@ -283,7 +293,7 @@ public class S3SeekableInputStreamFactoryTest {
             new S3SdkObjectClient(mockS3AsyncClient), S3SeekableInputStreamConfiguration.DEFAULT);
     Exception thrownException =
         assertThrows(
-            Exception.class, () -> factory.createStream(TEST_URI, mock(OpenFileInformation.class)));
+            Exception.class, () -> factory.createStream(TEST_URI, createMockOpenFileInfo()));
     assertInstanceOf(IOException.class, thrownException);
     Optional.ofNullable(thrownException.getCause())
         .ifPresent(
@@ -293,5 +303,26 @@ public class S3SeekableInputStreamFactoryTest {
 
   private static Exception[] exceptions() {
     return ExceptionHandler.getSampleExceptions();
+  }
+
+  @Test
+  void testCreateLogicalIO_NullOpenFileInformationThrowsException() {
+    // Setup
+    ObjectClient objectClient = mock(ObjectClient.class);
+    S3SeekableInputStreamFactory factory =
+        new S3SeekableInputStreamFactory(
+            objectClient,
+            S3SeekableInputStreamConfiguration.builder()
+                .logicalIOConfiguration(
+                    LogicalIOConfiguration.builder().prefetchFooterEnabled(false).build())
+                .build());
+
+    S3URI uri = S3URI.of("bucket", "test.txt");
+
+    // Test that null OpenFileInformation throws NullPointerException
+    assertThrows(
+        NullPointerException.class,
+        () -> factory.createLogicalIO(uri, null),
+        "createLogicalIO should throw NullPointerException when OpenFileInformation is null");
   }
 }

@@ -28,6 +28,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.util.InputPolicy;
 import software.amazon.s3.analyticsaccelerator.util.ObjectFormatSelector;
 import software.amazon.s3.analyticsaccelerator.util.OpenFileInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
@@ -117,31 +118,27 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
     return createLogicalIO(s3URI, OpenFileInformation.DEFAULT);
   }
 
-  LogicalIO createLogicalIO(S3URI s3URI, OpenFileInformation openFileInformation)
+  LogicalIO createLogicalIO(S3URI s3URI, @NonNull OpenFileInformation openFileInformation)
       throws IOException {
     switch (objectFormatSelector.getObjectFormat(s3URI, openFileInformation)) {
       case PARQUET:
         return new ParquetLogicalIOImpl(
             s3URI,
             new PhysicalIOImpl(
-                s3URI,
-                objectMetadataStore,
-                objectBlobStore,
-                telemetry,
-                openFileInformation.getStreamContext()),
+                s3URI, objectMetadataStore, objectBlobStore, telemetry, openFileInformation),
             telemetry,
             configuration.getLogicalIOConfiguration(),
             parquetColumnPrefetchStore);
 
       default:
+        OpenFileInformation effectiveInfo = openFileInformation;
+        if (effectiveInfo.getInputPolicy() == null) {
+          effectiveInfo = effectiveInfo.toBuilder().inputPolicy(InputPolicy.Sequential).build();
+        }
         return new DefaultLogicalIOImpl(
             s3URI,
             new PhysicalIOImpl(
-                s3URI,
-                objectMetadataStore,
-                objectBlobStore,
-                telemetry,
-                openFileInformation.getStreamContext()),
+                s3URI, objectMetadataStore, objectBlobStore, telemetry, effectiveInfo),
             telemetry);
     }
   }

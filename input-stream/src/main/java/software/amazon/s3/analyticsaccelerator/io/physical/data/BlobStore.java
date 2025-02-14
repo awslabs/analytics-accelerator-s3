@@ -27,6 +27,7 @@ import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
+import software.amazon.s3.analyticsaccelerator.util.OpenFileInformation;
 
 /** A BlobStore is a container for Blobs and functions as a data cache. */
 @SuppressFBWarnings(
@@ -69,9 +70,14 @@ public class BlobStore implements Closeable {
    * @param objectKey the etag and S3 URI of the object
    * @param metadata the metadata for the object we are computing
    * @param streamContext contains audit headers to be attached in the request header
+   * @param openFileInformation known file information including input policy
    * @return the blob representing the object from the BlobStore
    */
-  public Blob get(ObjectKey objectKey, ObjectMetadata metadata, StreamContext streamContext) {
+  public Blob get(
+      ObjectKey objectKey,
+      ObjectMetadata metadata,
+      StreamContext streamContext,
+      OpenFileInformation openFileInformation) {
     return blobMap.computeIfAbsent(
         objectKey,
         uri ->
@@ -79,7 +85,7 @@ public class BlobStore implements Closeable {
                 uri,
                 metadata,
                 new BlockManager(
-                    uri, objectClient, metadata, telemetry, configuration, streamContext),
+                    uri, objectClient, metadata, telemetry, configuration, openFileInformation),
                 telemetry));
   }
 

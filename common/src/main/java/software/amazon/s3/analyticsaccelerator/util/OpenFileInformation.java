@@ -25,7 +25,7 @@ import software.amazon.s3.analyticsaccelerator.request.StreamContext;
  * information and callbacks when opening the file.
  */
 @Value
-@Builder
+@Builder(toBuilder = true)
 public class OpenFileInformation {
   StreamContext streamContext;
   ObjectMetadata objectMetadata;

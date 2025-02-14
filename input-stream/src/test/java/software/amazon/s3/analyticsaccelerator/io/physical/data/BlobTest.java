@@ -36,6 +36,7 @@ import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
+import software.amazon.s3.analyticsaccelerator.util.OpenFileInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 @SuppressFBWarnings(
@@ -176,8 +177,8 @@ public class BlobTest {
             fakeObjectClient,
             mockMetadataStore,
             TestTelemetry.DEFAULT,
-            PhysicalIOConfiguration.DEFAULT);
-
+            PhysicalIOConfiguration.DEFAULT,
+            OpenFileInformation.DEFAULT);
     return new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
   }
 }

@@ -28,6 +28,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
+import software.amazon.s3.analyticsaccelerator.util.OpenFileInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
@@ -39,7 +40,7 @@ public class PhysicalIOImpl implements PhysicalIO {
   private final StreamContext streamContext;
   private ObjectKey objectKey;
   private final ObjectMetadata metadata;
-
+  private final OpenFileInformation openFileInformation;
   private final long physicalIOBirth = System.nanoTime();
 
   private static final String OPERATION_READ = "physical.io.read";
@@ -61,7 +62,7 @@ public class PhysicalIOImpl implements PhysicalIO {
       @NonNull BlobStore blobStore,
       @NonNull Telemetry telemetry)
       throws IOException {
-    this(s3URI, metadataStore, blobStore, telemetry, null);
+    this(s3URI, metadataStore, blobStore, telemetry, OpenFileInformation.DEFAULT);
   }
 
   /**
@@ -71,19 +72,20 @@ public class PhysicalIOImpl implements PhysicalIO {
    * @param metadataStore a metadata cache
    * @param blobStore a data cache
    * @param telemetry The {@link Telemetry} to use to report measurements.
-   * @param streamContext contains audit headers to be attached in the request header
+   * @param openFileInformation known file information including input policy
    */
   public PhysicalIOImpl(
       @NonNull S3URI s3URI,
       @NonNull MetadataStore metadataStore,
       @NonNull BlobStore blobStore,
       @NonNull Telemetry telemetry,
-      StreamContext streamContext)
+      OpenFileInformation openFileInformation)
       throws IOException {
     this.metadataStore = metadataStore;
     this.blobStore = blobStore;
     this.telemetry = telemetry;
-    this.streamContext = streamContext;
+    this.openFileInformation = openFileInformation;
+    this.streamContext = openFileInformation.getStreamContext();
     this.metadata = this.metadataStore.get(s3URI);
     this.objectKey = ObjectKey.builder().s3URI(s3URI).etag(metadata.getEtag()).build();
   }
@@ -122,7 +124,10 @@ public class PhysicalIOImpl implements PhysicalIO {
                       StreamAttributes.physicalIORelativeTimestamp(
                           System.nanoTime() - physicalIOBirth))
                   .build(),
-          () -> blobStore.get(this.objectKey, this.metadata, streamContext).read(pos));
+          () ->
+              blobStore
+                  .get(this.objectKey, this.metadata, streamContext, openFileInformation)
+                  .read(pos));
     } catch (Exception e) {
       handleOperationExceptions(e);
       throw e;
@@ -159,7 +164,10 @@ public class PhysicalIOImpl implements PhysicalIO {
                       StreamAttributes.physicalIORelativeTimestamp(
                           System.nanoTime() - physicalIOBirth))
                   .build(),
-          () -> blobStore.get(objectKey, this.metadata, streamContext).read(buf, off, len, pos));
+          () ->
+              blobStore
+                  .get(objectKey, this.metadata, streamContext, openFileInformation)
+                  .read(buf, off, len, pos));
     } catch (Exception e) {
       handleOperationExceptions(e);
       throw e;
@@ -195,7 +203,7 @@ public class PhysicalIOImpl implements PhysicalIO {
                   .build(),
           () ->
               blobStore
-                  .get(objectKey, this.metadata, streamContext)
+                  .get(objectKey, this.metadata, streamContext, openFileInformation)
                   .read(buf, off, len, contentLength - len));
     } catch (Exception e) {
       handleOperationExceptions(e);
@@ -222,7 +230,10 @@ public class PhysicalIOImpl implements PhysicalIO {
                     StreamAttributes.physicalIORelativeTimestamp(
                         System.nanoTime() - physicalIOBirth))
                 .build(),
-        () -> blobStore.get(objectKey, this.metadata, streamContext).execute(ioPlan));
+        () ->
+            blobStore
+                .get(objectKey, this.metadata, streamContext, openFileInformation)
+                .execute(ioPlan));
   }
 
   private void handleOperationExceptions(Exception e) {

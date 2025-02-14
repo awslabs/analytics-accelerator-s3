@@ -31,9 +31,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfigurati
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
-import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
-import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
-import software.amazon.s3.analyticsaccelerator.util.S3URI;
+import software.amazon.s3.analyticsaccelerator.util.*;
 
 @SuppressFBWarnings(
     value = "NP_NONNULL_PARAM_VIOLATION",
@@ -77,7 +75,9 @@ public class BlobStoreTest {
   @Test
   public void testGetReturnsReadableBlob() throws IOException {
     // When: a Blob is asked for
-    Blob blob = blobStore.get(objectKey, objectMetadata, mock(StreamContext.class));
+    Blob blob =
+        blobStore.get(
+            objectKey, objectMetadata, mock(StreamContext.class), OpenFileInformation.DEFAULT);
 
     // Then:
     byte[] b = new byte[TEST_DATA.length()];
@@ -89,7 +89,8 @@ public class BlobStoreTest {
   @Test
   void testEvictKey_ExistingKey() {
     // Setup
-    blobStore.get(objectKey, objectMetadata, mock(StreamContext.class));
+    blobStore.get(
+        objectKey, objectMetadata, mock(StreamContext.class), OpenFileInformation.DEFAULT);
 
     // Test
     boolean result = blobStore.evictKey(objectKey);

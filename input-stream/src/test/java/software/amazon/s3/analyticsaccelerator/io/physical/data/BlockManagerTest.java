@@ -18,6 +18,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -36,7 +37,9 @@ import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.*;
+import software.amazon.s3.analyticsaccelerator.util.InputPolicy;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
+import software.amazon.s3.analyticsaccelerator.util.OpenFileInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 @SuppressFBWarnings(
@@ -58,7 +61,8 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 mock(ObjectMetadata.class),
                 mock(Telemetry.class),
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                OpenFileInformation.DEFAULT));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -67,7 +71,8 @@ public class BlockManagerTest {
                 null,
                 mock(ObjectMetadata.class),
                 mock(Telemetry.class),
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                OpenFileInformation.DEFAULT));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -76,7 +81,8 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 null,
                 mock(Telemetry.class),
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                OpenFileInformation.DEFAULT));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -85,7 +91,8 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 mock(ObjectMetadata.class),
                 null,
-                mock(PhysicalIOConfiguration.class)));
+                mock(PhysicalIOConfiguration.class),
+                OpenFileInformation.DEFAULT));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -94,7 +101,8 @@ public class BlockManagerTest {
                 mock(ObjectClient.class),
                 mock(ObjectMetadata.class),
                 mock(Telemetry.class),
-                null));
+                null,
+                OpenFileInformation.DEFAULT));
   }
 
   @Test
@@ -286,6 +294,115 @@ public class BlockManagerTest {
     metadataStore = ObjectMetadata.builder().contentLength(size).etag(ETAG).build();
 
     return new BlockManager(
-        objectKey, objectClient, metadataStore, TestTelemetry.DEFAULT, configuration);
+        objectKey,
+        objectClient,
+        metadataStore,
+        TestTelemetry.DEFAULT,
+        configuration,
+        OpenFileInformation.DEFAULT);
+  }
+
+  @Test
+  void testNonParquetBehavior() throws IOException {
+    // Given: Test setup for CSV file
+    S3URI csvUri = S3URI.of("bucket", "test.csv"); // Non-parquet extension
+    ObjectClient objectClient = mock(ObjectClient.class);
+    ObjectMetadata metadata =
+        ObjectMetadata.builder().contentLength(16L * ONE_MB).etag(ETAG).build();
+
+    PhysicalIOConfiguration testConfig =
+        PhysicalIOConfiguration.builder()
+            .readAheadBytes(ONE_KB)
+            .sequentialPrefetchBase(2.0)
+            .build();
+
+    // For CSV file
+    OpenFileInformation csvInfo = OpenFileInformation.builder().objectMetadata(metadata).build();
+
+    // Create BlockManager for CSV
+    BlockManager csvBlockManager =
+        new BlockManager(
+            ObjectKey.builder().s3URI(csvUri).etag(ETAG).build(),
+            objectClient,
+            metadata,
+            TestTelemetry.DEFAULT,
+            testConfig,
+            csvInfo);
+
+    // Setup mock response
+    when(objectClient.getObject(any(GetRequest.class), any()))
+        .thenReturn(
+            CompletableFuture.completedFuture(
+                ObjectContent.builder().stream(new ByteArrayInputStream(new byte[1024])).build()));
+
+    // Make sequential requests
+    ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
+    csvBlockManager.makeRangeAvailable(0L, 100L, ReadMode.SYNC);
+    csvBlockManager.makeRangeAvailable(512L, 100L, ReadMode.SYNC);
+
+    verify(objectClient, atLeast(1)).getObject(requestCaptor.capture(), any());
+
+    // Verify all requests are limited to readAheadBytes
+    requestCaptor
+        .getAllValues()
+        .forEach(
+            request ->
+                assertTrue(
+                    request.getRange().getLength() <= testConfig.getReadAheadBytes(),
+                    "Non-Parquet requests should not exceed readAheadBytes"));
+  }
+
+  @Test
+  void testParquetBehavior() throws IOException {
+    // Given: Test setup for Parquet file
+    S3URI parquetUri = S3URI.of("bucket", "test.parquet"); // Parquet extension
+    ObjectClient objectClient = mock(ObjectClient.class);
+    ObjectMetadata metadata =
+        ObjectMetadata.builder().contentLength(16L * ONE_MB).etag(ETAG).build();
+
+    PhysicalIOConfiguration testConfig =
+        PhysicalIOConfiguration.builder()
+            .readAheadBytes(ONE_KB)
+            .sequentialPrefetchBase(2.0)
+            .build();
+
+    // For Parquet file - set Sequential policy
+    OpenFileInformation parquetInfo =
+        OpenFileInformation.builder()
+            .objectMetadata(metadata)
+            .inputPolicy(InputPolicy.Sequential) // This is the key change
+            .build();
+
+    // Create BlockManager for Parquet
+    BlockManager parquetBlockManager =
+        new BlockManager(
+            ObjectKey.builder().s3URI(parquetUri).etag(ETAG).build(),
+            objectClient,
+            metadata,
+            TestTelemetry.DEFAULT,
+            testConfig,
+            parquetInfo);
+
+    // Setup mock response
+    when(objectClient.getObject(any(GetRequest.class), any()))
+        .thenReturn(
+            CompletableFuture.completedFuture(
+                ObjectContent.builder().stream(new ByteArrayInputStream(new byte[1024])).build()));
+
+    // Make sequential requests
+    ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
+    parquetBlockManager.makeRangeAvailable(0L, 100L, ReadMode.SYNC);
+    parquetBlockManager.makeRangeAvailable(512L, 100L, ReadMode.SYNC);
+
+    verify(objectClient, atLeast(1)).getObject(requestCaptor.capture(), any());
+
+    // Verify requests use sequential prefetching
+    requestCaptor
+        .getAllValues()
+        .forEach(
+            request ->
+                assertTrue(
+                    request.getRange().getLength() <= testConfig.getReadAheadBytes(),
+                    "Parquet requests should show sequential prefetching"));
   }
 }

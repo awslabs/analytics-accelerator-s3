@@ -32,7 +32,9 @@ import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
+import software.amazon.s3.analyticsaccelerator.util.InputPolicy;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
+import software.amazon.s3.analyticsaccelerator.util.OpenFileInformation;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
 /** Implements a Block Manager responsible for planning and scheduling reads on a key. */
@@ -48,7 +50,7 @@ public class BlockManager implements Closeable {
   private final PhysicalIOConfiguration configuration;
   private final RangeOptimiser rangeOptimiser;
   private StreamContext streamContext;
-
+  private final boolean isSequential;
   private static final String OPERATION_MAKE_RANGE_AVAILABLE = "block.manager.make.range.available";
 
   /**
@@ -60,14 +62,6 @@ public class BlockManager implements Closeable {
    * @param metadata the metadata for the object we are reading
    * @param configuration the physicalIO configuration
    */
-  public BlockManager(
-      @NonNull ObjectKey objectKey,
-      @NonNull ObjectClient objectClient,
-      @NonNull ObjectMetadata metadata,
-      @NonNull Telemetry telemetry,
-      @NonNull PhysicalIOConfiguration configuration) {
-    this(objectKey, objectClient, metadata, telemetry, configuration, null);
-  }
 
   /**
    * Constructs a new BlockManager.
@@ -77,7 +71,7 @@ public class BlockManager implements Closeable {
    * @param telemetry an instance of {@link Telemetry} to use
    * @param metadata the metadata for the object
    * @param configuration the physicalIO configuration
-   * @param streamContext contains audit headers to be attached in the request header
+   * @param openFileInformation known file information including input policy
    */
   public BlockManager(
       @NonNull ObjectKey objectKey,
@@ -85,7 +79,7 @@ public class BlockManager implements Closeable {
       @NonNull ObjectMetadata metadata,
       @NonNull Telemetry telemetry,
       @NonNull PhysicalIOConfiguration configuration,
-      StreamContext streamContext) {
+      OpenFileInformation openFileInformation) {
     this.objectKey = objectKey;
     this.objectClient = objectClient;
     this.metadata = metadata;
@@ -96,7 +90,10 @@ public class BlockManager implements Closeable {
     this.sequentialReadProgression = new SequentialReadProgression(configuration);
     this.ioPlanner = new IOPlanner(blockStore);
     this.rangeOptimiser = new RangeOptimiser(configuration);
-    this.streamContext = streamContext;
+    this.streamContext = openFileInformation.getStreamContext();
+    this.isSequential =
+        openFileInformation.getInputPolicy() != null
+            && openFileInformation.getInputPolicy() == InputPolicy.Sequential;
   }
 
   /**
@@ -170,7 +167,7 @@ public class BlockManager implements Closeable {
     // TODO: Improve readModes, as tracked in
     // https://github.com/awslabs/analytics-accelerator-s3/issues/195
     final long generation;
-    if (readMode != ReadMode.ASYNC && patternDetector.isSequentialRead(pos)) {
+    if (isSequential && readMode != ReadMode.ASYNC && patternDetector.isSequentialRead(pos)) {
       generation = patternDetector.getGeneration(pos);
       effectiveEnd =
           Math.max(
