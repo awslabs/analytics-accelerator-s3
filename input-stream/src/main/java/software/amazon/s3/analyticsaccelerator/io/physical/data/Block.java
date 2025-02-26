@@ -266,7 +266,7 @@ public class Block implements Closeable {
       } catch (IOException ex) {
         if (ex.getClass() == IOException.class) {
           if (i < MAX_RETRIES - 1) {
-            LOG.info("Get data failed. Retrying. Retry Count {}", i);
+            LOG.debug("Get data failed. Retrying. Retry Count {}", i);
             generateSourceAndData();
           } else {
             LOG.error("Cannot read block file. Retry reached the limit");
