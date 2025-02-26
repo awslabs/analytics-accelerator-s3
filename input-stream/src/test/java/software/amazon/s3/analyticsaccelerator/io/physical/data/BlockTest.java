@@ -38,6 +38,8 @@ public class BlockTest {
   private static final S3URI TEST_URI = S3URI.of("foo", "bar");
   private static final String ETAG = "RandomString";
   private static final ObjectKey objectKey = ObjectKey.builder().s3URI(TEST_URI).etag(ETAG).build();
+  private static final long DEFAULT_READ_TIMEOUT = 120_000;
+  private static final int DEFAULT_READ_RETRY_COUNT = 20;
 
   @Test
   public void testSingleByteReadReturnsCorrectByte() throws IOException {
@@ -52,7 +54,9 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT);
 
     // When: bytes are requested from the block
     int r1 = block.read(0);
@@ -78,7 +82,9 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT);
 
     // When: bytes are requested from the block
     byte[] b1 = new byte[4];
@@ -109,6 +115,8 @@ public class BlockTest {
                 TEST_DATA.length(),
                 0,
                 ReadMode.SYNC,
+                DEFAULT_READ_TIMEOUT,
+                DEFAULT_READ_RETRY_COUNT,
                 null));
     assertThrows(
         NullPointerException.class,
@@ -121,12 +129,23 @@ public class BlockTest {
                 TEST_DATA.length(),
                 0,
                 ReadMode.SYNC,
+                DEFAULT_READ_TIMEOUT,
+                DEFAULT_READ_RETRY_COUNT,
                 null));
     assertThrows(
         NullPointerException.class,
         () ->
             new Block(
-                objectKey, fakeObjectClient, null, 0, TEST_DATA.length(), 0, ReadMode.SYNC, null));
+                objectKey,
+                fakeObjectClient,
+                null,
+                0,
+                TEST_DATA.length(),
+                0,
+                ReadMode.SYNC,
+                DEFAULT_READ_TIMEOUT,
+                DEFAULT_READ_RETRY_COUNT,
+                null));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -138,6 +157,8 @@ public class BlockTest {
                 TEST_DATA.length(),
                 0,
                 null,
+                DEFAULT_READ_TIMEOUT,
+                DEFAULT_READ_RETRY_COUNT,
                 null));
   }
 
@@ -156,20 +177,49 @@ public class BlockTest {
                 TEST_DATA.length(),
                 0,
                 ReadMode.SYNC,
+                DEFAULT_READ_TIMEOUT,
+                DEFAULT_READ_RETRY_COUNT,
                 null));
     assertThrows(
         IllegalArgumentException.class,
         () ->
             new Block(
-                objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 0, -5, 0, ReadMode.SYNC, null));
+                objectKey,
+                fakeObjectClient,
+                TestTelemetry.DEFAULT,
+                0,
+                -5,
+                0,
+                ReadMode.SYNC,
+                DEFAULT_READ_TIMEOUT,
+                DEFAULT_READ_RETRY_COUNT,
+                null));
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 20, 1, 0, ReadMode.SYNC));
+            new Block(
+                objectKey,
+                fakeObjectClient,
+                TestTelemetry.DEFAULT,
+                20,
+                1,
+                0,
+                ReadMode.SYNC,
+                DEFAULT_READ_TIMEOUT,
+                DEFAULT_READ_RETRY_COUNT));
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 0, 5, -1, ReadMode.SYNC));
+            new Block(
+                objectKey,
+                fakeObjectClient,
+                TestTelemetry.DEFAULT,
+                0,
+                5,
+                -1,
+                ReadMode.SYNC,
+                DEFAULT_READ_TIMEOUT,
+                DEFAULT_READ_RETRY_COUNT));
     assertThrows(
         IllegalArgumentException.class,
         () ->
@@ -181,6 +231,8 @@ public class BlockTest {
                 0,
                 TEST_DATA.length(),
                 ReadMode.SYNC,
+                DEFAULT_READ_TIMEOUT,
+                DEFAULT_READ_RETRY_COUNT,
                 null));
   }
 
@@ -198,7 +250,9 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT);
     assertThrows(IllegalArgumentException.class, () -> block.read(-10));
     assertThrows(NullPointerException.class, () -> block.read(null, 0, 3, 1));
     assertThrows(IllegalArgumentException.class, () -> block.read(b, -5, 3, 1));
@@ -219,7 +273,9 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT);
     assertTrue(block.contains(0));
     assertFalse(block.contains(TEST_DATA.length() + 1));
   }
@@ -237,7 +293,9 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT);
     assertThrows(IllegalArgumentException.class, () -> block.contains(-1));
   }
 
@@ -256,7 +314,9 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT);
     assertThrows(IOException.class, () -> block.read(4));
   }
 
@@ -273,7 +333,9 @@ public class BlockTest {
             0,
             TEST_DATA.length(),
             0,
-            ReadMode.SYNC);
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT);
     block.close();
     block.close();
   }

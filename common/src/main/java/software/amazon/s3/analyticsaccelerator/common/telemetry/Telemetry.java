@@ -81,13 +81,15 @@ public interface Telemetry extends Closeable {
    * @param level telemetry level.
    * @param operationSupplier operation to record this execution as.
    * @param operationCode the future to measure the execution of.
+   * @param operationTimeout Timeout duration (in milliseconds) for operation
    * @return an instance of {@link T} that returns the same result as the one passed in.
    * @throws IOException if the underlying operation threw an IOException
    */
   default <T> T measureJoin(
       @NonNull TelemetryLevel level,
       @NonNull OperationSupplier operationSupplier,
-      @NonNull CompletableFuture<T> operationCode)
+      @NonNull CompletableFuture<T> operationCode,
+      long operationTimeout)
       throws IOException {
     if (operationCode.isDone()) {
       return operationCode.join();
@@ -149,12 +151,16 @@ public interface Telemetry extends Closeable {
    * @param <T> - return type of the {@link CompletableFuture<T>}.
    * @param operationSupplier operation to record this execution as.
    * @param operationCode the future to measure the execution of.
+   * @param operationTimeout Timeout duration (in milliseconds) for operation
    * @return an instance of {@link T} that returns the same result as the one passed in.
    * @throws IOException if the underlying operation threw an IOException
    */
   default <T> T measureJoinCritical(
-      OperationSupplier operationSupplier, CompletableFuture<T> operationCode) throws IOException {
-    return measureJoin(TelemetryLevel.CRITICAL, operationSupplier, operationCode);
+      OperationSupplier operationSupplier,
+      CompletableFuture<T> operationCode,
+      long operationTimeout)
+      throws IOException {
+    return measureJoin(TelemetryLevel.CRITICAL, operationSupplier, operationCode, operationTimeout);
   }
 
   /**
@@ -210,12 +216,16 @@ public interface Telemetry extends Closeable {
    * @param <T> - return type of the {@link CompletableFuture<T>}.
    * @param operationSupplier operation to record this execution as.
    * @param operationCode the future to measure the execution of.
+   * @param operationTimeout Timeout duration (in milliseconds) for operation
    * @return an instance of {@link T} that returns the same result as the one passed in.
    * @throws IOException if the underlying operation threw an IOException
    */
   default <T> T measureJoinStandard(
-      OperationSupplier operationSupplier, CompletableFuture<T> operationCode) throws IOException {
-    return measureJoin(TelemetryLevel.STANDARD, operationSupplier, operationCode);
+      OperationSupplier operationSupplier,
+      CompletableFuture<T> operationCode,
+      long operationTimeout)
+      throws IOException {
+    return measureJoin(TelemetryLevel.STANDARD, operationSupplier, operationCode, operationTimeout);
   }
 
   /**
@@ -271,12 +281,16 @@ public interface Telemetry extends Closeable {
    * @param <T> - return type of the {@link CompletableFuture<T>}.
    * @param operationSupplier operation to record this execution as.
    * @param operationCode the future to measure the execution of.
+   * @param operationTimeout Timeout duration (in milliseconds) for operation
    * @return an instance of {@link T} that returns the same result as the one passed in.
    * @throws IOException if the underlying operation threw an IOException
    */
   default <T> T measureJoinVerbose(
-      OperationSupplier operationSupplier, CompletableFuture<T> operationCode) throws IOException {
-    return measureJoin(TelemetryLevel.VERBOSE, operationSupplier, operationCode);
+      OperationSupplier operationSupplier,
+      CompletableFuture<T> operationCode,
+      long operationTimeout)
+      throws IOException {
+    return measureJoin(TelemetryLevel.VERBOSE, operationSupplier, operationCode, operationTimeout);
   }
 
   /**
