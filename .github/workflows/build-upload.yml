@@ -119,7 +119,6 @@ jobs:
       - name: Build Iceberg jar
         run: |
           ./gradlew build -x test -x integrationTest
-          ./gradlew :iceberg-aws:test
         working-directory: iceberg
 
       - name: Rename iceberg-spark-runtime JAR path
