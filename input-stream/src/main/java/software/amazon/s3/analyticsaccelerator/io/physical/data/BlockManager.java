@@ -207,6 +207,8 @@ public class BlockManager implements Closeable {
                     r.getEnd(),
                     generation,
                     readMode,
+                    this.configuration.getBlockReadTimeout(),
+                    this.configuration.getBlockReadRetryCount(),
                     streamContext);
             blockStore.add(block);
           }

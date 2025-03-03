@@ -43,6 +43,7 @@ public class MetadataStore implements Closeable {
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
   private final Map<S3URI, CompletableFuture<ObjectMetadata>> cache;
+  private final PhysicalIOConfiguration configuration;
 
   private static final Logger LOG = LoggerFactory.getLogger(MetadataStore.class);
   private static final String OPERATION_METADATA_HEAD_ASYNC = "metadata.store.head.async";
@@ -70,6 +71,7 @@ public class MetadataStore implements Closeable {
                 return this.size() > configuration.getMetadataStoreCapacity();
               }
             });
+    this.configuration = configuration;
   }
 
   /**
@@ -87,7 +89,8 @@ public class MetadataStore implements Closeable {
                 .name(OPERATION_METADATA_HEAD_JOIN)
                 .attribute(StreamAttributes.uri(s3URI))
                 .build(),
-        this.asyncGet(s3URI));
+        this.asyncGet(s3URI),
+        this.configuration.getBlockReadTimeout());
   }
 
   /**

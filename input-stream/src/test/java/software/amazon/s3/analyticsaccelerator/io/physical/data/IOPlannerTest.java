@@ -88,7 +88,16 @@ public class IOPlannerTest {
     FakeObjectClient fakeObjectClient =
         new FakeObjectClient(new String(content, StandardCharsets.UTF_8));
     blockStore.add(
-        new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 100, 200, 0, ReadMode.SYNC));
+        new Block(
+            objectKey,
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            100,
+            200,
+            0,
+            ReadMode.SYNC,
+            120_000,
+            20));
     IOPlanner ioPlanner = new IOPlanner(blockStore);
 
     // When: a read plan is requested for a range (0, 400)

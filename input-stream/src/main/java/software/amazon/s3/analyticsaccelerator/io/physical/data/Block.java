@@ -52,6 +52,8 @@ public class Block implements Closeable {
   private final StreamContext streamContext;
   private final ReadMode readMode;
   private final Referrer referrer;
+  private final long readTimeout;
+  private final int readRetryCount;
 
   @Getter private final long start;
   @Getter private final long end;
@@ -59,9 +61,6 @@ public class Block implements Closeable {
 
   private static final String OPERATION_BLOCK_GET_ASYNC = "block.get.async";
   private static final String OPERATION_BLOCK_GET_JOIN = "block.get.join";
-
-  private static final int MAX_RETRIES = 20;
-  private static final long TIMEOUT_MILLIS = 120_000;
 
   private static final Logger LOG = LoggerFactory.getLogger(Block.class);
 
@@ -75,6 +74,8 @@ public class Block implements Closeable {
    * @param end end of the block
    * @param generation generation of the block in a sequential read pattern (should be 0 by default)
    * @param readMode read mode describing whether this is a sync or async fetch
+   * @param readTimeout Timeout duration (in milliseconds) for reading a block object from S3
+   * @param readRetryCount Number of retries for block read failure
    */
   public Block(
       @NonNull ObjectKey objectKey,
@@ -83,10 +84,22 @@ public class Block implements Closeable {
       long start,
       long end,
       long generation,
-      @NonNull ReadMode readMode)
+      @NonNull ReadMode readMode,
+      long readTimeout,
+      int readRetryCount)
       throws IOException {
 
-    this(objectKey, objectClient, telemetry, start, end, generation, readMode, null);
+    this(
+        objectKey,
+        objectClient,
+        telemetry,
+        start,
+        end,
+        generation,
+        readMode,
+        readTimeout,
+        readRetryCount,
+        null);
   }
 
   /**
@@ -99,6 +112,8 @@ public class Block implements Closeable {
    * @param end end of the block
    * @param generation generation of the block in a sequential read pattern (should be 0 by default)
    * @param readMode read mode describing whether this is a sync or async fetch
+   * @param readTimeout Timeout duration (in milliseconds) for reading a block object from S3
+   * @param readRetryCount Number of retries for block read failure
    * @param streamContext contains audit headers to be attached in the request header
    */
   public Block(
@@ -109,6 +124,8 @@ public class Block implements Closeable {
       long end,
       long generation,
       @NonNull ReadMode readMode,
+      long readTimeout,
+      int readRetryCount,
       StreamContext streamContext)
       throws IOException {
 
@@ -118,6 +135,10 @@ public class Block implements Closeable {
     Preconditions.checkArgument(0 <= end, "`end` must be non-negative; was: %s", end);
     Preconditions.checkArgument(
         start <= end, "`start` must be less than `end`; %s is not less than %s", start, end);
+    Preconditions.checkArgument(
+        0 < readTimeout, "`readTimeout` must be greater than 0; was %s", readTimeout);
+    Preconditions.checkArgument(
+        0 < readRetryCount, "`readRetryCount` must be greater than 0; was %s", readRetryCount);
 
     this.start = start;
     this.end = end;
@@ -129,6 +150,8 @@ public class Block implements Closeable {
     this.streamContext = streamContext;
     this.readMode = readMode;
     this.referrer = new Referrer(range.toHttpString(), readMode);
+    this.readTimeout = readTimeout;
+    this.readRetryCount = readRetryCount;
 
     generateSourceAndData();
   }
@@ -136,7 +159,7 @@ public class Block implements Closeable {
   /** Method to help construct source and data */
   private void generateSourceAndData() throws IOException {
     int retries = 0;
-    while (retries < MAX_RETRIES) {
+    while (retries < this.readRetryCount) {
       try {
         GetRequest getRequest =
             GetRequest.builder()
@@ -164,7 +187,7 @@ public class Block implements Closeable {
                 objectContent -> {
                   try {
                     return StreamUtils.toByteArray(
-                        objectContent, this.objectKey, this.range, TIMEOUT_MILLIS);
+                        objectContent, this.objectKey, this.range, this.readTimeout);
                   } catch (IOException | TimeoutException e) {
                     throw new RuntimeException(
                         "Error while converting InputStream to byte array", e);
@@ -177,10 +200,10 @@ public class Block implements Closeable {
         LOG.warn(
             "Retry {}/{} - Failed to fetch block data due to: {}",
             retries,
-            MAX_RETRIES,
+            this.readRetryCount,
             e.getMessage());
 
-        if (retries >= MAX_RETRIES) {
+        if (retries >= this.readRetryCount) {
           LOG.error("Max retries reached. Unable to fetch block data.");
           throw new IOException("Failed to fetch block data after retries", e);
         }
@@ -260,12 +283,12 @@ public class Block implements Closeable {
    * @throws IOException if an I/O error occurs after maximum retry counts
    */
   private byte[] getDataWithRetries() throws IOException {
-    for (int i = 0; i < MAX_RETRIES; i++) {
+    for (int i = 0; i < this.readRetryCount; i++) {
       try {
         return this.getData();
       } catch (IOException ex) {
         if (ex.getClass() == IOException.class) {
-          if (i < MAX_RETRIES - 1) {
+          if (i < this.readRetryCount - 1) {
             LOG.info("Get data failed. Retrying. Retry Count {}", i);
             generateSourceAndData();
           } else {
@@ -297,7 +320,8 @@ public class Block implements Closeable {
                 .attribute(StreamAttributes.range(this.range))
                 .attribute(StreamAttributes.rangeLength(this.range.getLength()))
                 .build(),
-        this.data);
+        this.data,
+        this.readTimeout);
   }
 
   /** Closes the {@link Block} and frees up all resources it holds */

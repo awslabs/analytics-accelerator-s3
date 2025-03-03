@@ -41,6 +41,8 @@ public class BlockStoreTest {
   private static final String ETAG = "RandomString";
   private static final ObjectKey objectKey = ObjectKey.builder().s3URI(TEST_URI).etag(ETAG).build();
   private static final int OBJECT_SIZE = 100;
+  private static final long DEFAULT_READ_TIMEOUT = 120_000;
+  private static final int DEFAULT_READ_RETRY_COUNT = 20;
 
   @SneakyThrows
   @Test
@@ -53,7 +55,16 @@ public class BlockStoreTest {
 
     // When: a new block is added
     blockStore.add(
-        new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 3, 5, 0, ReadMode.SYNC));
+        new Block(
+            objectKey,
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            3,
+            5,
+            0,
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT));
 
     // Then: getBlock can retrieve the same block
     Optional<Block> b = blockStore.getBlock(4);
@@ -75,11 +86,38 @@ public class BlockStoreTest {
     BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
 
     blockStore.add(
-        new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 2, 3, 0, ReadMode.SYNC));
+        new Block(
+            objectKey,
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            2,
+            3,
+            0,
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT));
     blockStore.add(
-        new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 5, 10, 0, ReadMode.SYNC));
+        new Block(
+            objectKey,
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            5,
+            10,
+            0,
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT));
     blockStore.add(
-        new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 12, 15, 0, ReadMode.SYNC));
+        new Block(
+            objectKey,
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            12,
+            15,
+            0,
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT));
 
     // When & Then: we query for the next missing byte, the result is correct
     assertEquals(OptionalLong.of(0), blockStore.findNextMissingByte(0));
@@ -103,11 +141,38 @@ public class BlockStoreTest {
     BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
 
     blockStore.add(
-        new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 2, 3, 0, ReadMode.SYNC));
+        new Block(
+            objectKey,
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            2,
+            3,
+            0,
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT));
     blockStore.add(
-        new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 5, 10, 0, ReadMode.SYNC));
+        new Block(
+            objectKey,
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            5,
+            10,
+            0,
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT));
     blockStore.add(
-        new Block(objectKey, fakeObjectClient, TestTelemetry.DEFAULT, 12, 15, 0, ReadMode.SYNC));
+        new Block(
+            objectKey,
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            12,
+            15,
+            0,
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT));
 
     // When & Then: we query for the next available byte, the result is correct
     assertEquals(OptionalLong.of(2), blockStore.findNextLoadedByte(0));

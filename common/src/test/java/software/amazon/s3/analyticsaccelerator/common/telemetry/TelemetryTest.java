@@ -27,6 +27,8 @@ import software.amazon.s3.analyticsaccelerator.SpotBugsLambdaWorkaround;
     value = "NP_NONNULL_PARAM_VIOLATION",
     justification = "We mean to pass nulls to checks")
 public class TelemetryTest {
+  private static final long DEFAULT_TIMEOUT = 120_000;
+
   @Test
   void testCreateTelemetry() {
     try (Telemetry newTelemetry = Telemetry.createTelemetry(TelemetryConfiguration.DEFAULT)) {
@@ -78,7 +80,7 @@ public class TelemetryTest {
 
       // This will complete the future
       completionThread.start();
-      defaultTelemetry.measureJoinCritical(() -> operation, completableFuture);
+      defaultTelemetry.measureJoinCritical(() -> operation, completableFuture, DEFAULT_TIMEOUT);
       assertTrue(completableFuture.isDone());
       assertFalse(completableFuture.isCompletedExceptionally());
       assertEquals(42, completableFuture.get());
@@ -95,7 +97,8 @@ public class TelemetryTest {
       assertEquals(Optional.empty(), operationMeasurement.getError());
 
       // Try again - nothing should be recorded
-      long result = defaultTelemetry.measureJoinStandard(() -> operation, completableFuture);
+      long result =
+          defaultTelemetry.measureJoinStandard(() -> operation, completableFuture, DEFAULT_TIMEOUT);
       assertEquals(1, reporter.getOperationCompletions().size());
       assertEquals(42, result);
     }
@@ -129,7 +132,7 @@ public class TelemetryTest {
 
       // This will complete the future
       completionThread.start();
-      defaultTelemetry.measureJoinStandard(() -> operation, completableFuture);
+      defaultTelemetry.measureJoinStandard(() -> operation, completableFuture, DEFAULT_TIMEOUT);
       assertTrue(completableFuture.isDone());
       assertFalse(completableFuture.isCompletedExceptionally());
       assertEquals(42, completableFuture.get());
@@ -146,7 +149,8 @@ public class TelemetryTest {
       assertEquals(Optional.empty(), operationMeasurement.getError());
 
       // Try again - nothing should be recorded
-      long result = defaultTelemetry.measureJoinStandard(() -> operation, completableFuture);
+      long result =
+          defaultTelemetry.measureJoinStandard(() -> operation, completableFuture, DEFAULT_TIMEOUT);
       assertEquals(1, reporter.getOperationCompletions().size());
       assertEquals(42, result);
     }
@@ -180,7 +184,8 @@ public class TelemetryTest {
 
       // This will complete the future
       completionThread.start();
-      Long result = defaultTelemetry.measureJoinVerbose(() -> operation, completableFuture);
+      Long result =
+          defaultTelemetry.measureJoinVerbose(() -> operation, completableFuture, DEFAULT_TIMEOUT);
       assertEquals(42L, result);
       assertTrue(completableFuture.isDone());
       assertFalse(completableFuture.isCompletedExceptionally());
@@ -198,7 +203,8 @@ public class TelemetryTest {
       assertEquals(Optional.empty(), operationMeasurement.getError());
 
       // Try again - nothing should be recorded
-      result = defaultTelemetry.measureJoinStandard(() -> operation, completableFuture);
+      result =
+          defaultTelemetry.measureJoinStandard(() -> operation, completableFuture, DEFAULT_TIMEOUT);
       assertEquals(1, reporter.getOperationCompletions().size());
       assertEquals(42, result);
     }
@@ -221,14 +227,15 @@ public class TelemetryTest {
 
       assertThrows(
           NullPointerException.class,
-          () -> defaultTelemetry.measureJoinStandard(null, completableFuture));
+          () -> defaultTelemetry.measureJoinStandard(null, completableFuture, DEFAULT_TIMEOUT));
 
       assertThrows(
           NullPointerException.class,
-          () -> defaultTelemetry.measureJoinStandard(() -> null, completableFuture));
+          () ->
+              defaultTelemetry.measureJoinStandard(() -> null, completableFuture, DEFAULT_TIMEOUT));
       assertThrows(
           NullPointerException.class,
-          () -> defaultTelemetry.measureJoinStandard(() -> operation, null));
+          () -> defaultTelemetry.measureJoinStandard(() -> operation, null, DEFAULT_TIMEOUT));
     }
   }
 

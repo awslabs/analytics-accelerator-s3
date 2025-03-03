@@ -71,6 +71,8 @@ public class PhysicalIOConfigurationTest {
             + "\tmaxRangeSizeBytes: 8388608\n"
             + "\tpartSizeBytes: 20\n"
             + "\tsequentialPrefetchBase: 2.0\n"
-            + "\tsequentialPrefetchSpeed: 1.0\n");
+            + "\tsequentialPrefetchSpeed: 1.0\n"
+            + "\tblockReadTimeout: 120000\n"
+            + "\tblockReadRetryCount: 20\n");
   }
 }

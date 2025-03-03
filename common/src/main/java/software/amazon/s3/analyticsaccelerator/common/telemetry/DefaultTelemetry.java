@@ -280,6 +280,7 @@ public class DefaultTelemetry implements Telemetry {
    * @param level telemetry level.
    * @param operationSupplier operation to record this execution as.
    * @param operationCode the future to measure the execution of.
+   * @param operationTimeout Timeout duration (in milliseconds) for operation
    * @return an instance of {@link T} that returns the same result as the one passed in.
    * @throws IOException if the underlying operation threw an IOException
    */
@@ -287,13 +288,16 @@ public class DefaultTelemetry implements Telemetry {
   public <T> T measureJoin(
       @NonNull TelemetryLevel level,
       @NonNull OperationSupplier operationSupplier,
-      @NonNull CompletableFuture<T> operationCode)
+      @NonNull CompletableFuture<T> operationCode,
+      long operationTimeout)
       throws IOException {
     if (operationCode.isDone()) {
-      return handleCompletableFutureJoin(operationCode);
+      return handleCompletableFutureJoin(operationCode, operationTimeout);
     } else {
       return this.measure(
-          level, operationSupplier, () -> handleCompletableFutureJoin(operationCode));
+          level,
+          operationSupplier,
+          () -> handleCompletableFutureJoin(operationCode, operationTimeout));
     }
   }
 
@@ -302,12 +306,14 @@ public class DefaultTelemetry implements Telemetry {
    *
    * @param <T> - return type of the CompletableFuture
    * @param future the CompletableFuture to join
+   * @param operationTimeout Timeout duration (in milliseconds) for operation
    * @return the result of the CompletableFuture
    * @throws IOException if the underlying future threw an IOException
    */
-  private <T> T handleCompletableFutureJoin(CompletableFuture<T> future) throws IOException {
+  private <T> T handleCompletableFutureJoin(CompletableFuture<T> future, long operationTimeout)
+      throws IOException {
     try {
-      return future.get(120_000, TimeUnit.MILLISECONDS);
+      return future.get(operationTimeout, TimeUnit.MILLISECONDS);
     } catch (ExecutionException | InterruptedException | TimeoutException e) {
       Throwable cause = e.getCause();
       if (cause instanceof UncheckedIOException) {

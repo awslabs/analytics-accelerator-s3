@@ -39,6 +39,8 @@ public class PhysicalIOConfiguration {
   private static final long DEFAULT_PART_SIZE = 8 * ONE_MB;
   private static final double DEFAULT_SEQUENTIAL_PREFETCH_BASE = 2.0;
   private static final double DEFAULT_SEQUENTIAL_PREFETCH_SPEED = 1.0;
+  private static final long DEFAULT_BLOCK_READ_TIMEOUT = 120_000;
+  private static final int DEFAULT_BLOCK_READ_RETRY_COUNT = 20;
 
   /** Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_CAPACITY_BLOB_STORE} by default. */
   @Builder.Default private int blobStoreCapacity = DEFAULT_CAPACITY_BLOB_STORE;
@@ -93,6 +95,16 @@ public class PhysicalIOConfiguration {
 
   private static final String SEQUENTIAL_PREFETCH_SPEED_KEY = "sequentialprefetch.speed";
 
+  /** Timeout duration (in milliseconds) for reading a block object from S3 */
+  @Builder.Default private long blockReadTimeout = DEFAULT_BLOCK_READ_TIMEOUT;
+
+  private static final String BLOCK_READ_TIMEOUT_KEY = "blockreadtimeout";
+
+  /** Number of retries for block read failure */
+  @Builder.Default private int blockReadRetryCount = DEFAULT_BLOCK_READ_RETRY_COUNT;
+
+  private static final String BLOCK_READ_RETRY_COUNT_KEY = "blockreadretrycount";
+
   /** Default set of settings for {@link PhysicalIO} */
   public static final PhysicalIOConfiguration DEFAULT = PhysicalIOConfiguration.builder().build();
 
@@ -117,6 +129,9 @@ public class PhysicalIOConfiguration {
         .sequentialPrefetchSpeed(
             configuration.getDouble(
                 SEQUENTIAL_PREFETCH_SPEED_KEY, DEFAULT_SEQUENTIAL_PREFETCH_SPEED))
+        .blockReadTimeout(configuration.getLong(BLOCK_READ_TIMEOUT_KEY, DEFAULT_BLOCK_READ_TIMEOUT))
+        .blockReadRetryCount(
+            configuration.getInt(BLOCK_READ_RETRY_COUNT_KEY, DEFAULT_BLOCK_READ_RETRY_COUNT))
         .build();
   }
 
@@ -133,6 +148,8 @@ public class PhysicalIOConfiguration {
    *     physical blocks. Example: A constant of 2.0 means doubling the block sizes.
    * @param sequentialPrefetchSpeed Constant controlling the rate of growth of sequentially
    *     prefetched physical blocks.
+   * @param blockReadTimeout Timeout duration (in milliseconds) for reading a block object from S3
+   * @param blockReadRetryCount Number of retries for block read failure
    */
   @Builder
   private PhysicalIOConfiguration(
@@ -143,7 +160,9 @@ public class PhysicalIOConfiguration {
       long maxRangeSizeBytes,
       long partSizeBytes,
       double sequentialPrefetchBase,
-      double sequentialPrefetchSpeed) {
+      double sequentialPrefetchSpeed,
+      long blockReadTimeout,
+      int blockReadRetryCount) {
     Preconditions.checkArgument(blobStoreCapacity > 0, "`blobStoreCapacity` must be positive");
     Preconditions.checkArgument(
         metadataStoreCapacity > 0, "`metadataStoreCapacity` must be positive");
@@ -155,6 +174,8 @@ public class PhysicalIOConfiguration {
         sequentialPrefetchBase > 0, "`sequentialPrefetchBase` must be positive");
     Preconditions.checkArgument(
         sequentialPrefetchSpeed > 0, "`sequentialPrefetchSpeed` must be positive");
+    Preconditions.checkArgument(blockReadTimeout > 0, "`blockReadTimeout` must be positive");
+    Preconditions.checkArgument(blockReadRetryCount > 0, "`blockReadRetryCount` must be positive");
 
     this.blobStoreCapacity = blobStoreCapacity;
     this.metadataStoreCapacity = metadataStoreCapacity;
@@ -164,6 +185,8 @@ public class PhysicalIOConfiguration {
     this.partSizeBytes = partSizeBytes;
     this.sequentialPrefetchBase = sequentialPrefetchBase;
     this.sequentialPrefetchSpeed = sequentialPrefetchSpeed;
+    this.blockReadTimeout = blockReadTimeout;
+    this.blockReadRetryCount = blockReadRetryCount;
   }
 
   @Override
@@ -179,6 +202,8 @@ public class PhysicalIOConfiguration {
     builder.append("\tpartSizeBytes: " + partSizeBytes + "\n");
     builder.append("\tsequentialPrefetchBase: " + sequentialPrefetchBase + "\n");
     builder.append("\tsequentialPrefetchSpeed: " + sequentialPrefetchSpeed + "\n");
+    builder.append("\tblockReadTimeout: " + blockReadTimeout + "\n");
+    builder.append("\tblockReadRetryCount: " + blockReadRetryCount + "\n");
 
     return builder.toString();
   }
