@@ -21,7 +21,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIO;
-import software.amazon.s3.analyticsaccelerator.io.logical.impl.DefaultLogicalIOImpl;
+import software.amazon.s3.analyticsaccelerator.io.logical.impl.OptimizedLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetColumnPrefetchStore;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
@@ -134,7 +134,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
             parquetColumnPrefetchStore);
 
       default:
-        return new DefaultLogicalIOImpl(
+        return new OptimizedLogicalIOImpl(
             s3URI,
             new PhysicalIOImpl(
                 s3URI,
