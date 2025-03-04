@@ -65,6 +65,9 @@ public class LogicalIOConfigurationTest {
         LogicalIOConfiguration.builder()
             .prefetchFooterEnabled(true)
             .prefetchFilePageIndexSize(10)
+            .csvFormatSelectorRegex("^.*\\.(csv|CSV)$")
+            .csvInitialReadSize(2 * 1024 * 1024)
+            .csvPrefetchSize(126 * 1024 * 1024)
             .build();
 
     assertEquals(
@@ -82,6 +85,9 @@ public class LogicalIOConfigurationTest {
             + "\tparquetMetadataStoreSize: 45\n"
             + "\tmaxColumnAccessCountStoreSize: 15\n"
             + "\tparquetFormatSelectorRegex: ^.*.(parquet|par)$\n"
-            + "\tprefetchingMode: ROW_GROUP\n");
+            + "\tprefetchingMode: ROW_GROUP\n"
+            + "\tcsvFormatSelectorRegex: ^.*\\.(csv|CSV)$\n"
+            + "\tcsvInitialReadSize: 2097152\n"
+            + "\tcsvPrefetchSize: 132120576\n");
   }
 }

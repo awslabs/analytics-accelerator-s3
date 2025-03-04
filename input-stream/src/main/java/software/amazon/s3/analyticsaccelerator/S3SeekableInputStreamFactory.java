@@ -21,6 +21,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIO;
+import software.amazon.s3.analyticsaccelerator.io.logical.impl.CSVLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.DefaultLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetColumnPrefetchStore;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOImpl;
@@ -51,7 +52,6 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   private final BlobStore objectBlobStore;
   private final Telemetry telemetry;
   private final ObjectFormatSelector objectFormatSelector;
-
   /**
    * Creates a new instance of {@link S3SeekableInputStreamFactory}. This factory should be used to
    * create instances of the input stream to allow for sharing resources such as the object client
@@ -132,6 +132,18 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
             telemetry,
             configuration.getLogicalIOConfiguration(),
             parquetColumnPrefetchStore);
+
+      case CSV:
+        return new CSVLogicalIOImpl(
+            s3URI,
+            new PhysicalIOImpl(
+                s3URI,
+                objectMetadataStore,
+                objectBlobStore,
+                telemetry,
+                openStreamInformation.getStreamContext()),
+            telemetry,
+            configuration.getLogicalIOConfiguration());
 
       default:
         return new DefaultLogicalIOImpl(
