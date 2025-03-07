@@ -6,6 +6,7 @@ plugins {
     id("buildlogic.java-library-conventions")
     id("io.freefair.lombok") version "8.10.2"
     `maven-publish`
+    java
 }
 
 dependencies {
@@ -22,4 +23,11 @@ dependencies {
 
 tasks.test {
     environment("AWS_REGION", "eu-west-1")
+}
+
+tasks.javadoc {
+    options {
+        (this as StandardJavadocDocletOptions).apply {
+            addStringOption("Xdoclint:none", "-quiet")}
+    }
 }
