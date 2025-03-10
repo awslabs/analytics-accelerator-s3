@@ -36,6 +36,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.s3.analyticsaccelerator.exceptions.ExceptionHandler;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
+import software.amazon.s3.analyticsaccelerator.io.logical.impl.CSVLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.DefaultLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
@@ -184,10 +185,14 @@ public class S3SeekableInputStreamFactoryTest {
     S3URI testURIKEYPAR = S3URI.of("bucket", "key.par");
     S3URI testURIJAVA = S3URI.of("bucket", "key.java");
     S3URI testURITXT = S3URI.of("bucket", "key.txt");
+    S3URI testURICSV = S3URI.of("bucket", "key.csv");
     S3SeekableInputStreamConfiguration configuration =
         S3SeekableInputStreamConfiguration.builder()
             .logicalIOConfiguration(
-                LogicalIOConfiguration.builder().prefetchFooterEnabled(false).build())
+                LogicalIOConfiguration.builder()
+                    .prefetchFooterEnabled(false)
+                    .csvFormatSelectorRegex("^.*\\.(csv|CSV)$")
+                    .build())
             .build();
     S3SeekableInputStreamFactory s3SeekableInputStreamFactory =
         new S3SeekableInputStreamFactory(mock(ObjectClient.class), configuration);
@@ -197,6 +202,9 @@ public class S3SeekableInputStreamFactoryTest {
     s3SeekableInputStreamFactory
         .getObjectMetadataStore()
         .storeObjectMetadata(testURIKEYPAR, objectMetadata);
+    s3SeekableInputStreamFactory
+        .getObjectMetadataStore()
+        .storeObjectMetadata(testURICSV, objectMetadata);
     s3SeekableInputStreamFactory
         .getObjectMetadataStore()
         .storeObjectMetadata(testURIJAVA, objectMetadata);
@@ -212,7 +220,9 @@ public class S3SeekableInputStreamFactoryTest {
         s3SeekableInputStreamFactory.createLogicalIO(
                 testURIKEYPAR, mock(OpenStreamInformation.class))
             instanceof ParquetLogicalIOImpl);
-
+    assertTrue(
+        s3SeekableInputStreamFactory.createLogicalIO(testURICSV, mock(OpenStreamInformation.class))
+            instanceof CSVLogicalIOImpl);
     assertTrue(
         s3SeekableInputStreamFactory.createLogicalIO(testURIJAVA, mock(OpenStreamInformation.class))
             instanceof DefaultLogicalIOImpl);

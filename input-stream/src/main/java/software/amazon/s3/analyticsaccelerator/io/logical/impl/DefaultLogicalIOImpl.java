@@ -121,6 +121,9 @@ public class DefaultLogicalIOImpl implements LogicalIO {
     return this.physicalIO.metadata();
   }
 
+  protected PhysicalIO getPhysicalIO() {
+    return this.physicalIO;
+  }
   /**
    * Closes associate resources.
    *
