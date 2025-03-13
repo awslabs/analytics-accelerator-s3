@@ -22,7 +22,7 @@ import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration
 public class ObjectFormatSelector {
 
   private final Pattern parquetPattern;
-  private final Pattern csvPattern;
+
   /**
    * Creates a new instance of {@ObjectFormatSelector}. Used to select the file format of a
    * particular object key.
@@ -32,8 +32,6 @@ public class ObjectFormatSelector {
   public ObjectFormatSelector(LogicalIOConfiguration configuration) {
     this.parquetPattern =
         Pattern.compile(configuration.getParquetFormatSelectorRegex(), Pattern.CASE_INSENSITIVE);
-    this.csvPattern =
-        Pattern.compile(configuration.getCsvFormatSelectorRegex(), Pattern.CASE_INSENSITIVE);
   }
 
   /**
@@ -53,13 +51,11 @@ public class ObjectFormatSelector {
     // parquet specific optimisations are of no use there :(
     if (openStreamInformation.getInputPolicy() != null
         && openStreamInformation.getInputPolicy().equals(InputPolicy.Sequential)) {
-      return ObjectFormat.DEFAULT;
+      return ObjectFormat.SEQUENTIAL;
     }
-    String key = s3URI.getKey();
-    if (parquetPattern.matcher(key).find()) {
+
+    if (parquetPattern.matcher(s3URI.getKey()).find()) {
       return ObjectFormat.PARQUET;
-    } else if (csvPattern.matcher(key).find()) {
-      return ObjectFormat.CSV;
     }
 
     return ObjectFormat.DEFAULT;

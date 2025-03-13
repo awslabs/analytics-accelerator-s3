@@ -43,9 +43,8 @@ public class LogicalIOConfiguration {
   private static final int DEFAULT_MAX_COLUMN_ACCESS_STORE_SIZE = 15;
   private static final String DEFAULT_PARQUET_FORMAT_SELECTOR_REGEX = "^.*.(parquet|par)$";
   private static final PrefetchMode DEFAULT_PREFETCHING_MODE = PrefetchMode.ROW_GROUP;
-  private static final String DEFAULT_CSV_FORMAT_SELECTOR_REGEX = "^.*\\.(csv|CSV)$";
-  private static final long DEFAULT_CSV_INITIAL_READ_SIZE = 2 * ONE_MB;
-  private static final long DEFAULT_CSV_PREFETCH_SIZE = 126 * ONE_MB;
+
+  private static final long DEFAULT_SPARK_PARTITION_SIZE = 128 * ONE_MB;
 
   @Builder.Default private boolean prefetchFooterEnabled = DEFAULT_PREFETCH_FOOTER_ENABLED;
 
@@ -111,17 +110,9 @@ public class LogicalIOConfiguration {
 
   public static final LogicalIOConfiguration DEFAULT = LogicalIOConfiguration.builder().build();
 
-  @Builder.Default private String csvFormatSelectorRegex = DEFAULT_CSV_FORMAT_SELECTOR_REGEX;
+  @Builder.Default private long sparkPartitionSize = DEFAULT_SPARK_PARTITION_SIZE;
 
-  private static final String CSV_FORMAT_SELECTOR_REGEX = "csv.format.selector.regex";
-
-  @Builder.Default private long csvInitialReadSize = DEFAULT_CSV_INITIAL_READ_SIZE;
-
-  private static final String CSV_INITIAL_READ_SIZE_KEY = "csv.initial.read.size";
-
-  @Builder.Default private long csvPrefetchSize = DEFAULT_CSV_PREFETCH_SIZE;
-
-  private static final String CSV_PREFETCH_SIZE_KEY = "csv.prefetch.size";
+  private static final String SPARK_PARTITION_SIZE_KEY = "spark.partition.size";
   /**
    * Constructs {@link LogicalIOConfiguration} from {@link ConnectorConfiguration} object.
    *
@@ -167,11 +158,8 @@ public class LogicalIOConfiguration {
         .prefetchingMode(
             PrefetchMode.fromString(
                 configuration.getString(PREFETCHING_MODE_KEY, DEFAULT_PREFETCHING_MODE.toString())))
-        .csvFormatSelectorRegex(
-            configuration.getString(CSV_FORMAT_SELECTOR_REGEX, DEFAULT_CSV_FORMAT_SELECTOR_REGEX))
-        .csvInitialReadSize(
-            configuration.getLong(CSV_INITIAL_READ_SIZE_KEY, DEFAULT_CSV_INITIAL_READ_SIZE))
-        .csvPrefetchSize(configuration.getLong(CSV_PREFETCH_SIZE_KEY, DEFAULT_CSV_PREFETCH_SIZE))
+        .sparkPartitionSize(
+            configuration.getLong(SPARK_PARTITION_SIZE_KEY, DEFAULT_SPARK_PARTITION_SIZE))
         .build();
   }
 
@@ -193,9 +181,7 @@ public class LogicalIOConfiguration {
     builder.append("\tmaxColumnAccessCountStoreSize: " + maxColumnAccessCountStoreSize + "\n");
     builder.append("\tparquetFormatSelectorRegex: " + parquetFormatSelectorRegex + "\n");
     builder.append("\tprefetchingMode: " + prefetchingMode + "\n");
-    builder.append("\tcsvFormatSelectorRegex: " + csvFormatSelectorRegex + "\n");
-    builder.append("\tcsvInitialReadSize: " + csvInitialReadSize + "\n");
-    builder.append("\tcsvPrefetchSize: " + csvPrefetchSize + "\n");
+    builder.append("\tsparkPartitionSize: " + sparkPartitionSize + "\n");
 
     return builder.toString();
   }

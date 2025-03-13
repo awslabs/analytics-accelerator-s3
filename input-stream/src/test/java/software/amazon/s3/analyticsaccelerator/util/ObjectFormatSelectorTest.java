@@ -50,32 +50,7 @@ public class ObjectFormatSelectorTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"key.csv", "key.CSV"})
-  public void testDefaultConfigCSVLogicalIOSelection(String key) {
-    ObjectFormatSelector objectFormatSelector =
-        new ObjectFormatSelector(LogicalIOConfiguration.DEFAULT);
-
-    assertEquals(
-        ObjectFormat.CSV,
-        objectFormatSelector.getObjectFormat(
-            S3URI.of("bucket", key), OpenStreamInformation.DEFAULT));
-  }
-
-  @ParameterizedTest
-  @ValueSource(strings = {"key.data", "key.csvdata"})
-  public void testConfiguredExtensionCSVLogicalIOSelection(String key) {
-    ObjectFormatSelector objectFormatSelector =
-        new ObjectFormatSelector(
-            LogicalIOConfiguration.builder().csvFormatSelectorRegex("^.*.(data|csvdata)$").build());
-
-    assertEquals(
-        ObjectFormat.CSV,
-        objectFormatSelector.getObjectFormat(
-            S3URI.of("bucket", key), OpenStreamInformation.DEFAULT));
-  }
-
-  @ParameterizedTest
-  @ValueSource(strings = {"key.jar", "key.txt", "key.parque", "key.pa", "key.cs"})
+  @ValueSource(strings = {"key.jar", "key.txt", "key.parque", "key.pa"})
   public void testNonParquetLogicalIOSelection(String key) {
     ObjectFormatSelector objectFormatSelector =
         new ObjectFormatSelector(LogicalIOConfiguration.DEFAULT);
@@ -87,7 +62,7 @@ public class ObjectFormatSelectorTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"key.parquet", "key.par", "key.csv", "key.CSV"})
+  @ValueSource(strings = {"key.parquet", "key.par", "key.csv", "key.CSV", "key.txt", "key.TXT"})
   public void testDefaultLogicalIOSelectionWithSequentialInputPolicy(String key) {
     ObjectFormatSelector objectFormatSelector =
         new ObjectFormatSelector(LogicalIOConfiguration.DEFAULT);
@@ -96,6 +71,6 @@ public class ObjectFormatSelectorTest {
         objectFormatSelector.getObjectFormat(
             S3URI.of("bucket", key),
             OpenStreamInformation.builder().inputPolicy(InputPolicy.Sequential).build()),
-        ObjectFormat.DEFAULT);
+        ObjectFormat.SEQUENTIAL);
   }
 }

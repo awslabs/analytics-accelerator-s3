@@ -21,10 +21,10 @@ import lombok.Getter;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIO;
-import software.amazon.s3.analyticsaccelerator.io.logical.impl.CSVLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.DefaultLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetColumnPrefetchStore;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOImpl;
+import software.amazon.s3.analyticsaccelerator.io.logical.impl.SequentialLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
@@ -133,8 +133,8 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
             configuration.getLogicalIOConfiguration(),
             parquetColumnPrefetchStore);
 
-      case CSV:
-        return new CSVLogicalIOImpl(
+      case SEQUENTIAL:
+        return new SequentialLogicalIOImpl(
             s3URI,
             new PhysicalIOImpl(
                 s3URI,
@@ -143,7 +143,8 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
                 telemetry,
                 openStreamInformation.getStreamContext()),
             telemetry,
-            configuration.getLogicalIOConfiguration());
+            configuration.getLogicalIOConfiguration(),
+            objectBlobStore);
 
       default:
         return new DefaultLogicalIOImpl(

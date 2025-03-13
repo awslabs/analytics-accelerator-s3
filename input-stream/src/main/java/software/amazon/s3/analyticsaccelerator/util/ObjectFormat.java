@@ -18,6 +18,6 @@ package software.amazon.s3.analyticsaccelerator.util;
 /** Enum for file formats. */
 public enum ObjectFormat {
   PARQUET,
-  CSV,
+  SEQUENTIAL,
   DEFAULT
 }

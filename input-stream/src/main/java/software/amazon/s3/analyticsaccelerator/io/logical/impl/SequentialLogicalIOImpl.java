@@ -20,35 +20,45 @@ import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
+import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
+import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 /**
- * A CSV-aware implementation of a LogicalIO layer. It is capable of configurable prefetching based
- * on the provided LogicalIOConfiguration.
+ * A sequential read-aware implementation of the LogicalIO layer. This implementation is capable of
+ * configurable prefetching based on the provided LogicalIOConfiguration. It specifically utilizes
+ * the 'sparkPartitionSize' configuration to determine the size of data to prefetch, optimizing for
+ * Spark's data processing patterns.
  */
-public class CSVLogicalIOImpl extends DefaultLogicalIOImpl {
-  private final CSVPrefetcher prefetcher;
+public class SequentialLogicalIOImpl extends DefaultLogicalIOImpl {
+  private final SequentialPrefetcher prefetcher;
+  private final S3URI s3URI;
+  private final BlobStore blobStore;
 
   /**
-   * Constructs an instance of CSVLogicalIOImpl.
+   * Constructs an instance of SequentialLogicalIOImpl.
    *
    * @param s3URI the S3 URI of the object fetched
    * @param physicalIO underlying physical IO that knows how to fetch bytes
    * @param telemetry an instance of {@link Telemetry} to use
    * @param logicalIOConfiguration configuration for this logical IO implementation
+   * @param blobStore a data cache
    */
-  public CSVLogicalIOImpl(
+  public SequentialLogicalIOImpl(
       @NonNull S3URI s3URI,
       @NonNull PhysicalIO physicalIO,
       @NonNull Telemetry telemetry,
-      @NonNull LogicalIOConfiguration logicalIOConfiguration) {
+      @NonNull LogicalIOConfiguration logicalIOConfiguration,
+      @NonNull BlobStore blobStore) {
     super(s3URI, physicalIO, telemetry);
-    // Initialise prefetcher and start prefetching
-    this.prefetcher = new CSVPrefetcher(physicalIO, telemetry, logicalIOConfiguration);
+    this.s3URI = s3URI;
+    this.blobStore = blobStore;
+    this.prefetcher =
+        new SequentialPrefetcher(s3URI, physicalIO, telemetry, logicalIOConfiguration);
   }
 
   /**
-   * Reads Reads data into the provided buffer
+   * Reads data into the provided buffer
    *
    * @param buf buffer to read data into
    * @param off start position in buffer at which data is written
@@ -59,13 +69,13 @@ public class CSVLogicalIOImpl extends DefaultLogicalIOImpl {
    */
   @Override
   public int read(byte[] buf, int off, int len, long position) throws IOException {
-    prefetcher.ensurePrefetchStarted(position);
+    prefetcher.prefetch(position);
     return super.read(buf, off, len, position);
   }
 
   @Override
   public void close() throws IOException {
-    prefetcher.close();
-    super.close();
+    ObjectKey objectKey = ObjectKey.builder().s3URI(s3URI).etag(metadata().getEtag()).build();
+    blobStore.evictKey(objectKey);
   }
 }
