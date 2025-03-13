@@ -51,7 +51,7 @@ public class ObjectFormatSelector {
     // parquet specific optimisations are of no use there :(
     if (openStreamInformation.getInputPolicy() != null
         && openStreamInformation.getInputPolicy().equals(InputPolicy.Sequential)) {
-      return ObjectFormat.DEFAULT;
+      return ObjectFormat.SEQUENTIAL;
     }
 
     if (parquetPattern.matcher(s3URI.getKey()).find()) {

@@ -24,6 +24,7 @@ import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIO;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.DefaultLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetColumnPrefetchStore;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOImpl;
+import software.amazon.s3.analyticsaccelerator.io.logical.impl.SequentialLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
@@ -51,7 +52,6 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   private final BlobStore objectBlobStore;
   private final Telemetry telemetry;
   private final ObjectFormatSelector objectFormatSelector;
-
   /**
    * Creates a new instance of {@link S3SeekableInputStreamFactory}. This factory should be used to
    * create instances of the input stream to allow for sharing resources such as the object client
@@ -132,6 +132,19 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
             telemetry,
             configuration.getLogicalIOConfiguration(),
             parquetColumnPrefetchStore);
+
+      case SEQUENTIAL:
+        return new SequentialLogicalIOImpl(
+            s3URI,
+            new PhysicalIOImpl(
+                s3URI,
+                objectMetadataStore,
+                objectBlobStore,
+                telemetry,
+                openStreamInformation.getStreamContext()),
+            telemetry,
+            configuration.getLogicalIOConfiguration(),
+            objectBlobStore);
 
       default:
         return new DefaultLogicalIOImpl(

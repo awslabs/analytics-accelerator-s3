@@ -62,7 +62,7 @@ public class ObjectFormatSelectorTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"key.parquet", "key.par"})
+  @ValueSource(strings = {"key.parquet", "key.par", "key.csv", "key.CSV", "key.txt", "key.TXT"})
   public void testDefaultLogicalIOSelectionWithSequentialInputPolicy(String key) {
     ObjectFormatSelector objectFormatSelector =
         new ObjectFormatSelector(LogicalIOConfiguration.DEFAULT);
@@ -71,6 +71,6 @@ public class ObjectFormatSelectorTest {
         objectFormatSelector.getObjectFormat(
             S3URI.of("bucket", key),
             OpenStreamInformation.builder().inputPolicy(InputPolicy.Sequential).build()),
-        ObjectFormat.DEFAULT);
+        ObjectFormat.SEQUENTIAL);
   }
 }
