@@ -15,18 +15,19 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.logical.impl;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.verify;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
-import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
-import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
-import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 @SuppressFBWarnings(
@@ -37,85 +38,70 @@ public class SequentialLogicalIOImplTest {
 
   @Test
   void testConstructor() {
-    BlobStore blobStore = mock(BlobStore.class);
     assertNotNull(
         new SequentialLogicalIOImpl(
             TEST_URI,
             mock(PhysicalIO.class),
             TestTelemetry.DEFAULT,
-            mock(LogicalIOConfiguration.class),
-            blobStore));
+            mock(LogicalIOConfiguration.class)));
   }
 
   @Test
   void testConstructorThrowsOnNullArgument() {
-    BlobStore blobStore = mock(BlobStore.class);
     PhysicalIO physicalIO = mock(PhysicalIO.class);
     LogicalIOConfiguration config = mock(LogicalIOConfiguration.class);
 
     assertThrows(
         NullPointerException.class,
-        () ->
-            new SequentialLogicalIOImpl(TEST_URI, null, TestTelemetry.DEFAULT, config, blobStore));
+        () -> new SequentialLogicalIOImpl(TEST_URI, null, TestTelemetry.DEFAULT, config));
 
     assertThrows(
         NullPointerException.class,
-        () ->
-            new SequentialLogicalIOImpl(
-                TEST_URI, physicalIO, TestTelemetry.DEFAULT, null, blobStore));
+        () -> new SequentialLogicalIOImpl(TEST_URI, physicalIO, TestTelemetry.DEFAULT, null));
 
     assertThrows(
         NullPointerException.class,
-        () -> new SequentialLogicalIOImpl(TEST_URI, physicalIO, null, config, blobStore));
+        () -> new SequentialLogicalIOImpl(TEST_URI, physicalIO, null, config));
 
     assertThrows(
         NullPointerException.class,
-        () ->
-            new SequentialLogicalIOImpl(
-                null, physicalIO, TestTelemetry.DEFAULT, config, blobStore));
-
-    assertThrows(
-        NullPointerException.class,
-        () ->
-            new SequentialLogicalIOImpl(TEST_URI, physicalIO, TestTelemetry.DEFAULT, config, null));
+        () -> new SequentialLogicalIOImpl(null, physicalIO, TestTelemetry.DEFAULT, config));
   }
 
   @Test
-  void testReadWithPrefetch() throws IOException {
+  void testReadCallsPrefetcher() throws IOException {
     PhysicalIO physicalIO = mock(PhysicalIO.class);
-    BlobStore blobStore = mock(BlobStore.class);
     LogicalIOConfiguration configuration = LogicalIOConfiguration.builder().build();
 
-    ObjectMetadata mockMetadata = mock(ObjectMetadata.class);
-    when(mockMetadata.getContentLength()).thenReturn(1000L);
-    when(physicalIO.metadata()).thenReturn(mockMetadata);
+    // Mock SequentialPrefetcher
+    try (MockedConstruction<SequentialPrefetcher> mockedPrefetcher =
+        mockConstruction(SequentialPrefetcher.class)) {
+      SequentialLogicalIOImpl logicalIO =
+          new SequentialLogicalIOImpl(TEST_URI, physicalIO, TestTelemetry.DEFAULT, configuration);
 
-    SequentialLogicalIOImpl logicalIO =
-        new SequentialLogicalIOImpl(
-            TEST_URI, physicalIO, TestTelemetry.DEFAULT, configuration, blobStore);
+      byte[] buf = new byte[10];
+      int off = 0;
+      int len = 10;
+      long position = 0;
 
-    byte[] buf = new byte[100];
-    logicalIO.read(buf, 0, 100, 0);
+      logicalIO.read(buf, off, len, position);
 
-    verify(physicalIO, atLeastOnce()).read(any(byte[].class), anyInt(), anyInt(), anyLong());
+      // Verify that the prefetcher's prefetch method was called with the correct position
+      SequentialPrefetcher constructedPrefetcher = mockedPrefetcher.constructed().get(0);
+      verify(constructedPrefetcher).prefetch(position);
+    }
   }
 
   @Test
   void testClose() throws IOException {
     PhysicalIO physicalIO = mock(PhysicalIO.class);
-    BlobStore blobStore = mock(BlobStore.class);
     LogicalIOConfiguration configuration = LogicalIOConfiguration.builder().build();
 
-    ObjectMetadata mockMetadata = mock(ObjectMetadata.class);
-    when(mockMetadata.getEtag()).thenReturn("testEtag");
-    when(physicalIO.metadata()).thenReturn(mockMetadata);
-
     SequentialLogicalIOImpl logicalIO =
-        new SequentialLogicalIOImpl(
-            TEST_URI, physicalIO, TestTelemetry.DEFAULT, configuration, blobStore);
+        new SequentialLogicalIOImpl(TEST_URI, physicalIO, TestTelemetry.DEFAULT, configuration);
 
     logicalIO.close();
 
-    verify(blobStore).evictKey(any(ObjectKey.class));
+    verify(physicalIO).close(true);
   }
 }

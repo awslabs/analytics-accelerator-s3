@@ -20,8 +20,6 @@ import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
-import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
-import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 /**
@@ -31,9 +29,7 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
  * Spark's data processing patterns.
  */
 public class SequentialLogicalIOImpl extends DefaultLogicalIOImpl {
-  private final SequentialPrefetcher prefetcher;
-  private final S3URI s3URI;
-  private final BlobStore blobStore;
+  private final SequentialPrefetcher sequentialPrefetcher;
 
   /**
    * Constructs an instance of SequentialLogicalIOImpl.
@@ -42,18 +38,14 @@ public class SequentialLogicalIOImpl extends DefaultLogicalIOImpl {
    * @param physicalIO underlying physical IO that knows how to fetch bytes
    * @param telemetry an instance of {@link Telemetry} to use
    * @param logicalIOConfiguration configuration for this logical IO implementation
-   * @param blobStore a data cache
    */
   public SequentialLogicalIOImpl(
       @NonNull S3URI s3URI,
       @NonNull PhysicalIO physicalIO,
       @NonNull Telemetry telemetry,
-      @NonNull LogicalIOConfiguration logicalIOConfiguration,
-      @NonNull BlobStore blobStore) {
+      @NonNull LogicalIOConfiguration logicalIOConfiguration) {
     super(s3URI, physicalIO, telemetry);
-    this.s3URI = s3URI;
-    this.blobStore = blobStore;
-    this.prefetcher =
+    this.sequentialPrefetcher =
         new SequentialPrefetcher(s3URI, physicalIO, telemetry, logicalIOConfiguration);
   }
 
@@ -69,13 +61,12 @@ public class SequentialLogicalIOImpl extends DefaultLogicalIOImpl {
    */
   @Override
   public int read(byte[] buf, int off, int len, long position) throws IOException {
-    prefetcher.prefetch(position);
+    sequentialPrefetcher.prefetch(position);
     return super.read(buf, off, len, position);
   }
 
   @Override
   public void close() throws IOException {
-    ObjectKey objectKey = ObjectKey.builder().s3URI(s3URI).etag(metadata().getEtag()).build();
-    blobStore.evictKey(objectKey);
+    closeWithEviction(true);
   }
 }

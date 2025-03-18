@@ -16,18 +16,23 @@
 package software.amazon.s3.analyticsaccelerator.io.logical.impl;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
-import org.junit.jupiter.api.BeforeEach;
+import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 @SuppressFBWarnings(
@@ -35,24 +40,20 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
     justification = "We mean to pass nulls to checks")
 public class SequentialPrefetcherTest {
   private static final S3URI TEST_URI = S3URI.of("foo", "bar.data");
-  private PhysicalIO physicalIO;
-  private LogicalIOConfiguration config;
-  private ObjectMetadata metadata;
-
-  @BeforeEach
-  void setUp() {
-    physicalIO = mock(PhysicalIO.class);
-    config = LogicalIOConfiguration.builder().sparkPartitionSize(4096L).build();
-    metadata = mock(ObjectMetadata.class);
-  }
 
   @Test
   void testConstructor() {
+    PhysicalIO physicalIO = mock(PhysicalIO.class);
+    LogicalIOConfiguration config =
+        LogicalIOConfiguration.builder().sparkPartitionSize(4096L).build();
     assertNotNull(new SequentialPrefetcher(TEST_URI, physicalIO, TestTelemetry.DEFAULT, config));
   }
 
   @Test
   void testConstructorThrowsOnNullArgument() {
+    PhysicalIO physicalIO = mock(PhysicalIO.class);
+    LogicalIOConfiguration config =
+        LogicalIOConfiguration.builder().sparkPartitionSize(4096L).build();
     assertThrows(
         NullPointerException.class,
         () -> new SequentialPrefetcher(null, physicalIO, TestTelemetry.DEFAULT, config));
@@ -72,49 +73,66 @@ public class SequentialPrefetcherTest {
 
   @Test
   void testPrefetchFunctionality() throws IOException {
+    PhysicalIO physicalIO = mock(PhysicalIO.class);
+    LogicalIOConfiguration config =
+        LogicalIOConfiguration.builder().sparkPartitionSize(4096L).build();
 
+    ObjectMetadata metadata = mock(ObjectMetadata.class);
     when(metadata.getContentLength()).thenReturn(10000L);
     when(physicalIO.metadata()).thenReturn(metadata);
-    IOPlanExecution mockExecution = mock(IOPlanExecution.class);
-    when(physicalIO.execute(any(IOPlan.class))).thenReturn(mockExecution);
+    when(physicalIO.execute(any(IOPlan.class))).thenReturn(mock(IOPlanExecution.class));
 
     SequentialPrefetcher prefetcher =
         new SequentialPrefetcher(TEST_URI, physicalIO, TestTelemetry.DEFAULT, config);
 
-    // Initial prefetch from start
     prefetcher.prefetch(0);
-    verify(physicalIO)
-        .execute(
-            argThat(
-                plan ->
-                    plan.getPrefetchRanges().get(0).getStart() == 0
-                        && plan.getPrefetchRanges().get(0).getEnd() == 4095));
 
-    // Subsequent prefetches should be ignored
-    prefetcher.prefetch(100);
-    prefetcher.prefetch(200);
-    verify(physicalIO, times(1)).execute(any(IOPlan.class));
+    ArgumentCaptor<IOPlan> ioPlanCaptor = ArgumentCaptor.forClass(IOPlan.class);
+    verify(physicalIO).execute(ioPlanCaptor.capture());
 
-    // Prefetch near end of file
-    reset(physicalIO);
+    IOPlan capturedPlan = ioPlanCaptor.getValue();
+    List<Range> ranges = capturedPlan.getPrefetchRanges();
+
+    assertEquals(1, ranges.size());
+    Range range = ranges.get(0);
+    assertEquals(0, range.getStart());
+    assertEquals(4095, range.getEnd());
+  }
+
+  @Test
+  void testPrefetchNearEndOfFile() throws IOException {
+    PhysicalIO physicalIO = mock(PhysicalIO.class);
+    LogicalIOConfiguration config =
+        LogicalIOConfiguration.builder().sparkPartitionSize(4096L).build();
+
+    ObjectMetadata metadata = mock(ObjectMetadata.class);
     when(metadata.getContentLength()).thenReturn(3000L);
     when(physicalIO.metadata()).thenReturn(metadata);
-    when(physicalIO.execute(any(IOPlan.class))).thenReturn(mockExecution);
+    when(physicalIO.execute(any(IOPlan.class))).thenReturn(mock(IOPlanExecution.class));
 
-    SequentialPrefetcher prefetcherSmallFile =
+    SequentialPrefetcher prefetcher =
         new SequentialPrefetcher(TEST_URI, physicalIO, TestTelemetry.DEFAULT, config);
 
-    prefetcherSmallFile.prefetch(2000);
-    verify(physicalIO)
-        .execute(
-            argThat(
-                plan ->
-                    plan.getPrefetchRanges().get(0).getStart() == 2000
-                        && plan.getPrefetchRanges().get(0).getEnd() == 2999));
+    prefetcher.prefetch(2000);
+
+    ArgumentCaptor<IOPlan> ioPlanCaptor = ArgumentCaptor.forClass(IOPlan.class);
+    verify(physicalIO).execute(ioPlanCaptor.capture());
+
+    IOPlan capturedPlan = ioPlanCaptor.getValue();
+    List<Range> ranges = capturedPlan.getPrefetchRanges();
+
+    assertEquals(1, ranges.size());
+    Range range = ranges.get(0);
+    assertEquals(2000, range.getStart());
+    assertEquals(2999, range.getEnd());
   }
 
   @Test
   void testPrefetchWithIOException() throws IOException {
+    PhysicalIO physicalIO = mock(PhysicalIO.class);
+    LogicalIOConfiguration config =
+        LogicalIOConfiguration.builder().sparkPartitionSize(4096L).build();
+    ObjectMetadata metadata = mock(ObjectMetadata.class);
     when(metadata.getContentLength()).thenReturn(10000L);
     when(physicalIO.metadata()).thenReturn(metadata);
     when(physicalIO.execute(any(IOPlan.class)))

@@ -121,6 +121,9 @@ public class DefaultLogicalIOImpl implements LogicalIO {
     return this.physicalIO.metadata();
   }
 
+  protected void closeWithEviction(boolean shouldEvict) throws IOException {
+    physicalIO.close(shouldEvict);
+  }
   /**
    * Closes associate resources.
    *
@@ -128,6 +131,6 @@ public class DefaultLogicalIOImpl implements LogicalIO {
    */
   @Override
   public void close() throws IOException {
-    physicalIO.close();
+    closeWithEviction(false);
   }
 }

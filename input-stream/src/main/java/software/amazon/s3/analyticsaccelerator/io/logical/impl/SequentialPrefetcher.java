@@ -35,7 +35,7 @@ public class SequentialPrefetcher {
   private final PhysicalIO physicalIO;
   private final Telemetry telemetry;
   private final S3URI s3URI;
-  private volatile boolean prefetchStarted = false;
+  private boolean prefetchStarted = false;
   private final long prefetchSize;
 
   private static final String OPERATION_SEQUENTIAL_PREFETCH = "sequential.prefetcher.prefetch";
