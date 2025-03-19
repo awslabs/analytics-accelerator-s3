@@ -42,7 +42,12 @@ public class LogicalIOConfiguration {
   private static final int DEFAULT_PARQUET_METADATA_STORE_SIZE = 45;
   private static final int DEFAULT_MAX_COLUMN_ACCESS_STORE_SIZE = 15;
   private static final String DEFAULT_PARQUET_FORMAT_SELECTOR_REGEX = "^.*.(parquet|par)$";
+  private static final String DEFAULT_CSV_FORMAT_SELECTOR_REGEX = "^.*\\.(csv|CSV)$";
+  private static final String DEFAULT_JSON_FORMAT_SELECTOR_REGEX = "^.*\\.(json|JSON)$";
+  private static final String DEFAULT_TXT_FORMAT_SELECTOR_REGEX = "^.*\\.(txt|TXT)$";
   private static final PrefetchMode DEFAULT_PREFETCHING_MODE = PrefetchMode.ROW_GROUP;
+
+  private static final long DEFAULT_SPARK_PARTITION_SIZE = 128 * ONE_MB;
 
   @Builder.Default private boolean prefetchFooterEnabled = DEFAULT_PREFETCH_FOOTER_ENABLED;
 
@@ -108,6 +113,17 @@ public class LogicalIOConfiguration {
 
   public static final LogicalIOConfiguration DEFAULT = LogicalIOConfiguration.builder().build();
 
+  @Builder.Default private long sparkPartitionSize = DEFAULT_SPARK_PARTITION_SIZE;
+
+  private static final String SPARK_PARTITION_SIZE_KEY = "spark.partition.size";
+
+  @Builder.Default private String csvFormatSelectorRegex = DEFAULT_CSV_FORMAT_SELECTOR_REGEX;
+  private static final String CSV_FORMAT_SELECTOR_REGEX = "csv.format.selector.regex";
+  @Builder.Default private String jsonFormatSelectorRegex = DEFAULT_JSON_FORMAT_SELECTOR_REGEX;
+  private static final String JSON_FORMAT_SELECTOR_REGEX = "json.format.selector.regex";
+  @Builder.Default private String txtFormatSelectorRegex = DEFAULT_TXT_FORMAT_SELECTOR_REGEX;
+  private static final String TXT_FORMAT_SELECTOR_REGEX = "txt.format.selector.regex";
+
   /**
    * Constructs {@link LogicalIOConfiguration} from {@link ConnectorConfiguration} object.
    *
@@ -153,6 +169,14 @@ public class LogicalIOConfiguration {
         .prefetchingMode(
             PrefetchMode.fromString(
                 configuration.getString(PREFETCHING_MODE_KEY, DEFAULT_PREFETCHING_MODE.toString())))
+        .sparkPartitionSize(
+            configuration.getLong(SPARK_PARTITION_SIZE_KEY, DEFAULT_SPARK_PARTITION_SIZE))
+        .csvFormatSelectorRegex(
+            configuration.getString(CSV_FORMAT_SELECTOR_REGEX, DEFAULT_CSV_FORMAT_SELECTOR_REGEX))
+        .jsonFormatSelectorRegex(
+            configuration.getString(JSON_FORMAT_SELECTOR_REGEX, DEFAULT_JSON_FORMAT_SELECTOR_REGEX))
+        .txtFormatSelectorRegex(
+            configuration.getString(TXT_FORMAT_SELECTOR_REGEX, DEFAULT_TXT_FORMAT_SELECTOR_REGEX))
         .build();
   }
 
@@ -173,7 +197,11 @@ public class LogicalIOConfiguration {
     builder.append("\tparquetMetadataStoreSize: " + parquetMetadataStoreSize + "\n");
     builder.append("\tmaxColumnAccessCountStoreSize: " + maxColumnAccessCountStoreSize + "\n");
     builder.append("\tparquetFormatSelectorRegex: " + parquetFormatSelectorRegex + "\n");
+    builder.append("\tcsvFormatSelectorRegex: " + csvFormatSelectorRegex + "\n");
+    builder.append("\tjsonFormatSelectorRegex: " + jsonFormatSelectorRegex + "\n");
+    builder.append("\ttxtFormatSelectorRegex: " + txtFormatSelectorRegex + "\n");
     builder.append("\tprefetchingMode: " + prefetchingMode + "\n");
+    builder.append("\tsparkPartitionSize: " + sparkPartitionSize + "\n");
 
     return builder.toString();
   }

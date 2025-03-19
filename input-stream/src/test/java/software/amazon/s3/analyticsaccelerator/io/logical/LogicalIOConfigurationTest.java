@@ -82,6 +82,10 @@ public class LogicalIOConfigurationTest {
             + "\tparquetMetadataStoreSize: 45\n"
             + "\tmaxColumnAccessCountStoreSize: 15\n"
             + "\tparquetFormatSelectorRegex: ^.*.(parquet|par)$\n"
-            + "\tprefetchingMode: ROW_GROUP\n");
+            + "\tcsvFormatSelectorRegex: ^.*\\.(csv|CSV)$\n"
+            + "\tjsonFormatSelectorRegex: ^.*\\.(json|JSON)$\n"
+            + "\ttxtFormatSelectorRegex: ^.*\\.(txt|TXT)$\n"
+            + "\tprefetchingMode: ROW_GROUP\n"
+            + "\tsparkPartitionSize: 134217728\n");
   }
 }

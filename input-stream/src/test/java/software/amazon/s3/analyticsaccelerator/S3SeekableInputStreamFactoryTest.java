@@ -38,8 +38,10 @@ import software.amazon.s3.analyticsaccelerator.exceptions.ExceptionHandler;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.DefaultLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOImpl;
+import software.amazon.s3.analyticsaccelerator.io.logical.impl.SequentialLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.util.InputPolicy;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
@@ -184,6 +186,7 @@ public class S3SeekableInputStreamFactoryTest {
     S3URI testURIKEYPAR = S3URI.of("bucket", "key.par");
     S3URI testURIJAVA = S3URI.of("bucket", "key.java");
     S3URI testURITXT = S3URI.of("bucket", "key.txt");
+    S3URI testURICSV = S3URI.of("bucket", "key.csv");
     S3SeekableInputStreamConfiguration configuration =
         S3SeekableInputStreamConfiguration.builder()
             .logicalIOConfiguration(
@@ -203,6 +206,9 @@ public class S3SeekableInputStreamFactoryTest {
     s3SeekableInputStreamFactory
         .getObjectMetadataStore()
         .storeObjectMetadata(testURITXT, objectMetadata);
+    s3SeekableInputStreamFactory
+        .getObjectMetadataStore()
+        .storeObjectMetadata(testURICSV, objectMetadata);
 
     assertTrue(
         s3SeekableInputStreamFactory.createLogicalIO(
@@ -212,13 +218,38 @@ public class S3SeekableInputStreamFactoryTest {
         s3SeekableInputStreamFactory.createLogicalIO(
                 testURIKEYPAR, mock(OpenStreamInformation.class))
             instanceof ParquetLogicalIOImpl);
-
     assertTrue(
         s3SeekableInputStreamFactory.createLogicalIO(testURIJAVA, mock(OpenStreamInformation.class))
             instanceof DefaultLogicalIOImpl);
     assertTrue(
         s3SeekableInputStreamFactory.createLogicalIO(testURITXT, mock(OpenStreamInformation.class))
             instanceof DefaultLogicalIOImpl);
+    OpenStreamInformation defaultAccessInfo = OpenStreamInformation.builder().build();
+
+    OpenStreamInformation sequentialAccessInfo =
+        OpenStreamInformation.builder().inputPolicy(InputPolicy.Sequential).build();
+    assertTrue(
+        s3SeekableInputStreamFactory.createLogicalIO(testURIParquet, defaultAccessInfo)
+            instanceof ParquetLogicalIOImpl);
+    assertTrue(
+        s3SeekableInputStreamFactory.createLogicalIO(testURIKEYPAR, defaultAccessInfo)
+            instanceof ParquetLogicalIOImpl);
+    assertTrue(
+        s3SeekableInputStreamFactory.createLogicalIO(testURIJAVA, defaultAccessInfo)
+            instanceof DefaultLogicalIOImpl);
+    assertTrue(
+        s3SeekableInputStreamFactory.createLogicalIO(testURITXT, defaultAccessInfo)
+            instanceof DefaultLogicalIOImpl);
+    assertTrue(
+        s3SeekableInputStreamFactory.createLogicalIO(testURICSV, defaultAccessInfo)
+            instanceof SequentialLogicalIOImpl);
+
+    assertTrue(
+        s3SeekableInputStreamFactory.createLogicalIO(testURIParquet, sequentialAccessInfo)
+            instanceof SequentialLogicalIOImpl);
+    assertTrue(
+        s3SeekableInputStreamFactory.createLogicalIO(testURITXT, sequentialAccessInfo)
+            instanceof SequentialLogicalIOImpl);
   }
 
   @Test

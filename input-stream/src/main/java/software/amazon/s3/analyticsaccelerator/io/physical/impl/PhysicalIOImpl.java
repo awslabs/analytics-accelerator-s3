@@ -243,5 +243,14 @@ public class PhysicalIOImpl implements PhysicalIO {
   }
 
   @Override
-  public void close() throws IOException {}
+  public void close(boolean shouldEvict) throws IOException {
+    if (shouldEvict) {
+      blobStore.evictKey(this.objectKey);
+    }
+  }
+
+  @Override
+  public void close() throws IOException {
+    close(false);
+  }
 }

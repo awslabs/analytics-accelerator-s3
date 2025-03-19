@@ -66,7 +66,21 @@ public class DefaultLogicalIOImplTest {
     logicalIO.close();
 
     // Then: close will close dependencies
-    verify(physicalIO, times(1)).close();
+    verify(physicalIO, times(1)).close(false);
+  }
+
+  @Test
+  void testCloseWithEviction() throws IOException {
+    // Given
+    PhysicalIO physicalIO = mock(PhysicalIO.class);
+    DefaultLogicalIOImpl logicalIO =
+        new DefaultLogicalIOImpl(TEST_URI, physicalIO, mock(Telemetry.class));
+
+    // When: closeWithEviction called with true
+    logicalIO.closeWithEviction(true);
+
+    // Then: close will be called with true
+    verify(physicalIO, times(1)).close(true);
   }
 
   @Test

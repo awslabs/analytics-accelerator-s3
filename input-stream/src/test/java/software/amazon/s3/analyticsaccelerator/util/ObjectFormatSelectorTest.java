@@ -50,7 +50,7 @@ public class ObjectFormatSelectorTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"key.jar", "key.txt", "key.parque", "key.pa"})
+  @ValueSource(strings = {"key.jar", "key.parque", "key.pa"})
   public void testNonParquetLogicalIOSelection(String key) {
     ObjectFormatSelector objectFormatSelector =
         new ObjectFormatSelector(LogicalIOConfiguration.DEFAULT);
@@ -62,7 +62,7 @@ public class ObjectFormatSelectorTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"key.parquet", "key.par"})
+  @ValueSource(strings = {"key.parquet", "key.par", "key.csv", "key.CSV", "key.txt", "key.TXT"})
   public void testDefaultLogicalIOSelectionWithSequentialInputPolicy(String key) {
     ObjectFormatSelector objectFormatSelector =
         new ObjectFormatSelector(LogicalIOConfiguration.DEFAULT);
@@ -71,6 +71,30 @@ public class ObjectFormatSelectorTest {
         objectFormatSelector.getObjectFormat(
             S3URI.of("bucket", key),
             OpenStreamInformation.builder().inputPolicy(InputPolicy.Sequential).build()),
-        ObjectFormat.DEFAULT);
+        ObjectFormat.SEQUENTIAL);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"key.csv", "key.json", "key.txt"})
+  public void testDefaultConfigSequentialLogicalIOSelection(String key) {
+    ObjectFormatSelector objectFormatSelector =
+        new ObjectFormatSelector(LogicalIOConfiguration.DEFAULT);
+
+    assertEquals(
+        ObjectFormat.SEQUENTIAL,
+        objectFormatSelector.getObjectFormat(
+            S3URI.of("bucket", key), OpenStreamInformation.DEFAULT));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"key.dat", "key.bin", "key.unknown"})
+  public void testUnrecognizedFormatDefaultsToDefaultObjectFormat(String key) {
+    ObjectFormatSelector objectFormatSelector =
+        new ObjectFormatSelector(LogicalIOConfiguration.DEFAULT);
+
+    assertEquals(
+        ObjectFormat.DEFAULT,
+        objectFormatSelector.getObjectFormat(
+            S3URI.of("bucket", key), OpenStreamInformation.DEFAULT));
   }
 }

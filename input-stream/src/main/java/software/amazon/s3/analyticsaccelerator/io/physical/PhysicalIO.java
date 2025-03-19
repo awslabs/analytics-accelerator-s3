@@ -30,4 +30,12 @@ public interface PhysicalIO extends RandomAccessReadable {
    * @return an IOPlanExecution object tracking the execution of the submitted plan
    */
   IOPlanExecution execute(IOPlan ioPlan) throws IOException;
+
+  /**
+   * Closes the PhysicalIO and optionally evicts associated data.
+   *
+   * @param shouldEvict whether associated data should be evicted
+   * @throws IOException if an I/O error occurs
+   */
+  void close(boolean shouldEvict) throws IOException;
 }
