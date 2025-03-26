@@ -15,9 +15,15 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.Getter;
 import lombok.NonNull;
@@ -38,13 +44,15 @@ import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 import software.amazon.s3.analyticsaccelerator.util.StreamUtils;
 
+import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_KB;
+
 /**
  * A Block holding part of an object's data and owning its own async process for fetching part of
  * the object.
  */
 public class Block implements Closeable {
-  private CompletableFuture<ObjectContent> source;
-  private CompletableFuture<byte[]> data;
+  private ObjectContent source;
+  private byte[] data;
   private final ObjectKey objectKey;
   private final Range range;
   private final Telemetry telemetry;
@@ -169,30 +177,15 @@ public class Block implements Closeable {
                 .referrer(referrer)
                 .build();
 
-        this.source =
-            this.telemetry.measureCritical(
-                () ->
-                    Operation.builder()
-                        .name(OPERATION_BLOCK_GET_ASYNC)
-                        .attribute(StreamAttributes.uri(this.objectKey.getS3URI()))
-                        .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
-                        .attribute(StreamAttributes.range(this.range))
-                        .attribute(StreamAttributes.generation(generation))
-                        .build(),
-                objectClient.getObject(getRequest, streamContext));
+        this.source = objectClient.getObject(getRequest, streamContext).join();
 
         // Handle IOExceptions when converting stream to byte array
-        this.data =
-            this.source.thenApply(
-                objectContent -> {
-                  try {
-                    return StreamUtils.toByteArray(
-                        objectContent, this.objectKey, this.range, this.readTimeout);
-                  } catch (IOException | TimeoutException e) {
-                    throw new RuntimeException(
-                        "Error while converting InputStream to byte array", e);
-                  }
-                });
+        try {
+          this.data = toByteArray(this.source, this.objectKey, this.range, this.readTimeout);
+        } catch (IOException | TimeoutException e) {
+          throw new RuntimeException(
+              "Error while converting InputStream to byte array", e);
+        }
 
         return; // Successfully generated source and data, exit loop
       } catch (RuntimeException e) {
@@ -211,6 +204,66 @@ public class Block implements Closeable {
     }
   }
 
+
+  private static final int BUFFER_SIZE = 8 * ONE_KB;
+
+  private synchronized byte[] toByteArray(
+      ObjectContent objectContent, ObjectKey objectKey, Range range, long timeoutMs)
+      throws IOException, TimeoutException {
+    InputStream inStream = objectContent.getStream();
+    ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+    byte[] buffer = new byte[BUFFER_SIZE];
+
+    ExecutorService executorService = Executors.newSingleThreadExecutor();
+    Future<Void> future =
+        executorService.submit(
+            () -> {
+              try {
+                int numBytesRead;
+                LOG.info(
+                    "Starting to read from InputStream for Block s3URI={}, etag={}, start={}, end={}",
+                    objectKey.getS3URI(),
+                    objectKey.getEtag(),
+                    range.getStart(),
+                    range.getEnd());
+                while ((numBytesRead = inStream.read(buffer, 0, buffer.length)) != -1) {
+                  outStream.write(buffer, 0, numBytesRead);
+                }
+                LOG.info(
+                    "Successfully read from InputStream for Block numBytesRead={}, s3URI={}, etag={}, start={}, end={}",
+                    numBytesRead,
+                    objectKey.getS3URI(),
+                    objectKey.getEtag(),
+                    range.getStart(),
+                    range.getEnd());
+                return null;
+              } finally {
+                inStream.close();
+              }
+            });
+
+    try {
+      future.get(timeoutMs, TimeUnit.MILLISECONDS);
+    } catch (TimeoutException e) {
+      future.cancel(true);
+      LOG.info(
+          "Reading from InputStream has timed out for Block s3URI={}, etag={}, start={}, end={}",
+          objectKey.getS3URI(),
+          objectKey.getEtag(),
+          range.getStart(),
+          range.getEnd());
+      throw new TimeoutException("Read operation timed out");
+    } catch (Exception e) {
+      throw new IOException("Error reading stream", e);
+    } finally {
+      executorService.shutdown();
+    }
+
+    return outStream.toByteArray();
+  }
+
+
+
   /**
    * Reads a byte from the underlying object
    *
@@ -221,7 +274,7 @@ public class Block implements Closeable {
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
-    byte[] content = this.getDataWithRetries();
+    byte[] content = this.data;
     return Byte.toUnsignedInt(content[posToOffset(pos)]);
   }
 
@@ -241,7 +294,7 @@ public class Block implements Closeable {
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
     Preconditions.checkArgument(off < buf.length, "`off` must be less than size of buffer");
 
-    byte[] content = this.getDataWithRetries();
+    byte[] content = this.data;
     int contentOffset = posToOffset(pos);
     int available = content.length - contentOffset;
     int bytesToCopy = Math.min(len, available);
@@ -275,59 +328,9 @@ public class Block implements Closeable {
     return (int) (pos - start);
   }
 
-  /**
-   * Returns the bytes fetched by the issued {@link GetRequest}. If it receives an IOException from
-   * {@link S3SdkObjectClient}, retries for MAX_RETRIES count.
-   *
-   * @return the bytes fetched by the issued {@link GetRequest}.
-   * @throws IOException if an I/O error occurs after maximum retry counts
-   */
-  private byte[] getDataWithRetries() throws IOException {
-    for (int i = 0; i < this.readRetryCount; i++) {
-      try {
-        return this.getData();
-      } catch (IOException ex) {
-        if (ex.getClass() == IOException.class) {
-          if (i < this.readRetryCount - 1) {
-            LOG.debug("Get data failed. Retrying. Retry Count {}", i);
-            generateSourceAndData();
-          } else {
-            LOG.error("Cannot read block file. Retry reached the limit");
-            throw new IOException("Cannot read block file", ex.getCause());
-          }
-        } else {
-          throw ex;
-        }
-      }
-    }
-    throw new IOException("Cannot read block file", new IOException("Error while getting block"));
-  }
-
-  /**
-   * Returns the bytes fetched by the issued {@link GetRequest}. This method will block until the
-   * data is fully available.
-   *
-   * @return the bytes fetched by the issued {@link GetRequest}.
-   * @throws IOException if an I/O error occurs
-   */
-  private byte[] getData() throws IOException {
-    return this.telemetry.measureJoinCritical(
-        () ->
-            Operation.builder()
-                .name(OPERATION_BLOCK_GET_JOIN)
-                .attribute(StreamAttributes.uri(this.objectKey.getS3URI()))
-                .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
-                .attribute(StreamAttributes.range(this.range))
-                .attribute(StreamAttributes.rangeLength(this.range.getLength()))
-                .build(),
-        this.data,
-        this.readTimeout);
-  }
-
   /** Closes the {@link Block} and frees up all resources it holds */
   @Override
   public void close() {
     // Only the source needs to be canceled, the continuation will cancel on its own
-    this.source.cancel(false);
   }
 }
