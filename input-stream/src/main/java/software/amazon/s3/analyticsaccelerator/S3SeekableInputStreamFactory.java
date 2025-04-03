@@ -19,6 +19,8 @@ import java.io.IOException;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIO;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.DefaultLogicalIOImpl;
@@ -52,6 +54,8 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   private final Telemetry telemetry;
   private final ObjectFormatSelector objectFormatSelector;
 
+  private static final Logger LOG = LoggerFactory.getLogger(S3SeekableInputStreamFactory.class);
+
   /**
    * Creates a new instance of {@link S3SeekableInputStreamFactory}. This factory should be used to
    * create instances of the input stream to allow for sharing resources such as the object client
@@ -63,6 +67,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   public S3SeekableInputStreamFactory(
       @NonNull ObjectClient objectClient,
       @NonNull S3SeekableInputStreamConfiguration configuration) {
+    LOG.debug("Initializing S3SeekableInputStreamFactory with configuration: {}", configuration);
     this.configuration = configuration;
     this.telemetry = Telemetry.createTelemetry(configuration.getTelemetryConfiguration());
     this.parquetColumnPrefetchStore =
