@@ -30,7 +30,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.Sequential
 @Builder
 @EqualsAndHashCode
 public class PhysicalIOConfiguration {
-  private static final int DEFAULT_CAPACITY_BLOB_STORE = 50;
+  private static final long DEFAULT_CAPACITY_BLOB_STORE = 50;
   private static final int DEFAULT_CAPACITY_METADATA_STORE = 50;
   private static final boolean DEFAULT_USE_SINGLE_CACHE = true;
   private static final long DEFAULT_BLOCK_SIZE_BYTES = 8 * ONE_MB;
@@ -43,7 +43,7 @@ public class PhysicalIOConfiguration {
   private static final int DEFAULT_BLOCK_READ_RETRY_COUNT = 20;
 
   /** Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_CAPACITY_BLOB_STORE} by default. */
-  @Builder.Default private int blobStoreCapacity = DEFAULT_CAPACITY_BLOB_STORE;
+  @Builder.Default private long blobStoreCapacity = DEFAULT_CAPACITY_BLOB_STORE;
 
   private static final String BLOB_STORE_CAPACITY_KEY = "blobstore.capacity";
 
@@ -117,7 +117,7 @@ public class PhysicalIOConfiguration {
   public static PhysicalIOConfiguration fromConfiguration(ConnectorConfiguration configuration) {
     return PhysicalIOConfiguration.builder()
         .blobStoreCapacity(
-            configuration.getInt(BLOB_STORE_CAPACITY_KEY, DEFAULT_CAPACITY_BLOB_STORE))
+            configuration.getLong(BLOB_STORE_CAPACITY_KEY, DEFAULT_CAPACITY_BLOB_STORE))
         .metadataStoreCapacity(
             configuration.getInt(METADATA_STORE_CAPACITY_KEY, DEFAULT_CAPACITY_METADATA_STORE))
         .blockSizeBytes(configuration.getLong(BLOCK_SIZE_BYTES_KEY, DEFAULT_BLOCK_SIZE_BYTES))
@@ -153,7 +153,7 @@ public class PhysicalIOConfiguration {
    */
   @Builder
   private PhysicalIOConfiguration(
-      int blobStoreCapacity,
+      long blobStoreCapacity,
       int metadataStoreCapacity,
       long blockSizeBytes,
       long readAheadBytes,

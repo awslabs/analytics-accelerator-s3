@@ -27,6 +27,7 @@ import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
+import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
@@ -87,17 +88,11 @@ public class IOPlannerTest {
     BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
     FakeObjectClient fakeObjectClient =
         new FakeObjectClient(new String(content, StandardCharsets.UTF_8));
+    BlockKey blockKey = new BlockKey(objectKey, new Range(100, 200));
     blockStore.add(
+        blockKey,
         new Block(
-            objectKey,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            100,
-            200,
-            0,
-            ReadMode.SYNC,
-            120_000,
-            20));
+            blockKey, fakeObjectClient, TestTelemetry.DEFAULT, 0, ReadMode.SYNC, 120_000, 20));
     IOPlanner ioPlanner = new IOPlanner(blockStore);
 
     // When: a read plan is requested for a range (0, 400)

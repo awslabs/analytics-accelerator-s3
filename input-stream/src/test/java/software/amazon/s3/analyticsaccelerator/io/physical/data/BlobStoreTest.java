@@ -23,14 +23,19 @@ import static org.mockito.Mockito.when;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
+import software.amazon.s3.analyticsaccelerator.common.ConnectorConfiguration;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
+import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
@@ -47,6 +52,7 @@ public class BlobStoreTest {
   private static final ObjectKey objectKey =
       ObjectKey.builder().s3URI(S3URI.of("test", "test")).etag(ETAG).build();
 
+  private PhysicalIOConfiguration config;
   private BlobStore blobStore;
 
   @BeforeEach
@@ -55,7 +61,32 @@ public class BlobStoreTest {
     MetadataStore metadataStore = mock(MetadataStore.class);
     when(metadataStore.get(any()))
         .thenReturn(ObjectMetadata.builder().contentLength(TEST_DATA.length()).etag(ETAG).build());
-    blobStore = new BlobStore(objectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
+    Map<String, String> configMap = new HashMap<>();
+    configMap.put("blobstore.capacity", "1000");
+    ConnectorConfiguration connectorConfig = new ConnectorConfiguration(configMap);
+    config = PhysicalIOConfiguration.fromConfiguration(connectorConfig);
+
+    blobStore = new BlobStore(objectClient, TestTelemetry.DEFAULT, config);
+  }
+
+  @Test
+  void testIndexCacheEviction() throws InterruptedException {
+    // Fill the cache
+    for (int i = 0; i < 1000; i++) {
+      Range r = new Range(i, i + 100);
+      BlockKey blockKey = new BlockKey(objectKey, r);
+      blobStore.indexCache.put(blockKey, r.getLength());
+    }
+
+    // Wait for eviction
+    // Thread.sleep(100);
+
+    // Check if some entries were evicted
+    System.out.println(
+        "Max weight set is " + blobStore.indexCache.policy().eviction().get().getMaximum());
+    long currentWeight = blobStore.indexCache.policy().eviction().get().weightedSize().getAsLong();
+    System.out.println("Current weight is " + currentWeight);
+    assertTrue(currentWeight < 1000, "Some entries should have been evicted");
   }
 
   @Test

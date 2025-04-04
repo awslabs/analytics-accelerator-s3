@@ -72,6 +72,7 @@ dependencies {
     implementation(project(":common"))
     implementation(libs.parquet.format)
     implementation(libs.slf4j.api)
+    implementation(libs.caffeine)
 
     jmhImplementation(libs.s3)
     jmhImplementation(libs.s3.transfer.manager)
@@ -145,6 +146,7 @@ val shadowJar = tasks.withType<ShadowJar> {
 
     relocate("org.apache.parquet.format", "software.amazon.s3.shaded.apache.parquet.format")
     relocate("shaded.parquet.org.apache.thrift", "software.amazon.s3.shaded.parquet.org.apache.thrift")
+    relocate("com.github.benmanes.caffeine", "com.amazon.shaded.github.benmanes.caffeine")
 }
 
 val refTest = task<Test>("referenceTest") {

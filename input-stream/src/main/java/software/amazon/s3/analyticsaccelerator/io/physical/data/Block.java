@@ -19,6 +19,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Getter;
 import lombok.NonNull;
 import org.slf4j.Logger;
@@ -30,13 +31,10 @@ import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.request.GetRequest;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectContent;
-import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.request.Referrer;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
-import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
-import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
-import software.amazon.s3.analyticsaccelerator.util.StreamUtils;
+import software.amazon.s3.analyticsaccelerator.util.*;
 
 /**
  * A Block holding part of an object's data and owning its own async process for fetching part of
@@ -45,8 +43,7 @@ import software.amazon.s3.analyticsaccelerator.util.StreamUtils;
 public class Block implements Closeable {
   private CompletableFuture<ObjectContent> source;
   private CompletableFuture<byte[]> data;
-  private final ObjectKey objectKey;
-  private final Range range;
+  @Getter private final BlockKey blockKey;
   private final Telemetry telemetry;
   private final ObjectClient objectClient;
   private final StreamContext streamContext;
@@ -54,10 +51,8 @@ public class Block implements Closeable {
   private final Referrer referrer;
   private final long readTimeout;
   private final int readRetryCount;
-
-  @Getter private final long start;
-  @Getter private final long end;
   @Getter private final long generation;
+  @Getter private AtomicInteger activeReaders;
 
   private static final String OPERATION_BLOCK_GET_ASYNC = "block.get.async";
   private static final String OPERATION_BLOCK_GET_JOIN = "block.get.join";
@@ -67,22 +62,18 @@ public class Block implements Closeable {
   /**
    * Constructs a Block data.
    *
-   * @param objectKey the etag and S3 URI of the object
+   * @param blockKey the objectkey and range of the object
    * @param objectClient the object client to use to interact with the object store
    * @param telemetry an instance of {@link Telemetry} to use
-   * @param start start of the block
-   * @param end end of the block
    * @param generation generation of the block in a sequential read pattern (should be 0 by default)
    * @param readMode read mode describing whether this is a sync or async fetch
    * @param readTimeout Timeout duration (in milliseconds) for reading a block object from S3
    * @param readRetryCount Number of retries for block read failure
    */
   public Block(
-      @NonNull ObjectKey objectKey,
+      @NonNull BlockKey blockKey,
       @NonNull ObjectClient objectClient,
       @NonNull Telemetry telemetry,
-      long start,
-      long end,
       long generation,
       @NonNull ReadMode readMode,
       long readTimeout,
@@ -90,26 +81,15 @@ public class Block implements Closeable {
       throws IOException {
 
     this(
-        objectKey,
-        objectClient,
-        telemetry,
-        start,
-        end,
-        generation,
-        readMode,
-        readTimeout,
-        readRetryCount,
-        null);
+        blockKey, objectClient, telemetry, generation, readMode, readTimeout, readRetryCount, null);
   }
 
   /**
    * Constructs a Block data.
    *
-   * @param objectKey the etag and S3 URI of the object
+   * @param blockKey the objectkey and range of the object
    * @param objectClient the object client to use to interact with the object store
    * @param telemetry an instance of {@link Telemetry} to use
-   * @param start start of the block
-   * @param end end of the block
    * @param generation generation of the block in a sequential read pattern (should be 0 by default)
    * @param readMode read mode describing whether this is a sync or async fetch
    * @param readTimeout Timeout duration (in milliseconds) for reading a block object from S3
@@ -117,11 +97,9 @@ public class Block implements Closeable {
    * @param streamContext contains audit headers to be attached in the request header
    */
   public Block(
-      @NonNull ObjectKey objectKey,
+      @NonNull BlockKey blockKey,
       @NonNull ObjectClient objectClient,
       @NonNull Telemetry telemetry,
-      long start,
-      long end,
       long generation,
       @NonNull ReadMode readMode,
       long readTimeout,
@@ -131,27 +109,34 @@ public class Block implements Closeable {
 
     Preconditions.checkArgument(
         0 <= generation, "`generation` must be non-negative; was: %s", generation);
-    Preconditions.checkArgument(0 <= start, "`start` must be non-negative; was: %s", start);
-    Preconditions.checkArgument(0 <= end, "`end` must be non-negative; was: %s", end);
     Preconditions.checkArgument(
-        start <= end, "`start` must be less than `end`; %s is not less than %s", start, end);
+        0 <= blockKey.getRange().getStart(),
+        "`start` must be non-negative; was: %s",
+        blockKey.getRange().getStart());
+    Preconditions.checkArgument(
+        0 <= blockKey.getRange().getEnd(),
+        "`end` must be non-negative; was: %s",
+        blockKey.getRange().getEnd());
+    Preconditions.checkArgument(
+        blockKey.getRange().getStart() <= blockKey.getRange().getEnd(),
+        "`start` must be less than `end`; %s is not less than %s",
+        blockKey.getRange().getStart(),
+        blockKey.getRange().getEnd());
     Preconditions.checkArgument(
         0 < readTimeout, "`readTimeout` must be greater than 0; was %s", readTimeout);
     Preconditions.checkArgument(
         0 < readRetryCount, "`readRetryCount` must be greater than 0; was %s", readRetryCount);
 
-    this.start = start;
-    this.end = end;
     this.generation = generation;
     this.telemetry = telemetry;
-    this.objectKey = objectKey;
-    this.range = new Range(start, end);
+    this.blockKey = blockKey;
     this.objectClient = objectClient;
     this.streamContext = streamContext;
     this.readMode = readMode;
-    this.referrer = new Referrer(range.toHttpString(), readMode);
+    this.referrer = new Referrer(this.blockKey.getRange().toHttpString(), readMode);
     this.readTimeout = readTimeout;
     this.readRetryCount = readRetryCount;
+    this.activeReaders = new AtomicInteger(0);
 
     generateSourceAndData();
   }
@@ -163,9 +148,9 @@ public class Block implements Closeable {
       try {
         GetRequest getRequest =
             GetRequest.builder()
-                .s3Uri(this.objectKey.getS3URI())
-                .range(this.range)
-                .etag(this.objectKey.getEtag())
+                .s3Uri(this.blockKey.getObjectKey().getS3URI())
+                .range(this.blockKey.getRange())
+                .etag(this.blockKey.getObjectKey().getEtag())
                 .referrer(referrer)
                 .build();
 
@@ -174,9 +159,9 @@ public class Block implements Closeable {
                 () ->
                     Operation.builder()
                         .name(OPERATION_BLOCK_GET_ASYNC)
-                        .attribute(StreamAttributes.uri(this.objectKey.getS3URI()))
-                        .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
-                        .attribute(StreamAttributes.range(this.range))
+                        .attribute(StreamAttributes.uri(this.blockKey.getObjectKey().getS3URI()))
+                        .attribute(StreamAttributes.etag(this.blockKey.getObjectKey().getEtag()))
+                        .attribute(StreamAttributes.range(this.blockKey.getRange()))
                         .attribute(StreamAttributes.generation(generation))
                         .build(),
                 objectClient.getObject(getRequest, streamContext));
@@ -187,7 +172,10 @@ public class Block implements Closeable {
                 objectContent -> {
                   try {
                     return StreamUtils.toByteArray(
-                        objectContent, this.objectKey, this.range, this.readTimeout);
+                        objectContent,
+                        this.blockKey.getObjectKey(),
+                        this.blockKey.getRange(),
+                        this.readTimeout);
                   } catch (IOException | TimeoutException e) {
                     throw new RuntimeException(
                         "Error while converting InputStream to byte array", e);
@@ -212,6 +200,15 @@ public class Block implements Closeable {
   }
 
   /**
+   * Updates and returns the active readers of this blob
+   *
+   * @param readers The delta to be added to the current active readers of this blob
+   */
+  public void updateActiveReaders(int readers) {
+    activeReaders.addAndGet(readers);
+  }
+
+  /**
    * Reads a byte from the underlying object
    *
    * @param pos The position to read
@@ -221,8 +218,13 @@ public class Block implements Closeable {
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
-    byte[] content = this.getDataWithRetries();
-    return Byte.toUnsignedInt(content[posToOffset(pos)]);
+    try {
+      updateActiveReaders(1);
+      byte[] content = this.getDataWithRetries();
+      return Byte.toUnsignedInt(content[posToOffset(pos)]);
+    } finally {
+      updateActiveReaders(-1);
+    }
   }
 
   /**
@@ -241,16 +243,21 @@ public class Block implements Closeable {
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
     Preconditions.checkArgument(off < buf.length, "`off` must be less than size of buffer");
 
-    byte[] content = this.getDataWithRetries();
-    int contentOffset = posToOffset(pos);
-    int available = content.length - contentOffset;
-    int bytesToCopy = Math.min(len, available);
+    try {
+      updateActiveReaders(1);
+      byte[] content = this.getDataWithRetries();
+      int contentOffset = posToOffset(pos);
+      int available = content.length - contentOffset;
+      int bytesToCopy = Math.min(len, available);
 
-    for (int i = 0; i < bytesToCopy; ++i) {
-      buf[off + i] = content[contentOffset + i];
+      for (int i = 0; i < bytesToCopy; ++i) {
+        buf[off + i] = content[contentOffset + i];
+      }
+
+      return bytesToCopy;
+    } finally {
+      updateActiveReaders(-1);
     }
-
-    return bytesToCopy;
   }
 
   /**
@@ -262,7 +269,7 @@ public class Block implements Closeable {
   public boolean contains(long pos) {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
-    return start <= pos && pos <= end;
+    return this.blockKey.getRange().getStart() <= pos && pos <= this.blockKey.getRange().getEnd();
   }
 
   /**
@@ -272,7 +279,7 @@ public class Block implements Closeable {
    * @return the offset in the byte buffer underlying this Block
    */
   private int posToOffset(long pos) {
-    return (int) (pos - start);
+    return (int) (pos - this.blockKey.getRange().getStart());
   }
 
   /**
@@ -315,10 +322,10 @@ public class Block implements Closeable {
         () ->
             Operation.builder()
                 .name(OPERATION_BLOCK_GET_JOIN)
-                .attribute(StreamAttributes.uri(this.objectKey.getS3URI()))
-                .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
-                .attribute(StreamAttributes.range(this.range))
-                .attribute(StreamAttributes.rangeLength(this.range.getLength()))
+                .attribute(StreamAttributes.uri(this.blockKey.getObjectKey().getS3URI()))
+                .attribute(StreamAttributes.etag(this.blockKey.getObjectKey().getEtag()))
+                .attribute(StreamAttributes.range(this.blockKey.getRange()))
+                .attribute(StreamAttributes.rangeLength(this.blockKey.getRange().getLength()))
                 .build(),
         this.data,
         this.readTimeout);

@@ -15,17 +15,22 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
+import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 
 /** A BlobStore is a container for Blobs and functions as a data cache. */
@@ -35,6 +40,7 @@ import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
         "Inner class is created very infrequently, and fluency justifies the extra pointer")
 public class BlobStore implements Closeable {
   private final Map<ObjectKey, Blob> blobMap;
+  protected final Cache<BlockKey, Integer> indexCache;
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
   private final PhysicalIOConfiguration configuration;
@@ -52,15 +58,35 @@ public class BlobStore implements Closeable {
       @NonNull PhysicalIOConfiguration configuration) {
     this.objectClient = objectClient;
     this.telemetry = telemetry;
-    this.blobMap =
-        Collections.synchronizedMap(
-            new LinkedHashMap<ObjectKey, Blob>() {
-              @Override
-              protected boolean removeEldestEntry(final Map.Entry<ObjectKey, Blob> eldest) {
-                return this.size() > configuration.getBlobStoreCapacity();
-              }
-            });
+    this.blobMap = Collections.synchronizedMap(new LinkedHashMap<ObjectKey, Blob>());
+    this.indexCache =
+        Caffeine.newBuilder()
+            .expireAfterAccess(3, TimeUnit.SECONDS)
+            .removalListener(this::onRemoval)
+            .weigher((blockId, blockSize) -> blockSize)
+            .maximumWeight(configuration.getBlobStoreCapacity())
+            .build();
     this.configuration = configuration;
+  }
+
+  private void onRemoval(BlockKey key, Integer value, RemovalCause cause) {
+    Map<BlockKey, Block> blocks =
+        blobMap.get(key.getObjectKey()).getBlockManager().getBlockStore().getBlocks();
+    Block blockToBeRemoved = blocks.get(key);
+    if (blockToBeRemoved.getActiveReaders().get() > 0) {
+      indexCache.put(key, value);
+    } else {
+      System.out.println("Key: " + key + " was removed due to " + cause);
+      blockToBeRemoved.close();
+      blocks.remove(key);
+
+      if (blocks.isEmpty()) {
+        blobMap.get(key.getObjectKey()).close();
+        blobMap.remove(key.getObjectKey());
+      }
+    }
+    long currentWeight = indexCache.policy().eviction().get().weightedSize().getAsLong();
+    System.out.println("Current weight  " + currentWeight);
   }
 
   /**
@@ -80,7 +106,8 @@ public class BlobStore implements Closeable {
                 metadata,
                 new BlockManager(
                     uri, objectClient, metadata, telemetry, configuration, streamContext),
-                telemetry));
+                telemetry,
+                indexCache));
   }
 
   /**

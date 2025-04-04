@@ -75,11 +75,11 @@ public class ParquetReadTailTask {
               ParquetUtils.getFileTailRange(logicalIOConfiguration, 0, contentLength);
           if (tailRangeOptional.isPresent()) {
             Range tailRange = tailRangeOptional.get();
-            int tailLength = (int) tailRange.getLength();
+            int tailLength = tailRange.getLength();
             try {
               byte[] fileTail = new byte[tailLength];
               physicalIO.readTail(fileTail, 0, tailLength);
-              return new FileTail(ByteBuffer.wrap(fileTail), (int) tailRange.getLength());
+              return new FileTail(ByteBuffer.wrap(fileTail), tailRange.getLength());
             } catch (Exception e) {
               LOG.debug(
                   "Unable to read file tail for {}, parquet prefetch optimisations will be disabled for this key.",
