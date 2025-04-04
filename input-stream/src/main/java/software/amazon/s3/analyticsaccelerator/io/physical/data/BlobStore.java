@@ -25,6 +25,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import lombok.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
@@ -44,7 +46,7 @@ public class BlobStore implements Closeable {
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
   private final PhysicalIOConfiguration configuration;
-
+  private static final Logger LOG = LoggerFactory.getLogger(BlobStore.class);
   /**
    * Construct an instance of BlobStore.
    *
@@ -75,8 +77,11 @@ public class BlobStore implements Closeable {
     Block blockToBeRemoved = blocks.get(key);
     if (blockToBeRemoved.getActiveReaders().get() > 0) {
       indexCache.put(key, value);
-    } else {
-      System.out.println("Key: " + key + " was removed due to " + cause);
+      return;
+    }
+
+    try {
+      LOG.info("Removing key: {} due to {}", key, cause);
       blockToBeRemoved.close();
       blocks.remove(key);
 
@@ -84,9 +89,12 @@ public class BlobStore implements Closeable {
         blobMap.get(key.getObjectKey()).close();
         blobMap.remove(key.getObjectKey());
       }
+    } catch (Exception e) {
+      LOG.info("Error while removing key: {} due to {}", key, cause, e);
+    } finally {
+      long currentWeight = indexCache.policy().eviction().get().weightedSize().getAsLong();
+      LOG.info("Current weight of cache: {}", currentWeight);
     }
-    long currentWeight = indexCache.policy().eviction().get().weightedSize().getAsLong();
-    System.out.println("Current weight  " + currentWeight);
   }
 
   /**
