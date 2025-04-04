@@ -61,7 +61,7 @@ public class BlobStore implements Closeable {
     this.blobMap = Collections.synchronizedMap(new LinkedHashMap<ObjectKey, Blob>());
     this.indexCache =
         Caffeine.newBuilder()
-            .expireAfterAccess(3, TimeUnit.SECONDS)
+            .expireAfterAccess(5, TimeUnit.SECONDS)
             .removalListener(this::onRemoval)
             .weigher((blockId, blockSize) -> blockSize)
             .maximumWeight(configuration.getBlobStoreCapacity())
