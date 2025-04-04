@@ -15,8 +15,10 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import java.io.Closeable;
 import java.io.IOException;
+import lombok.Getter;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +31,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanState;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
+import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
@@ -38,9 +41,10 @@ public class Blob implements Closeable {
   private static final String OPERATION_EXECUTE = "blob.execute";
 
   private final ObjectKey objectKey;
-  private final BlockManager blockManager;
+  @Getter private final BlockManager blockManager;
   private final ObjectMetadata metadata;
   private final Telemetry telemetry;
+  private final Cache<BlockKey, Integer> indexCache;
 
   /**
    * Construct a new Blob.
@@ -49,17 +53,20 @@ public class Blob implements Closeable {
    * @param metadata the metadata for the object
    * @param blockManager the BlockManager for this object
    * @param telemetry an instance of {@link Telemetry} to use
+   * @param indexCache caching the block keys across all blobs
    */
   public Blob(
       @NonNull ObjectKey objectKey,
       @NonNull ObjectMetadata metadata,
       @NonNull BlockManager blockManager,
-      @NonNull Telemetry telemetry) {
+      @NonNull Telemetry telemetry,
+      @NonNull Cache<BlockKey, Integer> indexCache) {
 
     this.objectKey = objectKey;
     this.metadata = metadata;
     this.blockManager = blockManager;
     this.telemetry = telemetry;
+    this.indexCache = indexCache;
   }
 
   /**
@@ -71,7 +78,7 @@ public class Blob implements Closeable {
    */
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(pos >= 0, "`pos` must be non-negative");
-    blockManager.makePositionAvailable(pos, ReadMode.SYNC);
+    blockManager.makePositionAvailable(pos, ReadMode.SYNC, indexCache);
     return blockManager.getBlock(pos).get().read(pos);
   }
 
@@ -92,7 +99,7 @@ public class Blob implements Closeable {
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
     Preconditions.checkArgument(off < buf.length, "`off` must be less than size of buffer");
 
-    blockManager.makeRangeAvailable(pos, len, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(pos, len, ReadMode.SYNC, indexCache);
 
     long nextPosition = pos;
     int numBytesRead = 0;
@@ -109,6 +116,7 @@ public class Blob implements Closeable {
                               "This block (for position %s) should have been available.",
                               nextPositionFinal)));
 
+      indexCache.getIfPresent(nextBlock.getBlockKey());
       int bytesRead = nextBlock.read(buf, off + numBytesRead, len - numBytesRead, nextPosition);
 
       if (bytesRead == -1) {
@@ -141,7 +149,7 @@ public class Blob implements Closeable {
           try {
             for (Range range : plan.getPrefetchRanges()) {
               this.blockManager.makeRangeAvailable(
-                  range.getStart(), range.getLength(), ReadMode.ASYNC);
+                  range.getStart(), range.getLength(), ReadMode.ASYNC, indexCache);
             }
 
             return IOPlanExecution.builder().state(IOPlanState.SUBMITTED).build();

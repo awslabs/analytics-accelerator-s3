@@ -15,11 +15,13 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
+import lombok.Getter;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
@@ -32,6 +34,7 @@ import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
+import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
@@ -39,7 +42,7 @@ import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 public class BlockManager implements Closeable {
   private final ObjectKey objectKey;
   private final ObjectMetadata metadata;
-  private final BlockStore blockStore;
+  @Getter private final BlockStore blockStore;
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
   private final SequentialPatternDetector patternDetector;
@@ -114,9 +117,11 @@ public class BlockManager implements Closeable {
    *
    * @param pos the position of the byte
    * @param readMode whether this ask corresponds to a sync or async read
+   * @param indexCache caching the block keys across all blobs
    * @throws IOException if an I/O error occurs
    */
-  public synchronized void makePositionAvailable(long pos, ReadMode readMode) throws IOException {
+  public synchronized void makePositionAvailable(
+      long pos, ReadMode readMode, Cache<BlockKey, Integer> indexCache) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
     // Position is already available --> return corresponding block
@@ -124,7 +129,7 @@ public class BlockManager implements Closeable {
       return;
     }
 
-    makeRangeAvailable(pos, 1, readMode);
+    makeRangeAvailable(pos, 1, readMode, indexCache);
   }
 
   private boolean isRangeAvailable(long pos, long len) throws IOException {
@@ -150,9 +155,11 @@ public class BlockManager implements Closeable {
    * @param pos start of a read
    * @param len length of the read
    * @param readMode whether this ask corresponds to a sync or async read
+   * @param indexCache caching the block keys across all blobs
    * @throws IOException if an I/O error occurs
    */
-  public synchronized void makeRangeAvailable(long pos, long len, ReadMode readMode)
+  public synchronized void makeRangeAvailable(
+      long pos, long len, ReadMode readMode, Cache<BlockKey, Integer> indexCache)
       throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
@@ -198,19 +205,19 @@ public class BlockManager implements Closeable {
               ioPlanner.planRead(pos, effectiveEndFinal, getLastObjectByte());
           List<Range> splits = rangeOptimiser.splitRanges(missingRanges);
           for (Range r : splits) {
+            BlockKey blockKey = new BlockKey(objectKey, r);
             Block block =
                 new Block(
-                    objectKey,
+                    blockKey,
                     objectClient,
                     telemetry,
-                    r.getStart(),
-                    r.getEnd(),
                     generation,
                     readMode,
                     this.configuration.getBlockReadTimeout(),
                     this.configuration.getBlockReadRetryCount(),
                     streamContext);
-            blockStore.add(block);
+            blockStore.add(blockKey, block);
+            indexCache.put(blockKey, r.getLength());
           }
         });
   }

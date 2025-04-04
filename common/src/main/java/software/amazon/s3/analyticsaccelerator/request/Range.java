@@ -15,6 +15,7 @@
  */
 package software.amazon.s3.analyticsaccelerator.request;
 
+import lombok.Getter;
 import lombok.Value;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 
@@ -25,8 +26,8 @@ import software.amazon.s3.analyticsaccelerator.common.Preconditions;
  */
 @Value
 public class Range {
-  long start;
-  long end;
+  @Getter long start;
+  @Getter long end;
 
   private static final String TO_HTTP_STRING_FORMAT = "bytes=%d-%d";
   private static final String TO_STRING_FORMAT = "%d-%d";
@@ -51,8 +52,8 @@ public class Range {
    *
    * @return the length of the range in bytes
    */
-  public long getLength() {
-    return this.end - this.start + 1;
+  public int getLength() {
+    return (int) (this.end - this.start + 1);
   }
 
   /**

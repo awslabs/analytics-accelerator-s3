@@ -21,6 +21,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanState.SUBMITTED;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +36,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
+import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
@@ -49,6 +52,7 @@ public class BlobTest {
   private static final int OBJECT_SIZE = 100;
   ObjectMetadata mockMetadataStore =
       ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
+  Cache<BlockKey, Integer> indexCache = Caffeine.newBuilder().build();
 
   @Test
   void testCreateBoundaries() {
@@ -56,17 +60,24 @@ public class BlobTest {
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
     assertThrows(
         NullPointerException.class,
-        () -> new Blob(null, mockMetadataStore, mock(BlockManager.class), TestTelemetry.DEFAULT));
+        () ->
+            new Blob(
+                null,
+                mockMetadataStore,
+                mock(BlockManager.class),
+                TestTelemetry.DEFAULT,
+                indexCache));
     assertThrows(
         NullPointerException.class,
-        () -> new Blob(objectKey, null, mock(BlockManager.class), TestTelemetry.DEFAULT));
+        () ->
+            new Blob(objectKey, null, mock(BlockManager.class), TestTelemetry.DEFAULT, indexCache));
 
     assertThrows(
         NullPointerException.class,
-        () -> new Blob(objectKey, mockMetadataStore, null, TestTelemetry.DEFAULT));
+        () -> new Blob(objectKey, mockMetadataStore, null, TestTelemetry.DEFAULT, indexCache));
     assertThrows(
         NullPointerException.class,
-        () -> new Blob(objectKey, mockMetadataStore, mock(BlockManager.class), null));
+        () -> new Blob(objectKey, mockMetadataStore, mock(BlockManager.class), null, indexCache));
   }
 
   @Test
@@ -138,7 +149,8 @@ public class BlobTest {
   public void testExecuteSubmitsCorrectRanges() throws IOException {
     // Given: test blob and an IOPlan
     BlockManager blockManager = mock(BlockManager.class);
-    Blob blob = new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
+    Blob blob =
+        new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT, indexCache);
     List<Range> ranges = new LinkedList<>();
     ranges.add(new Range(0, 100));
     ranges.add(new Range(999, 1000));
@@ -149,15 +161,16 @@ public class BlobTest {
 
     // Then: correct ranges are submitted
     assertEquals(SUBMITTED, execution.getState());
-    verify(blockManager).makeRangeAvailable(0, 101, ReadMode.ASYNC);
-    verify(blockManager).makeRangeAvailable(999, 2, ReadMode.ASYNC);
+    verify(blockManager).makeRangeAvailable(0, 101, ReadMode.ASYNC, indexCache);
+    verify(blockManager).makeRangeAvailable(999, 2, ReadMode.ASYNC, indexCache);
   }
 
   @Test
   public void testCloseClosesBlockManager() {
     // Given: test blob
     BlockManager blockManager = mock(BlockManager.class);
-    Blob blob = new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
+    Blob blob =
+        new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT, indexCache);
 
     // When: blob is closed
     blob.close();
@@ -178,6 +191,6 @@ public class BlobTest {
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT);
 
-    return new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
+    return new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT, indexCache);
   }
 }
