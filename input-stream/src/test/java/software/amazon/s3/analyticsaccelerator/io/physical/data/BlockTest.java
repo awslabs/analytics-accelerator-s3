@@ -25,11 +25,9 @@ import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
+import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
-import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
-import software.amazon.s3.analyticsaccelerator.util.FakeStuckObjectClient;
-import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
-import software.amazon.s3.analyticsaccelerator.util.S3URI;
+import software.amazon.s3.analyticsaccelerator.util.*;
 
 @SuppressFBWarnings(
     value = "NP_NONNULL_PARAM_VIOLATION",
@@ -46,13 +44,12 @@ public class BlockTest {
     // Given: a Block containing "test-data"
     final String TEST_DATA = "test-data";
     ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
+    BlockKey blockKey = new BlockKey(objectKey, new Range(0, TEST_DATA.length()));
     Block block =
         new Block(
-            objectKey,
+            blockKey,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            0,
-            TEST_DATA.length(),
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
@@ -74,13 +71,12 @@ public class BlockTest {
     // Given: a Block containing "test-data"
     final String TEST_DATA = "test-data";
     ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
+    BlockKey blockKey = new BlockKey(objectKey, new Range(0, TEST_DATA.length()));
     Block block =
         new Block(
-            objectKey,
+            blockKey,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            0,
-            TEST_DATA.length(),
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
@@ -104,6 +100,7 @@ public class BlockTest {
   void testNulls() {
     final String TEST_DATA = "test-data";
     ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
+    BlockKey blockKey = new BlockKey(objectKey, new Range(0, TEST_DATA.length()));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -111,8 +108,6 @@ public class BlockTest {
                 null,
                 fakeObjectClient,
                 TestTelemetry.DEFAULT,
-                0,
-                TEST_DATA.length(),
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
@@ -122,11 +117,9 @@ public class BlockTest {
         NullPointerException.class,
         () ->
             new Block(
-                objectKey,
+                blockKey,
                 null,
                 TestTelemetry.DEFAULT,
-                0,
-                TEST_DATA.length(),
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
@@ -136,11 +129,9 @@ public class BlockTest {
         NullPointerException.class,
         () ->
             new Block(
-                objectKey,
+                blockKey,
                 fakeObjectClient,
                 null,
-                0,
-                TEST_DATA.length(),
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
@@ -150,11 +141,9 @@ public class BlockTest {
         NullPointerException.class,
         () ->
             new Block(
-                objectKey,
+                blockKey,
                 fakeObjectClient,
                 TestTelemetry.DEFAULT,
-                0,
-                TEST_DATA.length(),
                 0,
                 null,
                 DEFAULT_READ_TIMEOUT,
@@ -170,11 +159,9 @@ public class BlockTest {
         IllegalArgumentException.class,
         () ->
             new Block(
-                objectKey,
+                new BlockKey(objectKey, new Range(-1, TEST_DATA.length())),
                 fakeObjectClient,
                 TestTelemetry.DEFAULT,
-                -1,
-                TEST_DATA.length(),
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
@@ -184,11 +171,9 @@ public class BlockTest {
         IllegalArgumentException.class,
         () ->
             new Block(
-                objectKey,
+                new BlockKey(objectKey, new Range(0, -5)),
                 fakeObjectClient,
                 TestTelemetry.DEFAULT,
-                0,
-                -5,
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
@@ -198,11 +183,9 @@ public class BlockTest {
         IllegalArgumentException.class,
         () ->
             new Block(
-                objectKey,
+                new BlockKey(objectKey, new Range(20, 1)),
                 fakeObjectClient,
                 TestTelemetry.DEFAULT,
-                20,
-                1,
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
@@ -211,11 +194,9 @@ public class BlockTest {
         IllegalArgumentException.class,
         () ->
             new Block(
-                objectKey,
+                new BlockKey(objectKey, new Range(0, 5)),
                 fakeObjectClient,
                 TestTelemetry.DEFAULT,
-                0,
-                5,
                 -1,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
@@ -224,11 +205,9 @@ public class BlockTest {
         IllegalArgumentException.class,
         () ->
             new Block(
-                objectKey,
+                new BlockKey(objectKey, new Range(-5, 0)),
                 fakeObjectClient,
                 TestTelemetry.DEFAULT,
-                -5,
-                0,
                 TEST_DATA.length(),
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
@@ -244,11 +223,9 @@ public class BlockTest {
     byte[] b = new byte[4];
     Block block =
         new Block(
-            objectKey,
+            new BlockKey(objectKey, new Range(0, TEST_DATA.length())),
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            0,
-            TEST_DATA.length(),
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
@@ -267,11 +244,9 @@ public class BlockTest {
     ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
     Block block =
         new Block(
-            objectKey,
+            new BlockKey(objectKey, new Range(0, TEST_DATA.length())),
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            0,
-            TEST_DATA.length(),
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
@@ -287,11 +262,9 @@ public class BlockTest {
     ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
     Block block =
         new Block(
-            objectKey,
+            new BlockKey(objectKey, new Range(0, TEST_DATA.length())),
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            0,
-            TEST_DATA.length(),
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
@@ -305,14 +278,12 @@ public class BlockTest {
     ObjectKey stuckObjectKey =
         ObjectKey.builder().s3URI(S3URI.of("stuck-client", "bar")).etag(ETAG).build();
     ObjectClient fakeStuckObjectClient = new FakeStuckObjectClient(TEST_DATA);
-
+    BlockKey blockKey = new BlockKey(stuckObjectKey, new Range(0, TEST_DATA.length()));
     Block block =
         new Block(
-            stuckObjectKey,
+            blockKey,
             fakeStuckObjectClient,
             TestTelemetry.DEFAULT,
-            0,
-            TEST_DATA.length(),
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
@@ -327,11 +298,9 @@ public class BlockTest {
     ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
     Block block =
         new Block(
-            objectKey,
+            new BlockKey(objectKey, new Range(0, TEST_DATA.length())),
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            0,
-            TEST_DATA.length(),
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,

@@ -30,7 +30,9 @@ import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
+import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
@@ -52,15 +54,14 @@ public class BlockStoreTest {
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
     BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
-
+    BlockKey blockKey = new BlockKey(objectKey, new Range(3, 5));
     // When: a new block is added
     blockStore.add(
+        blockKey,
         new Block(
-            objectKey,
+            blockKey,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            3,
-            5,
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
@@ -70,8 +71,8 @@ public class BlockStoreTest {
     Optional<Block> b = blockStore.getBlock(4);
 
     assertTrue(b.isPresent());
-    assertEquals(b.get().getStart(), 3);
-    assertEquals(b.get().getEnd(), 5);
+    assertEquals(b.get().getBlockKey().getRange().getStart(), 3);
+    assertEquals(b.get().getBlockKey().getRange().getEnd(), 5);
     assertEquals(b.get().getGeneration(), 0);
   }
 
@@ -84,36 +85,35 @@ public class BlockStoreTest {
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(size).etag(ETAG).build();
     BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
-
+    BlockKey blockKey1 = new BlockKey(objectKey, new Range(2, 3));
+    BlockKey blockKey2 = new BlockKey(objectKey, new Range(5, 10));
+    BlockKey blockKey3 = new BlockKey(objectKey, new Range(12, 15));
     blockStore.add(
+        blockKey1,
         new Block(
-            objectKey,
+            blockKey1,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            2,
-            3,
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
             DEFAULT_READ_RETRY_COUNT));
     blockStore.add(
+        blockKey2,
         new Block(
-            objectKey,
+            blockKey2,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            5,
-            10,
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
             DEFAULT_READ_RETRY_COUNT));
     blockStore.add(
+        blockKey3,
         new Block(
-            objectKey,
+            blockKey3,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            12,
-            15,
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
@@ -139,36 +139,35 @@ public class BlockStoreTest {
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
     BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
-
+    BlockKey blockKey1 = new BlockKey(objectKey, new Range(2, 3));
+    BlockKey blockKey2 = new BlockKey(objectKey, new Range(5, 10));
+    BlockKey blockKey3 = new BlockKey(objectKey, new Range(12, 15));
     blockStore.add(
+        blockKey1,
         new Block(
-            objectKey,
+            blockKey1,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            2,
-            3,
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
             DEFAULT_READ_RETRY_COUNT));
     blockStore.add(
+        blockKey2,
         new Block(
-            objectKey,
+            blockKey2,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            5,
-            10,
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
             DEFAULT_READ_RETRY_COUNT));
     blockStore.add(
+        blockKey3,
         new Block(
-            objectKey,
+            blockKey3,
             fakeObjectClient,
             TestTelemetry.DEFAULT,
-            12,
-            15,
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
@@ -191,8 +190,9 @@ public class BlockStoreTest {
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
     BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
+    BlockKey blockKey = new BlockKey(objectKey, new Range(0, 5));
     Block block = mock(Block.class);
-    blockStore.add(block);
+    blockStore.add(blockKey, block);
 
     // When: blockStore is closed
     blockStore.close();
@@ -207,10 +207,12 @@ public class BlockStoreTest {
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
     BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
+    BlockKey blockKey1 = new BlockKey(objectKey, new Range(0, 5));
+    BlockKey blockKey2 = new BlockKey(objectKey, new Range(0, 6));
     Block b1 = mock(Block.class);
     Block b2 = mock(Block.class);
-    blockStore.add(b1);
-    blockStore.add(b2);
+    blockStore.add(blockKey1, b1);
+    blockStore.add(blockKey2, b2);
 
     // When: b1 throws when closed
     doThrow(new RuntimeException("something horrible")).when(b1).close();

@@ -25,6 +25,8 @@ import static org.mockito.Mockito.when;
 import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_KB;
 import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_MB;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -36,6 +38,7 @@ import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.*;
+import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
@@ -47,6 +50,7 @@ public class BlockManagerTest {
   private ObjectMetadata metadataStore;
   static S3URI testUri = S3URI.of("foo", "bar");
   private static final ObjectKey objectKey = ObjectKey.builder().s3URI(testUri).etag(ETAG).build();
+  Cache<BlockKey, Integer> indexCache = Caffeine.newBuilder().build();
 
   @Test
   void testCreateBoundaries() {
@@ -114,7 +118,7 @@ public class BlockManagerTest {
     BlockManager blockManager = getTestBlockManager(65 * ONE_KB);
 
     // When: have a 64KB block available from 0
-    blockManager.makePositionAvailable(0, ReadMode.SYNC);
+    blockManager.makePositionAvailable(0, ReadMode.SYNC, indexCache);
 
     // Then: 0 returns a block but 64KB + 1 byte returns no block
     assertTrue(blockManager.getBlock(0).isPresent());
@@ -129,7 +133,7 @@ public class BlockManagerTest {
     BlockManager blockManager = getTestBlockManager(objectClient, objectSize);
 
     // When
-    blockManager.makePositionAvailable(0, ReadMode.SYNC);
+    blockManager.makePositionAvailable(0, ReadMode.SYNC, indexCache);
 
     // Then
     ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
@@ -149,7 +153,7 @@ public class BlockManagerTest {
     BlockManager blockManager = getTestBlockManager(objectClient, objectSize);
 
     // When
-    blockManager.makePositionAvailable(0, ReadMode.SYNC);
+    blockManager.makePositionAvailable(0, ReadMode.SYNC, indexCache);
 
     // Then
     ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
@@ -164,11 +168,11 @@ public class BlockManagerTest {
     // Given: BM with 0-64KB and 64KB+1 to 128KB
     ObjectClient objectClient = mock(ObjectClient.class);
     BlockManager blockManager = getTestBlockManager(objectClient, 128 * ONE_KB);
-    blockManager.makePositionAvailable(0, ReadMode.SYNC);
-    blockManager.makePositionAvailable(64 * ONE_KB + 1, ReadMode.SYNC);
+    blockManager.makePositionAvailable(0, ReadMode.SYNC, indexCache);
+    blockManager.makePositionAvailable(64 * ONE_KB + 1, ReadMode.SYNC, indexCache);
 
     // When: requesting the byte at 64KB
-    blockManager.makeRangeAvailable(64 * ONE_KB, 100, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(64 * ONE_KB, 100, ReadMode.SYNC, indexCache);
     ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
     verify(objectClient, times(3)).getObject(requestCaptor.capture(), any());
 
@@ -186,7 +190,7 @@ public class BlockManagerTest {
   void testMakeRangeAvailableThrowsExceptionWhenEtagChanges() throws IOException {
     ObjectClient objectClient = mock(ObjectClient.class);
     BlockManager blockManager = getTestBlockManager(objectClient, 128 * ONE_MB);
-    blockManager.makePositionAvailable(0, ReadMode.SYNC);
+    blockManager.makePositionAvailable(0, ReadMode.SYNC, indexCache);
     int readAheadBytes = (int) PhysicalIOConfiguration.DEFAULT.getReadAheadBytes();
 
     // Overwrite our client to now throw an error with our old etag. This simulates the scenario
@@ -205,7 +209,7 @@ public class BlockManagerTest {
 
     assertThrows(
         IOException.class,
-        () -> blockManager.makePositionAvailable(readAheadBytes + 1, ReadMode.SYNC));
+        () -> blockManager.makePositionAvailable(readAheadBytes + 1, ReadMode.SYNC, indexCache));
   }
 
   @Test
@@ -217,13 +221,13 @@ public class BlockManagerTest {
             objectClient,
             128 * ONE_MB,
             PhysicalIOConfiguration.builder().sequentialPrefetchBase(2.0).build());
-    blockManager.makeRangeAvailable(20_837_974, 8_323_072, ReadMode.SYNC);
-    blockManager.makeRangeAvailable(20_772_438, 65_536, ReadMode.SYNC);
-    blockManager.makeRangeAvailable(29_161_046, 4_194_305, ReadMode.SYNC);
-    blockManager.makeRangeAvailable(106_182_410, 1_048_576, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(20_837_974, 8_323_072, ReadMode.SYNC, indexCache);
+    blockManager.makeRangeAvailable(20_772_438, 65_536, ReadMode.SYNC, indexCache);
+    blockManager.makeRangeAvailable(29_161_046, 4_194_305, ReadMode.SYNC, indexCache);
+    blockManager.makeRangeAvailable(106_182_410, 1_048_576, ReadMode.SYNC, indexCache);
 
     // When: [29161046 - 37549653] is requested
-    blockManager.makeRangeAvailable(29_161_046, 8_388_608, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(29_161_046, 8_388_608, ReadMode.SYNC, indexCache);
 
     // Then: position 33_355_351 should be available
     // This was throwing before, and it shouldn't, given that 33_355_351 is contained in [29161046 -
