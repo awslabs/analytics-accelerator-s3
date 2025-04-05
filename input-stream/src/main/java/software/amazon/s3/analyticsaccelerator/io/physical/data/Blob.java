@@ -19,6 +19,8 @@ import com.github.benmanes.caffeine.cache.Cache;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import lombok.Getter;
 import lombok.NonNull;
 import org.slf4j.Logger;
@@ -47,6 +49,7 @@ public class Blob implements Closeable {
   private final Telemetry telemetry;
   private final Cache<BlockKey, Integer> indexCache;
   @Getter private AtomicInteger activeReaders;
+  public final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
   /**
    * Construct a new Blob.
@@ -90,12 +93,15 @@ public class Blob implements Closeable {
    */
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(pos >= 0, "`pos` must be non-negative");
+    rwLock.readLock().lock();
     try {
+
       updateActiveReaders(1);
       blockManager.makePositionAvailable(pos, ReadMode.SYNC, indexCache);
       return blockManager.getBlock(pos).get().read(pos);
     } finally {
       updateActiveReaders(-1);
+      rwLock.readLock().unlock();
     }
   }
 
@@ -115,7 +121,9 @@ public class Blob implements Closeable {
     Preconditions.checkArgument(0 <= off, "`off` must not be negative");
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
     Preconditions.checkArgument(off < buf.length, "`off` must be less than size of buffer");
+    rwLock.readLock().lock();
     try {
+
       updateActiveReaders(1);
 
       blockManager.makeRangeAvailable(pos, len, ReadMode.SYNC, indexCache);
@@ -148,6 +156,7 @@ public class Blob implements Closeable {
       return numBytesRead;
     } finally {
       updateActiveReaders(-1);
+      rwLock.readLock().unlock();
     }
   }
 

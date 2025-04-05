@@ -76,22 +76,9 @@ public class BlobStore implements Closeable {
     Map<BlockKey, Block> blocks =
         blobMap.get(key.getObjectKey()).getBlockManager().getBlockStore().getBlocks();
     Block blockToBeRemoved = blocks.get(key);
-    if (blob.getActiveReaders().get() > 0) {
-      LOG.info(
-          "Adding back key {} due to blob active readers {} block active readers {} and cause was {}",
-          key.getObjectKey().getS3URI().toString()
-              + "-"
-              + key.getRange().getStart()
-              + "-"
-              + key.getRange().getEnd(),
-          blob.getActiveReaders().get(),
-          blockToBeRemoved.getActiveReaders().get(),
-          cause);
-      indexCache.put(key, value);
-      return;
-    }
-
+    blob.rwLock.writeLock().lock();
     try {
+
       LOG.info(
           "Removing key: {} due to {}",
           key.getObjectKey().getS3URI().toString()
@@ -103,11 +90,6 @@ public class BlobStore implements Closeable {
       blockToBeRemoved.close();
       blocks.remove(key);
 
-      if (blocks.isEmpty()) {
-        LOG.info("Removing the blob map for blob {}", key.getObjectKey().getS3URI().toString());
-        blobMap.get(key.getObjectKey()).close();
-        blobMap.remove(key.getObjectKey());
-      }
     } catch (Exception e) {
       LOG.info(
           "Error while removing key: {} due to {}",
@@ -121,6 +103,7 @@ public class BlobStore implements Closeable {
     } finally {
       long currentWeight = indexCache.policy().eviction().get().weightedSize().getAsLong();
       LOG.info("Current weight of cache: {}", currentWeight);
+      blob.rwLock.writeLock().unlock();
     }
   }
 
@@ -133,7 +116,7 @@ public class BlobStore implements Closeable {
    * @return the blob representing the object from the BlobStore
    */
   public Blob get(ObjectKey objectKey, ObjectMetadata metadata, StreamContext streamContext) {
-    LOG.info("rajdchak synchronised Blobmap size is {}", blobMap.size());
+    LOG.info("rajdchak read write lock Blobmap size is {}", blobMap.size());
     return blobMap.computeIfAbsent(
         objectKey,
         uri ->
