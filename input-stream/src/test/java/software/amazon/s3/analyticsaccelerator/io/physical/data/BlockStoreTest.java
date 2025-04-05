@@ -22,6 +22,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
@@ -45,6 +47,7 @@ public class BlockStoreTest {
   private static final int OBJECT_SIZE = 100;
   private static final long DEFAULT_READ_TIMEOUT = 120_000;
   private static final int DEFAULT_READ_RETRY_COUNT = 20;
+  Cache<BlockKey, Integer> indexCache = Caffeine.newBuilder().build();
 
   @SneakyThrows
   @Test
@@ -65,7 +68,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            indexCache));
 
     // Then: getBlock can retrieve the same block
     Optional<Block> b = blockStore.getBlock(4);
@@ -97,7 +101,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            indexCache));
     blockStore.add(
         blockKey2,
         new Block(
@@ -107,7 +112,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            indexCache));
     blockStore.add(
         blockKey3,
         new Block(
@@ -117,7 +123,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            indexCache));
 
     // When & Then: we query for the next missing byte, the result is correct
     assertEquals(OptionalLong.of(0), blockStore.findNextMissingByte(0));
@@ -151,7 +158,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            indexCache));
     blockStore.add(
         blockKey2,
         new Block(
@@ -161,7 +169,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            indexCache));
     blockStore.add(
         blockKey3,
         new Block(
@@ -171,7 +180,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            indexCache));
 
     // When & Then: we query for the next available byte, the result is correct
     assertEquals(OptionalLong.of(2), blockStore.findNextLoadedByte(0));

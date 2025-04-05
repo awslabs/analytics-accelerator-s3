@@ -17,6 +17,8 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +41,7 @@ public class IOPlannerTest {
   private static final S3URI TEST_URI = S3URI.of("foo", "bar");
   private static final String ETAG = "RandomString";
   private static final ObjectKey objectKey = ObjectKey.builder().s3URI(TEST_URI).etag(ETAG).build();
+  Cache<BlockKey, Integer> indexCache = Caffeine.newBuilder().build();
 
   @Test
   void testCreateBoundaries() {
@@ -92,7 +95,14 @@ public class IOPlannerTest {
     blockStore.add(
         blockKey,
         new Block(
-            blockKey, fakeObjectClient, TestTelemetry.DEFAULT, 0, ReadMode.SYNC, 120_000, 20));
+            blockKey,
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            0,
+            ReadMode.SYNC,
+            120_000,
+            20,
+            indexCache));
     IOPlanner ioPlanner = new IOPlanner(blockStore);
 
     // When: a read plan is requested for a range (0, 400)

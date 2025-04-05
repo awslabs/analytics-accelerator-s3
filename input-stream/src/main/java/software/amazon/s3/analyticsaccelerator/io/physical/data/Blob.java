@@ -18,6 +18,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 import com.github.benmanes.caffeine.cache.Cache;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Getter;
 import lombok.NonNull;
 import org.slf4j.Logger;
@@ -45,6 +46,7 @@ public class Blob implements Closeable {
   private final ObjectMetadata metadata;
   private final Telemetry telemetry;
   private final Cache<BlockKey, Integer> indexCache;
+  @Getter private AtomicInteger activeReaders;
 
   /**
    * Construct a new Blob.
@@ -67,6 +69,16 @@ public class Blob implements Closeable {
     this.blockManager = blockManager;
     this.telemetry = telemetry;
     this.indexCache = indexCache;
+    this.activeReaders = new AtomicInteger(0);
+  }
+
+  /**
+   * Updates and returns the active readers of this blob
+   *
+   * @param readers The delta to be added to the current active readers of this blob
+   */
+  public void updateActiveReaders(int readers) {
+    activeReaders.addAndGet(readers);
   }
 
   /**
@@ -78,8 +90,13 @@ public class Blob implements Closeable {
    */
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(pos >= 0, "`pos` must be non-negative");
-    blockManager.makePositionAvailable(pos, ReadMode.SYNC, indexCache);
-    return blockManager.getBlock(pos).get().read(pos);
+    try {
+      updateActiveReaders(1);
+      blockManager.makePositionAvailable(pos, ReadMode.SYNC, indexCache);
+      return blockManager.getBlock(pos).get().read(pos);
+    } finally {
+      updateActiveReaders(-1);
+    }
   }
 
   /**
@@ -98,36 +115,40 @@ public class Blob implements Closeable {
     Preconditions.checkArgument(0 <= off, "`off` must not be negative");
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
     Preconditions.checkArgument(off < buf.length, "`off` must be less than size of buffer");
+    try {
+      updateActiveReaders(1);
 
-    blockManager.makeRangeAvailable(pos, len, ReadMode.SYNC, indexCache);
+      blockManager.makeRangeAvailable(pos, len, ReadMode.SYNC, indexCache);
 
-    long nextPosition = pos;
-    int numBytesRead = 0;
+      long nextPosition = pos;
+      int numBytesRead = 0;
 
-    while (numBytesRead < len && nextPosition < contentLength()) {
-      final long nextPositionFinal = nextPosition;
-      Block nextBlock =
-          blockManager
-              .getBlock(nextPosition)
-              .orElseThrow(
-                  () ->
-                      new IllegalStateException(
-                          String.format(
-                              "This block (for position %s) should have been available.",
-                              nextPositionFinal)));
+      while (numBytesRead < len && nextPosition < contentLength()) {
+        final long nextPositionFinal = nextPosition;
+        Block nextBlock =
+            blockManager
+                .getBlock(nextPosition)
+                .orElseThrow(
+                    () ->
+                        new IllegalStateException(
+                            String.format(
+                                "This block object key %s (for position %s) should have been available.",
+                                objectKey.getS3URI().toString(), nextPositionFinal)));
 
-      indexCache.getIfPresent(nextBlock.getBlockKey());
-      int bytesRead = nextBlock.read(buf, off + numBytesRead, len - numBytesRead, nextPosition);
+        int bytesRead = nextBlock.read(buf, off + numBytesRead, len - numBytesRead, nextPosition);
 
-      if (bytesRead == -1) {
-        return numBytesRead;
+        if (bytesRead == -1) {
+          return numBytesRead;
+        }
+
+        numBytesRead = numBytesRead + bytesRead;
+        nextPosition += bytesRead;
       }
 
-      numBytesRead = numBytesRead + bytesRead;
-      nextPosition += bytesRead;
+      return numBytesRead;
+    } finally {
+      updateActiveReaders(-1);
     }
-
-    return numBytesRead;
   }
 
   /**

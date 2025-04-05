@@ -47,7 +47,7 @@ public class BlockStore implements Closeable {
 
     this.s3URI = objectKey;
     this.metadata = metadata;
-    this.blocks = new HashMap<>();
+    this.blocks = Collections.synchronizedMap(new LinkedHashMap<>());
   }
 
   /**

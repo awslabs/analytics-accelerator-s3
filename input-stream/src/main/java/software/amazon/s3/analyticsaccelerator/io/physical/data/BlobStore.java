@@ -72,25 +72,52 @@ public class BlobStore implements Closeable {
   }
 
   private void onRemoval(BlockKey key, Integer value, RemovalCause cause) {
+    Blob blob = blobMap.get(key.getObjectKey());
     Map<BlockKey, Block> blocks =
         blobMap.get(key.getObjectKey()).getBlockManager().getBlockStore().getBlocks();
     Block blockToBeRemoved = blocks.get(key);
-    if (blockToBeRemoved.getActiveReaders().get() > 0) {
+    if (blob.getActiveReaders().get() > 0) {
+      LOG.info(
+          "Adding back key {} due to blob active readers {} block active readers {} and cause was {}",
+          key.getObjectKey().getS3URI().toString()
+              + "-"
+              + key.getRange().getStart()
+              + "-"
+              + key.getRange().getEnd(),
+          blob.getActiveReaders().get(),
+          blockToBeRemoved.getActiveReaders().get(),
+          cause);
       indexCache.put(key, value);
       return;
     }
 
     try {
-      LOG.info("Removing key: {} due to {}", key, cause);
+      LOG.info(
+          "Removing key: {} due to {}",
+          key.getObjectKey().getS3URI().toString()
+              + "-"
+              + key.getRange().getStart()
+              + "-"
+              + key.getRange().getEnd(),
+          cause);
       blockToBeRemoved.close();
       blocks.remove(key);
 
       if (blocks.isEmpty()) {
+        LOG.info("Removing the blob map for blob {}", key.getObjectKey().getS3URI().toString());
         blobMap.get(key.getObjectKey()).close();
         blobMap.remove(key.getObjectKey());
       }
     } catch (Exception e) {
-      LOG.info("Error while removing key: {} due to {}", key, cause, e);
+      LOG.info(
+          "Error while removing key: {} due to {}",
+          key.getObjectKey().getS3URI().toString()
+              + "-"
+              + key.getRange().getStart()
+              + "-"
+              + key.getRange().getEnd(),
+          cause,
+          e);
     } finally {
       long currentWeight = indexCache.policy().eviction().get().weightedSize().getAsLong();
       LOG.info("Current weight of cache: {}", currentWeight);
@@ -106,6 +133,7 @@ public class BlobStore implements Closeable {
    * @return the blob representing the object from the BlobStore
    */
   public Blob get(ObjectKey objectKey, ObjectMetadata metadata, StreamContext streamContext) {
+    LOG.info("rajdchak synchronised Blobmap size is {}", blobMap.size());
     return blobMap.computeIfAbsent(
         objectKey,
         uri ->

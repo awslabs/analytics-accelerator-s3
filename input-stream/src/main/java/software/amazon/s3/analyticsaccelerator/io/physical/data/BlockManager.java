@@ -18,9 +18,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 import com.github.benmanes.caffeine.cache.Cache;
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
-import java.util.Optional;
-import java.util.OptionalLong;
+import java.util.*;
 import lombok.Getter;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
@@ -215,9 +213,9 @@ public class BlockManager implements Closeable {
                     readMode,
                     this.configuration.getBlockReadTimeout(),
                     this.configuration.getBlockReadRetryCount(),
+                    indexCache,
                     streamContext);
             blockStore.add(blockKey, block);
-            indexCache.put(blockKey, r.getLength());
           }
         });
   }

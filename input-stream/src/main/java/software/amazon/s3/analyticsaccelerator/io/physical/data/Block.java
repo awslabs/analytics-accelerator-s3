@@ -15,6 +15,7 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
@@ -41,7 +42,7 @@ import software.amazon.s3.analyticsaccelerator.util.*;
  * the object.
  */
 public class Block implements Closeable {
-  private CompletableFuture<ObjectContent> source;
+  @Getter private CompletableFuture<ObjectContent> source;
   private CompletableFuture<byte[]> data;
   @Getter private final BlockKey blockKey;
   private final Telemetry telemetry;
@@ -53,6 +54,7 @@ public class Block implements Closeable {
   private final int readRetryCount;
   @Getter private final long generation;
   @Getter private AtomicInteger activeReaders;
+  private final Cache<BlockKey, Integer> indexCache;
 
   private static final String OPERATION_BLOCK_GET_ASYNC = "block.get.async";
   private static final String OPERATION_BLOCK_GET_JOIN = "block.get.join";
@@ -69,6 +71,7 @@ public class Block implements Closeable {
    * @param readMode read mode describing whether this is a sync or async fetch
    * @param readTimeout Timeout duration (in milliseconds) for reading a block object from S3
    * @param readRetryCount Number of retries for block read failure
+   * @param indexCache index cache
    */
   public Block(
       @NonNull BlockKey blockKey,
@@ -77,11 +80,20 @@ public class Block implements Closeable {
       long generation,
       @NonNull ReadMode readMode,
       long readTimeout,
-      int readRetryCount)
+      int readRetryCount,
+      @NonNull Cache<BlockKey, Integer> indexCache)
       throws IOException {
 
     this(
-        blockKey, objectClient, telemetry, generation, readMode, readTimeout, readRetryCount, null);
+        blockKey,
+        objectClient,
+        telemetry,
+        generation,
+        readMode,
+        readTimeout,
+        readRetryCount,
+        indexCache,
+        null);
   }
 
   /**
@@ -95,6 +107,7 @@ public class Block implements Closeable {
    * @param readTimeout Timeout duration (in milliseconds) for reading a block object from S3
    * @param readRetryCount Number of retries for block read failure
    * @param streamContext contains audit headers to be attached in the request header
+   * @param indexCache index cache
    */
   public Block(
       @NonNull BlockKey blockKey,
@@ -104,6 +117,7 @@ public class Block implements Closeable {
       @NonNull ReadMode readMode,
       long readTimeout,
       int readRetryCount,
+      @NonNull Cache<BlockKey, Integer> indexCache,
       StreamContext streamContext)
       throws IOException {
 
@@ -137,6 +151,7 @@ public class Block implements Closeable {
     this.readTimeout = readTimeout;
     this.readRetryCount = readRetryCount;
     this.activeReaders = new AtomicInteger(0);
+    this.indexCache = indexCache;
 
     generateSourceAndData();
   }
@@ -181,6 +196,7 @@ public class Block implements Closeable {
                         "Error while converting InputStream to byte array", e);
                   }
                 });
+        this.data.thenAccept(block -> indexCache.put(blockKey, blockKey.getRange().getLength()));
 
         return; // Successfully generated source and data, exit loop
       } catch (RuntimeException e) {
@@ -221,6 +237,7 @@ public class Block implements Closeable {
     try {
       updateActiveReaders(1);
       byte[] content = this.getDataWithRetries();
+      indexCache.getIfPresent(blockKey);
       return Byte.toUnsignedInt(content[posToOffset(pos)]);
     } finally {
       updateActiveReaders(-1);
@@ -246,6 +263,7 @@ public class Block implements Closeable {
     try {
       updateActiveReaders(1);
       byte[] content = this.getDataWithRetries();
+      indexCache.getIfPresent(blockKey);
       int contentOffset = posToOffset(pos);
       int available = content.length - contentOffset;
       int bytesToCopy = Math.min(len, available);
