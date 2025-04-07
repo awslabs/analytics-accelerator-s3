@@ -17,14 +17,13 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Optional;
-import java.util.OptionalLong;
+import java.util.*;
+import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 
 /** A BlockStore, which is a collection of Blocks. */
@@ -34,7 +33,7 @@ public class BlockStore implements Closeable {
 
   private final ObjectKey s3URI;
   private final ObjectMetadata metadata;
-  private final List<Block> blocks;
+  @Getter private final Map<BlockKey, Block> blocks;
 
   /**
    * Constructs a new instance of a BlockStore.
@@ -48,7 +47,7 @@ public class BlockStore implements Closeable {
 
     this.s3URI = objectKey;
     this.metadata = metadata;
-    this.blocks = new LinkedList<>();
+    this.blocks = new HashMap<>();
   }
 
   /**
@@ -61,7 +60,7 @@ public class BlockStore implements Closeable {
   public Optional<Block> getBlock(long pos) {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
-    return blocks.stream().filter(b -> b.contains(pos)).findFirst();
+    return blocks.values().stream().filter(b -> b.contains(pos)).findFirst();
   }
 
   /**
@@ -79,7 +78,10 @@ public class BlockStore implements Closeable {
       return OptionalLong.of(pos);
     }
 
-    return blocks.stream().mapToLong(Block::getStart).filter(startPos -> pos < startPos).min();
+    return blocks.values().stream()
+        .mapToLong(block -> block.getBlockKey().getRange().getStart())
+        .filter(startPos -> pos < startPos)
+        .min();
   }
 
   /**
@@ -97,7 +99,7 @@ public class BlockStore implements Closeable {
     long nextMissingByte = pos;
 
     while (getBlock(nextMissingByte).isPresent()) {
-      nextMissingByte = getBlock(nextMissingByte).get().getEnd() + 1;
+      nextMissingByte = getBlock(nextMissingByte).get().getBlockKey().getRange().getEnd() + 1;
     }
 
     return nextMissingByte <= getLastObjectByte()
@@ -109,11 +111,12 @@ public class BlockStore implements Closeable {
    * Add a Block to the BlockStore.
    *
    * @param block the block to add to the BlockStore
+   * @param blockKey key to the block
    */
-  public void add(Block block) {
+  public void add(BlockKey blockKey, Block block) {
     Preconditions.checkNotNull(block, "`block` must not be null");
 
-    this.blocks.add(block);
+    this.blocks.put(blockKey, block);
   }
 
   private long getLastObjectByte() {
@@ -130,6 +133,6 @@ public class BlockStore implements Closeable {
 
   @Override
   public void close() {
-    blocks.forEach(this::safeClose);
+    blocks.forEach((key, block) -> this.safeClose(block));
   }
 }
