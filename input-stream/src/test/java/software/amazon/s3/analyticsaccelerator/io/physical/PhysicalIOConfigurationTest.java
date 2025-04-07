@@ -64,6 +64,7 @@ public class PhysicalIOConfigurationTest {
         configuration.toString(),
         "PhysicalIO configuration:\n"
             + "\tblobStoreCapacity: 10\n"
+            + "\tblobStoreTimeoutInMillis: 1000\n"
             + "\tmetadataStoreCapacity: 50\n"
             + "\tblockSizeBytes: 8388608\n"
             + "\treadAheadBytes: 65536\n"

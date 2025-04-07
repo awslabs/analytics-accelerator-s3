@@ -63,12 +63,16 @@ public class BlobStore implements Closeable {
     this.blobMap = Collections.synchronizedMap(new LinkedHashMap<ObjectKey, Blob>());
     this.indexCache =
         Caffeine.newBuilder()
-            .expireAfterAccess(5, TimeUnit.SECONDS)
+            .expireAfterAccess(configuration.getBlobStoreTimeoutInMillis(), TimeUnit.MILLISECONDS)
             .removalListener(this::onRemoval)
             .weigher((blockId, blockSize) -> blockSize)
             .maximumWeight(configuration.getBlobStoreCapacity())
             .build();
     this.configuration = configuration;
+    LOG.info(
+        "blobstore capacity: {} blobstore timeout: {}",
+        configuration.getBlobStoreCapacity(),
+        configuration.getBlobStoreTimeoutInMillis());
   }
 
   private void onRemoval(BlockKey key, Integer value, RemovalCause cause) {
@@ -78,6 +82,16 @@ public class BlobStore implements Closeable {
     Block blockToBeRemoved = blocks.get(key);
     blob.rwLock.writeLock().lock();
     try {
+      if (indexCache.asMap().containsKey(key)) {
+        LOG.info(
+            "key {} got added again ignoring removal ",
+            key.getObjectKey().getS3URI().toString()
+                + "-"
+                + key.getRange().getStart()
+                + "-"
+                + key.getRange().getEnd());
+        return;
+      }
 
       LOG.info(
           "Removing key: {} due to {}",
@@ -116,7 +130,7 @@ public class BlobStore implements Closeable {
    * @return the blob representing the object from the BlobStore
    */
   public Blob get(ObjectKey objectKey, ObjectMetadata metadata, StreamContext streamContext) {
-    LOG.info("rajdchak read write lock Blobmap size is {}", blobMap.size());
+    LOG.info("rajdchak one second timer Blobmap size is {}", blobMap.size());
     return blobMap.computeIfAbsent(
         objectKey,
         uri ->

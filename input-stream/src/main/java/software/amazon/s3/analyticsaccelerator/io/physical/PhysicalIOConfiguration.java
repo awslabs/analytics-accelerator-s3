@@ -31,6 +31,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.Sequential
 @EqualsAndHashCode
 public class PhysicalIOConfiguration {
   private static final long DEFAULT_CAPACITY_BLOB_STORE = 500 * ONE_MB;
+  private static final long DEFAULT_BLOBSTORE_TIMEOUT_MILLIS = 1000;
   private static final int DEFAULT_CAPACITY_METADATA_STORE = 50;
   private static final boolean DEFAULT_USE_SINGLE_CACHE = true;
   private static final long DEFAULT_BLOCK_SIZE_BYTES = 8 * ONE_MB;
@@ -46,6 +47,14 @@ public class PhysicalIOConfiguration {
   @Builder.Default private long blobStoreCapacity = DEFAULT_CAPACITY_BLOB_STORE;
 
   private static final String BLOB_STORE_CAPACITY_KEY = "blobstore.capacity";
+
+  /**
+   * Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_BLOBSTORE_TIMEOUT_MILLIS} by
+   * default.
+   */
+  @Builder.Default private long blobStoreTimeoutInMillis = DEFAULT_BLOBSTORE_TIMEOUT_MILLIS;
+
+  private static final String BLOB_STORE_TIMEOUT_MILLIS_KEY = "blobstore.timeout";
 
   /**
    * Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_CAPACITY_METADATA_STORE} by default.
@@ -118,6 +127,8 @@ public class PhysicalIOConfiguration {
     return PhysicalIOConfiguration.builder()
         .blobStoreCapacity(
             configuration.getLong(BLOB_STORE_CAPACITY_KEY, DEFAULT_CAPACITY_BLOB_STORE))
+        .blobStoreTimeoutInMillis(
+            configuration.getLong(BLOB_STORE_TIMEOUT_MILLIS_KEY, DEFAULT_BLOBSTORE_TIMEOUT_MILLIS))
         .metadataStoreCapacity(
             configuration.getInt(METADATA_STORE_CAPACITY_KEY, DEFAULT_CAPACITY_METADATA_STORE))
         .blockSizeBytes(configuration.getLong(BLOCK_SIZE_BYTES_KEY, DEFAULT_BLOCK_SIZE_BYTES))
@@ -139,6 +150,7 @@ public class PhysicalIOConfiguration {
    * Constructs {@link PhysicalIOConfiguration}.
    *
    * @param blobStoreCapacity The capacity of the BlobStore
+   * @param blobStoreTimeoutInMillis
    * @param metadataStoreCapacity The capacity of the MetadataStore
    * @param blockSizeBytes Block size, in bytes
    * @param readAheadBytes Read ahead, in bytes
@@ -154,6 +166,7 @@ public class PhysicalIOConfiguration {
   @Builder
   private PhysicalIOConfiguration(
       long blobStoreCapacity,
+      long blobStoreTimeoutInMillis,
       int metadataStoreCapacity,
       long blockSizeBytes,
       long readAheadBytes,
@@ -178,6 +191,7 @@ public class PhysicalIOConfiguration {
     Preconditions.checkArgument(blockReadRetryCount > 0, "`blockReadRetryCount` must be positive");
 
     this.blobStoreCapacity = blobStoreCapacity;
+    this.blobStoreTimeoutInMillis = blobStoreTimeoutInMillis;
     this.metadataStoreCapacity = metadataStoreCapacity;
     this.blockSizeBytes = blockSizeBytes;
     this.readAheadBytes = readAheadBytes;
@@ -195,6 +209,7 @@ public class PhysicalIOConfiguration {
 
     builder.append("PhysicalIO configuration:\n");
     builder.append("\tblobStoreCapacity: " + blobStoreCapacity + "\n");
+    builder.append("\tblobStoreTimeoutInMillis: " + blobStoreTimeoutInMillis + "\n");
     builder.append("\tmetadataStoreCapacity: " + metadataStoreCapacity + "\n");
     builder.append("\tblockSizeBytes: " + blockSizeBytes + "\n");
     builder.append("\treadAheadBytes: " + readAheadBytes + "\n");

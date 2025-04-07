@@ -237,7 +237,11 @@ public class Block implements Closeable {
     try {
       updateActiveReaders(1);
       byte[] content = this.getDataWithRetries();
-      indexCache.getIfPresent(blockKey);
+      if (!indexCache.asMap().containsKey(blockKey)) {
+        indexCache.put(blockKey, blockKey.getRange().getLength());
+      } else {
+        indexCache.getIfPresent(blockKey);
+      }
       return Byte.toUnsignedInt(content[posToOffset(pos)]);
     } finally {
       updateActiveReaders(-1);
@@ -263,7 +267,11 @@ public class Block implements Closeable {
     try {
       updateActiveReaders(1);
       byte[] content = this.getDataWithRetries();
-      indexCache.getIfPresent(blockKey);
+      if (!indexCache.asMap().containsKey(blockKey)) {
+        indexCache.put(blockKey, blockKey.getRange().getLength());
+      } else {
+        indexCache.getIfPresent(blockKey);
+      }
       int contentOffset = posToOffset(pos);
       int available = content.length - contentOffset;
       int bytesToCopy = Math.min(len, available);
