@@ -99,8 +99,11 @@ public class Blob implements Closeable {
     rwLock.readLock().lock();
     Instant endWait = Instant.now();
     Duration waitTime = Duration.between(startWait, endWait);
-    LOG.info("LockAcquisition: type=read, blob={}, waitTimeInMillSec={}, pos={}",
-            objectKey.getS3URI(), waitTime, pos);
+    LOG.info(
+        "LockAcquisition: type=read, blob={}, waitTimeInMillSec={}, pos={}",
+        objectKey.getS3URI(),
+        waitTime,
+        pos);
     try {
       updateActiveReaders(1);
       blockManager.makePositionAvailable(pos, ReadMode.SYNC, indexCache);
@@ -131,8 +134,11 @@ public class Blob implements Closeable {
     rwLock.readLock().lock();
     Instant endWait = Instant.now();
     Duration waitTime = Duration.between(startWait, endWait);
-    LOG.info("LockAcquisition: type=read, blob={}, waitTimeInMillSec={}, pos={}",
-            objectKey.getS3URI(), waitTime, pos);
+    LOG.info(
+        "LockAcquisition: type=read, blob={}, waitTimeInMillSec={}, pos={}",
+        objectKey.getS3URI(),
+        waitTime,
+        pos);
 
     try {
 

@@ -25,7 +25,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -85,8 +84,10 @@ public class BlobStore implements Closeable {
     blob.rwLock.writeLock().lock();
     Instant endWait = Instant.now();
     Duration waitTime = Duration.between(startWait, endWait);
-    LOG.info("LockAcquisition: type=write, blob={}, waitTimeInMillSec={}",
-            key.getObjectKey().getS3URI(), waitTime);
+    LOG.info(
+        "LockAcquisition: type=write, blob={}, waitTimeInMillSec={}",
+        key.getObjectKey().getS3URI(),
+        waitTime);
     try {
       if (indexCache.asMap().containsKey(key)) {
         LOG.info(

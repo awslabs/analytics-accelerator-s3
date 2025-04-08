@@ -198,7 +198,6 @@ public class Block implements Closeable {
                   }
                 });
 
-
         return; // Successfully generated source and data, exit loop
       } catch (RuntimeException e) {
         retries++;
