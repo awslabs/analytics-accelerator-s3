@@ -20,6 +20,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -63,7 +65,6 @@ public class BlobStore implements Closeable {
     this.blobMap = Collections.synchronizedMap(new LinkedHashMap<ObjectKey, Blob>());
     this.indexCache =
         Caffeine.newBuilder()
-            .expireAfterAccess(configuration.getBlobStoreTimeoutInMillis(), TimeUnit.MILLISECONDS)
             .removalListener(this::onRemoval)
             .weigher((blockId, blockSize) -> blockSize)
             .maximumWeight(configuration.getBlobStoreCapacity())
@@ -80,7 +81,12 @@ public class BlobStore implements Closeable {
     Map<BlockKey, Block> blocks =
         blobMap.get(key.getObjectKey()).getBlockManager().getBlockStore().getBlocks();
     Block blockToBeRemoved = blocks.get(key);
+    Instant startWait = Instant.now();
     blob.rwLock.writeLock().lock();
+    Instant endWait = Instant.now();
+    Duration waitTime = Duration.between(startWait, endWait);
+    LOG.info("LockAcquisition: type=write, blob={}, waitTimeInMillSec={}",
+            key.getObjectKey().getS3URI(), waitTime);
     try {
       if (indexCache.asMap().containsKey(key)) {
         LOG.info(

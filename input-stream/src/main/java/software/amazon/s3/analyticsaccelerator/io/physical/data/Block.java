@@ -186,6 +186,7 @@ public class Block implements Closeable {
             this.source.thenApply(
                 objectContent -> {
                   try {
+                    indexCache.put(blockKey, blockKey.getRange().getLength());
                     return StreamUtils.toByteArray(
                         objectContent,
                         this.blockKey.getObjectKey(),
@@ -196,7 +197,7 @@ public class Block implements Closeable {
                         "Error while converting InputStream to byte array", e);
                   }
                 });
-        this.data.thenAccept(block -> indexCache.put(blockKey, blockKey.getRange().getLength()));
+
 
         return; // Successfully generated source and data, exit loop
       } catch (RuntimeException e) {

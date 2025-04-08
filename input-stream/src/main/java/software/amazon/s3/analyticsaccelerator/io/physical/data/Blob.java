@@ -18,6 +18,8 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 import com.github.benmanes.caffeine.cache.Cache;
 import java.io.Closeable;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -93,9 +95,13 @@ public class Blob implements Closeable {
    */
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(pos >= 0, "`pos` must be non-negative");
+    Instant startWait = Instant.now();
     rwLock.readLock().lock();
+    Instant endWait = Instant.now();
+    Duration waitTime = Duration.between(startWait, endWait);
+    LOG.info("LockAcquisition: type=read, blob={}, waitTimeInMillSec={}, pos={}",
+            objectKey.getS3URI(), waitTime, pos);
     try {
-
       updateActiveReaders(1);
       blockManager.makePositionAvailable(pos, ReadMode.SYNC, indexCache);
       return blockManager.getBlock(pos).get().read(pos);
@@ -121,7 +127,13 @@ public class Blob implements Closeable {
     Preconditions.checkArgument(0 <= off, "`off` must not be negative");
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
     Preconditions.checkArgument(off < buf.length, "`off` must be less than size of buffer");
+    Instant startWait = Instant.now();
     rwLock.readLock().lock();
+    Instant endWait = Instant.now();
+    Duration waitTime = Duration.between(startWait, endWait);
+    LOG.info("LockAcquisition: type=read, blob={}, waitTimeInMillSec={}, pos={}",
+            objectKey.getS3URI(), waitTime, pos);
+
     try {
 
       updateActiveReaders(1);
