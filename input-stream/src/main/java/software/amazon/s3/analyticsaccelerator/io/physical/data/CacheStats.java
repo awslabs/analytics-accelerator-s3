@@ -18,8 +18,8 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * CacheStats provides methods to record and retrieve cache hit and miss statistics.
- * This class uses static methods and fields to maintain global statistics across the application.
+ * CacheStats provides methods to record and retrieve cache hit and miss statistics. This class uses
+ * static methods and fields to maintain global statistics across the application.
  */
 public class CacheStats {
   /** Atomic counter for cache hits. */
@@ -28,16 +28,12 @@ public class CacheStats {
   /** Atomic counter for cache misses. */
   private static final AtomicLong cacheMisses = new AtomicLong(0);
 
-  /**
-   * Records a cache hit by incrementing the hit counter.
-   */
+  /** Records a cache hit by incrementing the hit counter. */
   public static void recordHit() {
     cacheHits.incrementAndGet();
   }
 
-  /**
-   * Records a cache miss by incrementing the miss counter.
-   */
+  /** Records a cache miss by incrementing the miss counter. */
   public static void recordMiss() {
     cacheMisses.incrementAndGet();
   }
@@ -71,9 +67,7 @@ public class CacheStats {
     return total == 0 ? 0 : (double) hits / total;
   }
 
-  /**
-   * Resets both hit and miss counters to zero.
-   */
+  /** Resets both hit and miss counters to zero. */
   public static void resetStats() {
     cacheHits.set(0);
     cacheMisses.set(0);
@@ -86,7 +80,6 @@ public class CacheStats {
    */
   public static String getStats() {
     return String.format(
-            "Cache Hits: %d, Misses: %d, Hit Rate: %.2f%%",
-            getHits(), getMisses(), getHitRate() * 100);
+        "Cache Hits: %d, Misses: %d, Hit Rate: %.2f%%", getHits(), getMisses(), getHitRate() * 100);
   }
 }
