@@ -62,9 +62,9 @@ public class BlockStore implements Closeable {
 
     Optional<Block> block = blocks.values().stream().filter(b -> b.contains(pos)).findFirst();
     if (block.isPresent()) {
-      LOG.info("CacheStatus: hit, ObjectKey: {}", s3URI);
+      CacheStats.recordHit();
     } else {
-      LOG.info("CacheStatus: miss, ObjectKey: {}", s3URI);
+      CacheStats.recordMiss();
     }
     return block;
   }
