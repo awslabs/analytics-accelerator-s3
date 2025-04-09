@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +65,7 @@ public class BlobStore implements Closeable {
     this.blobMap = Collections.synchronizedMap(new LinkedHashMap<ObjectKey, Blob>());
     this.indexCache =
         Caffeine.newBuilder()
+            .expireAfterAccess(configuration.getBlobStoreTimeoutInMillis(), TimeUnit.MILLISECONDS)
             .removalListener(this::onRemoval)
             .weigher((blockId, blockSize) -> blockSize)
             .maximumWeight(configuration.getBlobStoreCapacity())
@@ -108,20 +110,21 @@ public class BlobStore implements Closeable {
               + "-"
               + key.getRange().getEnd(),
           cause,
-          blocks.get(key).getIsAccessed());
+          blockToBeRemoved.getIsAccessed());
       blockToBeRemoved.close();
       blocks.remove(key);
 
     } catch (Exception e) {
       LOG.info(
-          "Error while removing key: {} due to {}",
+          "Error while removing key: {} due to {} and exception message {} and stack trace {}",
           key.getObjectKey().getS3URI().toString()
               + "-"
               + key.getRange().getStart()
               + "-"
               + key.getRange().getEnd(),
           cause,
-          e);
+          e.getMessage(),
+          e.getStackTrace());
     } finally {
       long currentWeight = indexCache.policy().eviction().get().weightedSize().getAsLong();
       LOG.info("Current weight of cache: {}", currentWeight);
