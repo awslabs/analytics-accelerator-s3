@@ -20,6 +20,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Getter;
 import lombok.NonNull;
@@ -55,6 +56,7 @@ public class Block implements Closeable {
   @Getter private final long generation;
   @Getter private AtomicInteger activeReaders;
   private final Cache<BlockKey, Integer> indexCache;
+  @Getter private AtomicBoolean isAccessed;
 
   private static final String OPERATION_BLOCK_GET_ASYNC = "block.get.async";
   private static final String OPERATION_BLOCK_GET_JOIN = "block.get.join";
@@ -152,6 +154,7 @@ public class Block implements Closeable {
     this.readRetryCount = readRetryCount;
     this.activeReaders = new AtomicInteger(0);
     this.indexCache = indexCache;
+    this.isAccessed = new AtomicBoolean(false);
 
     generateSourceAndData();
   }
@@ -222,6 +225,15 @@ public class Block implements Closeable {
    */
   public void updateActiveReaders(int readers) {
     activeReaders.addAndGet(readers);
+  }
+
+  /**
+   * Updates and returns the active readers of this blob
+   *
+   * @param val The delta to be added to the current active readers of this blob
+   */
+  public void updateIsAccessed(boolean val) {
+    isAccessed.getAndSet(val);
   }
 
   /**

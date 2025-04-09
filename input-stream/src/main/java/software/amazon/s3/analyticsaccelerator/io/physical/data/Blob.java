@@ -107,10 +107,14 @@ public class Blob implements Closeable {
     try {
       updateActiveReaders(1);
       blockManager.makePositionAvailable(pos, ReadMode.SYNC, indexCache);
-      return blockManager.getBlock(pos).get().read(pos);
+      Block block = blockManager.getBlock(pos).get();
+      block.updateIsAccessed(true);
+      return block.read(pos);
     } finally {
       updateActiveReaders(-1);
       rwLock.readLock().unlock();
+      LOG.info("blob Cache Hits: {}, Misses: {}, Hit Rate: {}%", CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);
+
     }
   }
 
@@ -160,6 +164,7 @@ public class Blob implements Closeable {
                             String.format(
                                 "This block object key %s (for position %s) should have been available.",
                                 objectKey.getS3URI().toString(), nextPositionFinal)));
+        nextBlock.updateIsAccessed(true);
 
         int bytesRead = nextBlock.read(buf, off + numBytesRead, len - numBytesRead, nextPosition);
 
@@ -175,6 +180,8 @@ public class Blob implements Closeable {
     } finally {
       updateActiveReaders(-1);
       rwLock.readLock().unlock();
+      LOG.info("blob Cache Hits: {}, Misses: {}, Hit Rate: {}%", CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);
+
     }
   }
 

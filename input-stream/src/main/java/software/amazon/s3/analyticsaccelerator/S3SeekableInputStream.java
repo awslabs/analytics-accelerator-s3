@@ -17,10 +17,13 @@ package software.amazon.s3.analyticsaccelerator;
 
 import java.io.IOException;
 import lombok.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIO;
+import software.amazon.s3.analyticsaccelerator.io.physical.data.CacheStats;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
@@ -46,6 +49,8 @@ public class S3SeekableInputStream extends SeekableInputStream {
 
   private static final String OPERATION_STREAM_CLOSE = "seekablestream.close";
   private final long streamBirth = System.nanoTime();
+  private static final Logger LOG = LoggerFactory.getLogger(S3SeekableInputStream.class);
+
 
   /**
    * Given a LogicalIO, creates a new instance of {@link S3SeekableInputStream}.
@@ -226,6 +231,9 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   @Override
   public void close() throws IOException {
+    LOG.info("closing seekable stream");
+    LOG.info("stream Cache Hits: {}, Misses: {}, Hit Rate: {}%", CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);
+
     this.telemetry.measureVerbose(
         () ->
             Operation.builder()

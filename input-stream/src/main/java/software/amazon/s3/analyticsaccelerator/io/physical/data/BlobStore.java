@@ -101,13 +101,14 @@ public class BlobStore implements Closeable {
       }
 
       LOG.info(
-          "Removing key: {} due to {}",
+          "Removing key: {} due to {} and isAccessed: {}",
           key.getObjectKey().getS3URI().toString()
               + "-"
               + key.getRange().getStart()
               + "-"
               + key.getRange().getEnd(),
-          cause);
+          cause,
+              blocks.get(key).getIsAccessed());
       blockToBeRemoved.close();
       blocks.remove(key);
 
