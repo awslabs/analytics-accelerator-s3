@@ -108,7 +108,7 @@ public class BlobStore implements Closeable {
               + "-"
               + key.getRange().getEnd(),
           cause,
-              blocks.get(key).getIsAccessed());
+          blocks.get(key).getIsAccessed());
       blockToBeRemoved.close();
       blocks.remove(key);
 

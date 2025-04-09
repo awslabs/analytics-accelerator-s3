@@ -51,7 +51,6 @@ public class S3SeekableInputStream extends SeekableInputStream {
   private final long streamBirth = System.nanoTime();
   private static final Logger LOG = LoggerFactory.getLogger(S3SeekableInputStream.class);
 
-
   /**
    * Given a LogicalIO, creates a new instance of {@link S3SeekableInputStream}.
    *
@@ -232,7 +231,9 @@ public class S3SeekableInputStream extends SeekableInputStream {
   @Override
   public void close() throws IOException {
     LOG.info("closing seekable stream");
-    LOG.info("stream Cache Hits: {}, Misses: {}, Hit Rate: {}%", CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);
+    LOG.info(
+        "stream Cache Hits: {}, Misses: {}, Hit Rate: {}%",
+        CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);
 
     this.telemetry.measureVerbose(
         () ->

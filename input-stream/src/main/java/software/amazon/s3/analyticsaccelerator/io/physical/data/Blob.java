@@ -113,8 +113,9 @@ public class Blob implements Closeable {
     } finally {
       updateActiveReaders(-1);
       rwLock.readLock().unlock();
-      LOG.info("blob Cache Hits: {}, Misses: {}, Hit Rate: {}%", CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);
-
+      LOG.info(
+          "blob Cache Hits: {}, Misses: {}, Hit Rate: {}%",
+          CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);
     }
   }
 
@@ -180,8 +181,9 @@ public class Blob implements Closeable {
     } finally {
       updateActiveReaders(-1);
       rwLock.readLock().unlock();
-      LOG.info("blob Cache Hits: {}, Misses: {}, Hit Rate: {}%", CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);
-
+      LOG.info(
+          "blob Cache Hits: {}, Misses: {}, Hit Rate: {}%",
+          CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);
     }
   }
 
