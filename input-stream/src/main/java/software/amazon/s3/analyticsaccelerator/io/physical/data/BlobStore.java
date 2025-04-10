@@ -19,12 +19,13 @@ import static java.time.Instant.now;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalCause;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -56,8 +57,8 @@ public class BlobStore implements Closeable {
   private final AtomicBoolean cleanupInProgress = new AtomicBoolean(false);
 
   private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_INSTANT;
-  private final AtomicLong lastCleanupTime = new AtomicLong(System.currentTimeMillis());
   private static final long CLEANUP_INTERVAL = 10_000; // 10 seconds in milliseconds
+  private final ScheduledExecutorService maintenanceExecutor;
 
   private String now() {
     return FORMATTER.format(Instant.now());
@@ -80,33 +81,32 @@ public class BlobStore implements Closeable {
     this.indexCache =
         Caffeine.newBuilder()
             .expireAfterAccess(configuration.getBlobStoreTimeoutInMillis(), TimeUnit.MILLISECONDS)
-            .removalListener(this::onRemoval)
             .weigher((BlockKey blockId, Integer blockSize) -> blockSize)
             .maximumWeight(configuration.getBlobStoreCapacity())
             .build();
+    this.maintenanceExecutor =
+        Executors.newSingleThreadScheduledExecutor(
+            r -> {
+              Thread t = new Thread(r);
+              t.setPriority(Thread.MIN_PRIORITY);
+              return t;
+            });
     this.configuration = configuration;
     this.memoryUsageAcrossBlobMap = new AtomicLong(0);
+
     LOG.info(
         "blobstore capacity: {} blobstore timeout: {}",
         configuration.getBlobStoreCapacity(),
         configuration.getBlobStoreTimeoutInMillis());
   }
 
-  /**
-   * @param key k
-   * @param value v
-   * @param cause c
-   */
-  private void onRemoval(BlockKey key, Integer value, RemovalCause cause) {
-    long currentTime = System.currentTimeMillis();
-    long lastCleanup = lastCleanupTime.get();
-
-    if (currentTime - lastCleanup >= CLEANUP_INTERVAL) {
-      if (lastCleanupTime.compareAndSet(lastCleanup, currentTime)) {
-        scheduleCleanupIfNotRunning();
-      }
-    }
-    // Your removal logic here
+  /** hh */
+  public void schedulePeriodicCleanup() {
+    maintenanceExecutor.scheduleAtFixedRate(
+        this::scheduleCleanupIfNotRunning,
+        CLEANUP_INTERVAL,
+        CLEANUP_INTERVAL,
+        TimeUnit.MILLISECONDS);
   }
 
   private void scheduleCleanupIfNotRunning() {
@@ -125,8 +125,17 @@ public class BlobStore implements Closeable {
 
   private void asyncCleanup() {
     String startAttempt = now();
-    LOG.info("[{}] Attempting to start cleanup operation", startAttempt);
+    long startTimeMillis = System.currentTimeMillis();
+    long threadId = Thread.currentThread().getId();
+    LOG.info("[{}] [Thread-{}] Starting cleanup operation", startAttempt, threadId);
     blobMap.forEach((k, v) -> v.asyncCleanup());
+    long endTimeMillis = System.currentTimeMillis();
+    long durationMillis = endTimeMillis - startTimeMillis;
+    double durationSeconds = durationMillis / 1000.0;
+    LOG.info(
+        "[{}] Cleanup operation completed Processed in {} seconds",
+        startAttempt,
+        String.format("%.3f", durationSeconds));
   }
 
   /**

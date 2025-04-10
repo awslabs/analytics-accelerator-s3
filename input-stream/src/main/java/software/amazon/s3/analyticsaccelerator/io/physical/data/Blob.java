@@ -129,6 +129,9 @@ public class Blob implements Closeable {
 
   /** clean up */
   public final void asyncCleanup() {
+    if (getBlockManager().getBlockStore().getBlocks().isEmpty()) {
+      return;
+    }
     String startAttempt = now();
     LOG.info(
         "[{}] Attempting to start cleanup operation on blob {}",

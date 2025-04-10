@@ -79,7 +79,7 @@ public class BlobStoreTest {
     }
 
     // Wait for eviction
-    Thread.sleep(100);
+    Thread.sleep(200);
 
     // Check if some entries were evicted
     System.out.println(
