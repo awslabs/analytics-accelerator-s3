@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
@@ -66,18 +67,39 @@ public class BlobTest {
                 mockMetadataStore,
                 mock(BlockManager.class),
                 TestTelemetry.DEFAULT,
-                indexCache));
+                indexCache,
+                new AtomicLong(0)));
     assertThrows(
         NullPointerException.class,
         () ->
-            new Blob(objectKey, null, mock(BlockManager.class), TestTelemetry.DEFAULT, indexCache));
+            new Blob(
+                objectKey,
+                null,
+                mock(BlockManager.class),
+                TestTelemetry.DEFAULT,
+                indexCache,
+                new AtomicLong(0)));
 
     assertThrows(
         NullPointerException.class,
-        () -> new Blob(objectKey, mockMetadataStore, null, TestTelemetry.DEFAULT, indexCache));
+        () ->
+            new Blob(
+                objectKey,
+                mockMetadataStore,
+                null,
+                TestTelemetry.DEFAULT,
+                indexCache,
+                new AtomicLong(0)));
     assertThrows(
         NullPointerException.class,
-        () -> new Blob(objectKey, mockMetadataStore, mock(BlockManager.class), null, indexCache));
+        () ->
+            new Blob(
+                objectKey,
+                mockMetadataStore,
+                mock(BlockManager.class),
+                null,
+                indexCache,
+                new AtomicLong(0)));
   }
 
   @Test
@@ -149,8 +171,10 @@ public class BlobTest {
   public void testExecuteSubmitsCorrectRanges() throws IOException {
     // Given: test blob and an IOPlan
     BlockManager blockManager = mock(BlockManager.class);
+    AtomicLong memory = new AtomicLong(0);
     Blob blob =
-        new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT, indexCache);
+        new Blob(
+            objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT, indexCache, memory);
     List<Range> ranges = new LinkedList<>();
     ranges.add(new Range(0, 100));
     ranges.add(new Range(999, 1000));
@@ -161,8 +185,8 @@ public class BlobTest {
 
     // Then: correct ranges are submitted
     assertEquals(SUBMITTED, execution.getState());
-    verify(blockManager).makeRangeAvailable(0, 101, ReadMode.ASYNC, indexCache);
-    verify(blockManager).makeRangeAvailable(999, 2, ReadMode.ASYNC, indexCache);
+    verify(blockManager).makeRangeAvailable(0, 101, ReadMode.ASYNC, indexCache, memory);
+    verify(blockManager).makeRangeAvailable(999, 2, ReadMode.ASYNC, indexCache, memory);
   }
 
   @Test
@@ -170,7 +194,13 @@ public class BlobTest {
     // Given: test blob
     BlockManager blockManager = mock(BlockManager.class);
     Blob blob =
-        new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT, indexCache);
+        new Blob(
+            objectKey,
+            mockMetadataStore,
+            blockManager,
+            TestTelemetry.DEFAULT,
+            indexCache,
+            new AtomicLong(0));
 
     // When: blob is closed
     blob.close();
@@ -191,6 +221,12 @@ public class BlobTest {
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT);
 
-    return new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT, indexCache);
+    return new Blob(
+        objectKey,
+        mockMetadataStore,
+        blockManager,
+        TestTelemetry.DEFAULT,
+        indexCache,
+        new AtomicLong(0));
   }
 }

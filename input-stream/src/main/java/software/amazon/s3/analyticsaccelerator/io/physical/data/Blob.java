@@ -18,10 +18,11 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 import com.github.benmanes.caffeine.cache.Cache;
 import java.io.Closeable;
 import java.io.IOException;
-import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReadWriteLock;
+import java.time.format.DateTimeFormatter;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import lombok.Getter;
 import lombok.NonNull;
@@ -50,8 +51,13 @@ public class Blob implements Closeable {
   private final ObjectMetadata metadata;
   private final Telemetry telemetry;
   private final Cache<BlockKey, Integer> indexCache;
-  @Getter private AtomicInteger activeReaders;
-  public final ReadWriteLock rwLock = new ReentrantReadWriteLock();
+  @Getter private AtomicLong memoryUsageAcrossBlobMap;
+  private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+  private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_INSTANT;
+
+  private String now() {
+    return FORMATTER.format(Instant.now());
+  }
 
   /**
    * Construct a new Blob.
@@ -61,29 +67,22 @@ public class Blob implements Closeable {
    * @param blockManager the BlockManager for this object
    * @param telemetry an instance of {@link Telemetry} to use
    * @param indexCache caching the block keys across all blobs
+   * @param memoryUsageAcrossBlobMap memory use
    */
   public Blob(
       @NonNull ObjectKey objectKey,
       @NonNull ObjectMetadata metadata,
       @NonNull BlockManager blockManager,
       @NonNull Telemetry telemetry,
-      @NonNull Cache<BlockKey, Integer> indexCache) {
+      @NonNull Cache<BlockKey, Integer> indexCache,
+      AtomicLong memoryUsageAcrossBlobMap) {
 
     this.objectKey = objectKey;
     this.metadata = metadata;
     this.blockManager = blockManager;
     this.telemetry = telemetry;
     this.indexCache = indexCache;
-    this.activeReaders = new AtomicInteger(0);
-  }
-
-  /**
-   * Updates and returns the active readers of this blob
-   *
-   * @param readers The delta to be added to the current active readers of this blob
-   */
-  public void updateActiveReaders(int readers) {
-    activeReaders.addAndGet(readers);
+    this.memoryUsageAcrossBlobMap = memoryUsageAcrossBlobMap;
   }
 
   /**
@@ -94,28 +93,53 @@ public class Blob implements Closeable {
    * @throws IOException if an I/O error occurs
    */
   public int read(long pos) throws IOException {
+
     Preconditions.checkArgument(pos >= 0, "`pos` must be non-negative");
-    Instant startWait = Instant.now();
-    rwLock.readLock().lock();
-    Instant endWait = Instant.now();
-    Duration waitTime = Duration.between(startWait, endWait);
+    LOG.info("Current weight of blobMap in bytes is {}", memoryUsageAcrossBlobMap);
+    String startAttempt = now();
     LOG.info(
-        "LockAcquisition: type=read, blob={}, waitTimeInMillSec={}, pos={}",
+        "[{}] Attempting to start read operation for blob {} at position {}",
+        startAttempt,
         objectKey.getS3URI(),
-        waitTime,
         pos);
+    long startTime = System.currentTimeMillis();
+    lock.readLock().lock();
+    double lockAcquisitionTime = (System.currentTimeMillis() - startTime) / 1000.0;
+    String lockAcquired = now();
+    LOG.info(
+        "[{}] Read lock acquired for blob {} for position {} after {} seconds",
+        lockAcquired,
+        objectKey.getS3URI(),
+        pos,
+        String.format("%.3f", lockAcquisitionTime));
+
     try {
-      updateActiveReaders(1);
-      blockManager.makePositionAvailable(pos, ReadMode.SYNC, indexCache);
+      blockManager.makePositionAvailable(pos, ReadMode.SYNC, indexCache, memoryUsageAcrossBlobMap);
       Block block = blockManager.getBlock(pos).get();
       block.updateIsAccessed(true);
-      return block.read(pos);
+      int bytesRead = block.read(pos);
+      return bytesRead;
     } finally {
-      updateActiveReaders(-1);
-      rwLock.readLock().unlock();
+      lock.readLock().unlock();
       LOG.info(
           "blob Cache Hits: {}, Misses: {}, Hit Rate: {}%",
           CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);
+    }
+  }
+
+  /** clean up */
+  public final void asyncCleanup() {
+    String startAttempt = now();
+    LOG.info(
+        "[{}] Attempting to start cleanup operation on blob {}",
+        startAttempt,
+        objectKey.getS3URI());
+    lock.writeLock().lock();
+
+    try {
+      cleanUp();
+    } finally {
+      lock.writeLock().unlock();
     }
   }
 
@@ -135,21 +159,30 @@ public class Blob implements Closeable {
     Preconditions.checkArgument(0 <= off, "`off` must not be negative");
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
     Preconditions.checkArgument(off < buf.length, "`off` must be less than size of buffer");
-    Instant startWait = Instant.now();
-    rwLock.readLock().lock();
-    Instant endWait = Instant.now();
-    Duration waitTime = Duration.between(startWait, endWait);
+
+    LOG.info("Current weight of blobMap in bytes is {}", memoryUsageAcrossBlobMap);
+
+    String startAttempt = now();
     LOG.info(
-        "LockAcquisition: type=read, blob={}, waitTimeInMillSec={}, pos={}",
+        "[{}] Attempting to start read operation for blob {} at position {}",
+        startAttempt,
         objectKey.getS3URI(),
-        waitTime,
         pos);
+    long startTime = System.currentTimeMillis();
+    lock.readLock().lock();
+    double lockAcquisitionTime = (System.currentTimeMillis() - startTime) / 1000.0;
+    String lockAcquired = now();
+    LOG.info(
+        "[{}] Read lock acquired for blob {} for position {} after {} seconds",
+        lockAcquired,
+        objectKey.getS3URI(),
+        pos,
+        String.format("%.3f", lockAcquisitionTime));
 
     try {
 
-      updateActiveReaders(1);
-
-      blockManager.makeRangeAvailable(pos, len, ReadMode.SYNC, indexCache);
+      blockManager.makeRangeAvailable(
+          pos, len, ReadMode.SYNC, indexCache, memoryUsageAcrossBlobMap);
 
       long nextPosition = pos;
       int numBytesRead = 0;
@@ -179,12 +212,55 @@ public class Blob implements Closeable {
 
       return numBytesRead;
     } finally {
-      updateActiveReaders(-1);
-      rwLock.readLock().unlock();
+      lock.readLock().unlock();
       LOG.info(
           "blob Cache Hits: {}, Misses: {}, Hit Rate: {}%",
           CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);
     }
+  }
+
+  /** cleans data from memory */
+  private void cleanUp() {
+
+    Map<BlockKey, Block> blockMap = blockManager.getBlockStore().getBlocks();
+
+    // Use an iterator to safely remove entries while iterating
+    Iterator<Map.Entry<BlockKey, Block>> iterator = blockMap.entrySet().iterator();
+
+    while (iterator.hasNext()) {
+      Map.Entry<BlockKey, Block> entry = iterator.next();
+      BlockKey blockKey = entry.getKey();
+
+      if (indexCache.getIfPresent(blockKey) == null) {
+        // The block is not in the index cache, so remove it from the block store
+        int range = blockKey.getRange().getLength();
+        try {
+          iterator.remove(); // Remove from the iterator as well
+
+          LOG.info(
+              "Removed block from iterator with key {} from block store during cleanup",
+              blockKey.getObjectKey().getS3URI()
+                  + "-"
+                  + entry.getKey().getRange().getStart()
+                  + "-"
+                  + entry.getKey().getRange().getEnd());
+          memoryUsageAcrossBlobMap.addAndGet(-range);
+
+        } catch (Exception e) {
+          LOG.info(
+              "Error in removing block with key {} from block store during cleanup due to exception {} and stack {}",
+              blockKey.getObjectKey().getS3URI()
+                  + "-"
+                  + entry.getKey().getRange().getStart()
+                  + "-"
+                  + entry.getKey().getRange().getEnd(),
+              e.getMessage() + "-" + e.getCause(),
+              e.getStackTrace());
+        }
+      }
+    }
+
+    LOG.info("Current weight of blobMap in bytes is {}", memoryUsageAcrossBlobMap);
   }
 
   /**
@@ -206,7 +282,11 @@ public class Blob implements Closeable {
           try {
             for (Range range : plan.getPrefetchRanges()) {
               this.blockManager.makeRangeAvailable(
-                  range.getStart(), range.getLength(), ReadMode.ASYNC, indexCache);
+                  range.getStart(),
+                  range.getLength(),
+                  ReadMode.ASYNC,
+                  indexCache,
+                  memoryUsageAcrossBlobMap);
             }
 
             return IOPlanExecution.builder().state(IOPlanState.SUBMITTED).build();

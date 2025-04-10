@@ -22,6 +22,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.Getter;
 import lombok.NonNull;
 import org.slf4j.Logger;
@@ -62,6 +63,7 @@ public class Block implements Closeable {
   private static final String OPERATION_BLOCK_GET_JOIN = "block.get.join";
 
   private static final Logger LOG = LoggerFactory.getLogger(Block.class);
+  private AtomicLong memoryUsageAcrossBlobMap;
 
   /**
    * Constructs a Block data.
@@ -95,7 +97,8 @@ public class Block implements Closeable {
         readTimeout,
         readRetryCount,
         indexCache,
-        null);
+        null,
+        new AtomicLong(0));
   }
 
   /**
@@ -110,6 +113,7 @@ public class Block implements Closeable {
    * @param readRetryCount Number of retries for block read failure
    * @param streamContext contains audit headers to be attached in the request header
    * @param indexCache index cache
+   * @param memoryUsageAcrossBlobMap memoryUsageAcrossBlobMap memory use
    */
   public Block(
       @NonNull BlockKey blockKey,
@@ -120,8 +124,11 @@ public class Block implements Closeable {
       long readTimeout,
       int readRetryCount,
       @NonNull Cache<BlockKey, Integer> indexCache,
-      StreamContext streamContext)
+      StreamContext streamContext,
+      AtomicLong memoryUsageAcrossBlobMap)
       throws IOException {
+
+    LOG.info("My intial value for memoryUsageAcrossBlobMap is {}", memoryUsageAcrossBlobMap);
 
     Preconditions.checkArgument(
         0 <= generation, "`generation` must be non-negative; was: %s", generation);
@@ -155,6 +162,7 @@ public class Block implements Closeable {
     this.activeReaders = new AtomicInteger(0);
     this.indexCache = indexCache;
     this.isAccessed = new AtomicBoolean(false);
+    this.memoryUsageAcrossBlobMap = memoryUsageAcrossBlobMap;
 
     generateSourceAndData();
   }
@@ -190,6 +198,7 @@ public class Block implements Closeable {
                 objectContent -> {
                   try {
                     indexCache.put(blockKey, blockKey.getRange().getLength());
+                    memoryUsageAcrossBlobMap.addAndGet(blockKey.getRange().getLength());
                     return StreamUtils.toByteArray(
                         objectContent,
                         this.blockKey.getObjectKey(),

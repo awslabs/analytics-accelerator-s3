@@ -77,6 +77,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
     this.objectFormatSelector = new ObjectFormatSelector(configuration.getLogicalIOConfiguration());
     this.objectBlobStore =
         new BlobStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration());
+    this.objectBlobStore.startCleanupSchedule();
   }
 
   /**

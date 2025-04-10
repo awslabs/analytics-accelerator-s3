@@ -19,6 +19,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.Getter;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
@@ -116,10 +117,15 @@ public class BlockManager implements Closeable {
    * @param pos the position of the byte
    * @param readMode whether this ask corresponds to a sync or async read
    * @param indexCache caching the block keys across all blobs
+   * @param memoryUsageAcrossBlobMap memory use
    * @throws IOException if an I/O error occurs
    */
   public synchronized void makePositionAvailable(
-      long pos, ReadMode readMode, Cache<BlockKey, Integer> indexCache) throws IOException {
+      long pos,
+      ReadMode readMode,
+      Cache<BlockKey, Integer> indexCache,
+      AtomicLong memoryUsageAcrossBlobMap)
+      throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
     // Position is already available --> return corresponding block
@@ -127,7 +133,7 @@ public class BlockManager implements Closeable {
       return;
     }
 
-    makeRangeAvailable(pos, 1, readMode, indexCache);
+    makeRangeAvailable(pos, 1, readMode, indexCache, memoryUsageAcrossBlobMap);
   }
 
   private boolean isRangeAvailable(long pos, long len) throws IOException {
@@ -154,10 +160,15 @@ public class BlockManager implements Closeable {
    * @param len length of the read
    * @param readMode whether this ask corresponds to a sync or async read
    * @param indexCache caching the block keys across all blobs
+   * @param memoryUsageAcrossBlobMap memory use
    * @throws IOException if an I/O error occurs
    */
   public synchronized void makeRangeAvailable(
-      long pos, long len, ReadMode readMode, Cache<BlockKey, Integer> indexCache)
+      long pos,
+      long len,
+      ReadMode readMode,
+      Cache<BlockKey, Integer> indexCache,
+      AtomicLong memoryUsageAcrossBlobMap)
       throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
@@ -214,7 +225,8 @@ public class BlockManager implements Closeable {
                     this.configuration.getBlockReadTimeout(),
                     this.configuration.getBlockReadRetryCount(),
                     indexCache,
-                    streamContext);
+                    streamContext,
+                    memoryUsageAcrossBlobMap);
             blockStore.add(blockKey, block);
           }
         });

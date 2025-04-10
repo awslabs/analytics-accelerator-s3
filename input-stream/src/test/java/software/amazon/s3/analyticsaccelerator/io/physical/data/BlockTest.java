@@ -23,6 +23,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
@@ -118,7 +119,8 @@ public class BlockTest {
                 DEFAULT_READ_TIMEOUT,
                 DEFAULT_READ_RETRY_COUNT,
                 indexCache,
-                null));
+                null,
+                new AtomicLong(0)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -131,7 +133,8 @@ public class BlockTest {
                 DEFAULT_READ_TIMEOUT,
                 DEFAULT_READ_RETRY_COUNT,
                 indexCache,
-                null));
+                null,
+                new AtomicLong(0)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -144,7 +147,8 @@ public class BlockTest {
                 DEFAULT_READ_TIMEOUT,
                 DEFAULT_READ_RETRY_COUNT,
                 indexCache,
-                null));
+                null,
+                new AtomicLong(0)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -157,7 +161,8 @@ public class BlockTest {
                 DEFAULT_READ_TIMEOUT,
                 DEFAULT_READ_RETRY_COUNT,
                 indexCache,
-                null));
+                null,
+                new AtomicLong(0)));
   }
 
   @Test
@@ -176,7 +181,8 @@ public class BlockTest {
                 DEFAULT_READ_TIMEOUT,
                 DEFAULT_READ_RETRY_COUNT,
                 indexCache,
-                null));
+                null,
+                new AtomicLong(0)));
     assertThrows(
         IllegalArgumentException.class,
         () ->
@@ -189,7 +195,8 @@ public class BlockTest {
                 DEFAULT_READ_TIMEOUT,
                 DEFAULT_READ_RETRY_COUNT,
                 indexCache,
-                null));
+                null,
+                new AtomicLong(0)));
     assertThrows(
         IllegalArgumentException.class,
         () ->
@@ -226,7 +233,8 @@ public class BlockTest {
                 DEFAULT_READ_TIMEOUT,
                 DEFAULT_READ_RETRY_COUNT,
                 indexCache,
-                null));
+                null,
+                new AtomicLong(0)));
   }
 
   @SneakyThrows

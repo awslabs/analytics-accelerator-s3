@@ -15,17 +15,21 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
+import static java.time.Instant.now;
+
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalCause;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
-import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +53,16 @@ public class BlobStore implements Closeable {
   private final Telemetry telemetry;
   private final PhysicalIOConfiguration configuration;
   private static final Logger LOG = LoggerFactory.getLogger(BlobStore.class);
+  private AtomicLong memoryUsageAcrossBlobMap;
+  private final ScheduledExecutorService scheduler;
+  private final AtomicBoolean cleanupInProgress = new AtomicBoolean(false);
+
+  private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_INSTANT;
+
+  private String now() {
+    return FORMATTER.format(Instant.now());
+  }
+
   /**
    * Construct an instance of BlobStore.
    *
@@ -66,70 +80,48 @@ public class BlobStore implements Closeable {
     this.indexCache =
         Caffeine.newBuilder()
             .expireAfterAccess(configuration.getBlobStoreTimeoutInMillis(), TimeUnit.MILLISECONDS)
-            .removalListener(this::onRemoval)
-            .weigher((blockId, blockSize) -> blockSize)
+            .weigher((BlockKey blockId, Integer blockSize) -> blockSize)
             .maximumWeight(configuration.getBlobStoreCapacity())
             .build();
     this.configuration = configuration;
+    this.scheduler = Executors.newSingleThreadScheduledExecutor();
+    this.memoryUsageAcrossBlobMap = new AtomicLong(0);
     LOG.info(
         "blobstore capacity: {} blobstore timeout: {}",
         configuration.getBlobStoreCapacity(),
         configuration.getBlobStoreTimeoutInMillis());
   }
 
-  private void onRemoval(BlockKey key, Integer value, RemovalCause cause) {
-    Blob blob = blobMap.get(key.getObjectKey());
-    Map<BlockKey, Block> blocks =
-        blobMap.get(key.getObjectKey()).getBlockManager().getBlockStore().getBlocks();
-    Block blockToBeRemoved = blocks.get(key);
-    Instant startWait = Instant.now();
-    blob.rwLock.writeLock().lock();
-    Instant endWait = Instant.now();
-    Duration waitTime = Duration.between(startWait, endWait);
-    LOG.info(
-        "LockAcquisition: type=write, blob={}, waitTimeInMillSec={}",
-        key.getObjectKey().getS3URI(),
-        waitTime);
-    try {
-      if (indexCache.asMap().containsKey(key)) {
-        LOG.info(
-            "key {} got added again ignoring removal ",
-            key.getObjectKey().getS3URI().toString()
-                + "-"
-                + key.getRange().getStart()
-                + "-"
-                + key.getRange().getEnd());
-        return;
-      }
+  /** clean task */
+  public void startCleanupSchedule() {
+    this.scheduler.scheduleAtFixedRate(this::scheduleCleanupIfNotRunning, 5, 5, TimeUnit.SECONDS);
+  }
 
-      LOG.info(
-          "Removing key: {} due to {} and isAccessed: {}",
-          key.getObjectKey().getS3URI().toString()
-              + "-"
-              + key.getRange().getStart()
-              + "-"
-              + key.getRange().getEnd(),
-          cause,
-          blockToBeRemoved.getIsAccessed());
-      blockToBeRemoved.close();
-      blocks.remove(key);
-
-    } catch (Exception e) {
-      LOG.info(
-          "Error while removing key: {} due to {} and exception message {} and stack trace {}",
-          key.getObjectKey().getS3URI().toString()
-              + "-"
-              + key.getRange().getStart()
-              + "-"
-              + key.getRange().getEnd(),
-          cause,
-          e.getMessage(),
-          e.getStackTrace());
-    } finally {
-      long currentWeight = indexCache.policy().eviction().get().weightedSize().getAsLong();
-      LOG.info("Current weight of cache: {}", currentWeight);
-      blob.rwLock.writeLock().unlock();
+  private void scheduleCleanupIfNotRunning() {
+    if (cleanupInProgress.compareAndSet(false, true)) {
+      CompletableFuture.runAsync(this::asyncCleanupWrapper)
+          .exceptionally(
+              ex -> {
+                LOG.info("Error during async cleanup", ex);
+                return null;
+              });
+    } else {
+      LOG.info("Skipping cleanup as previous task is still running");
     }
+  }
+
+  private void asyncCleanupWrapper() {
+    try {
+      asyncCleanup();
+    } finally {
+      cleanupInProgress.set(false);
+    }
+  }
+
+  private void asyncCleanup() {
+    String startAttempt = now();
+    LOG.info("[{}] Attempting to start cleanup operation", startAttempt);
+    blobMap.forEach((k, v) -> v.asyncCleanup());
   }
 
   /**
@@ -141,7 +133,8 @@ public class BlobStore implements Closeable {
    * @return the blob representing the object from the BlobStore
    */
   public Blob get(ObjectKey objectKey, ObjectMetadata metadata, StreamContext streamContext) {
-    LOG.info("rajdchak one second timer Blobmap size is {}", blobMap.size());
+    LOG.info("rajdchak async Blobmap size is {}", blobMap.size());
+    LOG.info("Current weight of blobMap in bytes is {}", memoryUsageAcrossBlobMap);
     return blobMap.computeIfAbsent(
         objectKey,
         uri ->
@@ -151,17 +144,17 @@ public class BlobStore implements Closeable {
                 new BlockManager(
                     uri, objectClient, metadata, telemetry, configuration, streamContext),
                 telemetry,
-                indexCache));
+                indexCache,
+                memoryUsageAcrossBlobMap));
   }
 
   /**
    * Evicts the specified key from the cache
    *
    * @param objectKey the etag and S3 URI of the object
-   * @return a boolean stating if the object existed or not
    */
-  public boolean evictKey(ObjectKey objectKey) {
-    return this.blobMap.remove(objectKey) != null;
+  public void evictKey(ObjectKey objectKey) {
+    this.blobMap.remove(objectKey);
   }
 
   /**
@@ -176,6 +169,7 @@ public class BlobStore implements Closeable {
   /** Closes the {@link BlobStore} and frees up all resources it holds. */
   @Override
   public void close() {
+    scheduler.shutdownNow();
     blobMap.forEach((k, v) -> v.close());
   }
 }
