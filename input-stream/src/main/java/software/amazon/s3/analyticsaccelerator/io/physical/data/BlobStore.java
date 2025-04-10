@@ -19,14 +19,12 @@ import static java.time.Instant.now;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -54,10 +52,12 @@ public class BlobStore implements Closeable {
   private final PhysicalIOConfiguration configuration;
   private static final Logger LOG = LoggerFactory.getLogger(BlobStore.class);
   private AtomicLong memoryUsageAcrossBlobMap;
-  private final ScheduledExecutorService scheduler;
+
   private final AtomicBoolean cleanupInProgress = new AtomicBoolean(false);
 
   private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_INSTANT;
+  private final AtomicLong lastCleanupTime = new AtomicLong(System.currentTimeMillis());
+  private static final long CLEANUP_INTERVAL = 10_000; // 10 seconds in milliseconds
 
   private String now() {
     return FORMATTER.format(Instant.now());
@@ -80,11 +80,11 @@ public class BlobStore implements Closeable {
     this.indexCache =
         Caffeine.newBuilder()
             .expireAfterAccess(configuration.getBlobStoreTimeoutInMillis(), TimeUnit.MILLISECONDS)
+            .removalListener(this::onRemoval)
             .weigher((BlockKey blockId, Integer blockSize) -> blockSize)
             .maximumWeight(configuration.getBlobStoreCapacity())
             .build();
     this.configuration = configuration;
-    this.scheduler = Executors.newSingleThreadScheduledExecutor();
     this.memoryUsageAcrossBlobMap = new AtomicLong(0);
     LOG.info(
         "blobstore capacity: {} blobstore timeout: {}",
@@ -92,29 +92,34 @@ public class BlobStore implements Closeable {
         configuration.getBlobStoreTimeoutInMillis());
   }
 
-  /** clean task */
-  public void startCleanupSchedule() {
-    this.scheduler.scheduleAtFixedRate(this::scheduleCleanupIfNotRunning, 5, 5, TimeUnit.SECONDS);
+  /**
+   * @param key k
+   * @param value v
+   * @param cause c
+   */
+  private void onRemoval(BlockKey key, Integer value, RemovalCause cause) {
+    long currentTime = System.currentTimeMillis();
+    long lastCleanup = lastCleanupTime.get();
+
+    if (currentTime - lastCleanup >= CLEANUP_INTERVAL) {
+      if (lastCleanupTime.compareAndSet(lastCleanup, currentTime)) {
+        scheduleCleanupIfNotRunning();
+      }
+    }
+    // Your removal logic here
   }
 
   private void scheduleCleanupIfNotRunning() {
     if (cleanupInProgress.compareAndSet(false, true)) {
-      CompletableFuture.runAsync(this::asyncCleanupWrapper)
-          .exceptionally(
-              ex -> {
-                LOG.info("Error during async cleanup", ex);
-                return null;
-              });
+      try {
+        asyncCleanup();
+      } catch (Exception ex) {
+        LOG.info("Error during cleanup", ex);
+      } finally {
+        cleanupInProgress.set(false);
+      }
     } else {
       LOG.info("Skipping cleanup as previous task is still running");
-    }
-  }
-
-  private void asyncCleanupWrapper() {
-    try {
-      asyncCleanup();
-    } finally {
-      cleanupInProgress.set(false);
     }
   }
 
@@ -133,7 +138,7 @@ public class BlobStore implements Closeable {
    * @return the blob representing the object from the BlobStore
    */
   public Blob get(ObjectKey objectKey, ObjectMetadata metadata, StreamContext streamContext) {
-    LOG.info("rajdchak async Blobmap size is {}", blobMap.size());
+    LOG.info("rajdchak clean OnRemoval Blobmap size is {}", blobMap.size());
     LOG.info("Current weight of blobMap in bytes is {}", memoryUsageAcrossBlobMap);
     return blobMap.computeIfAbsent(
         objectKey,
@@ -169,7 +174,6 @@ public class BlobStore implements Closeable {
   /** Closes the {@link BlobStore} and frees up all resources it holds. */
   @Override
   public void close() {
-    scheduler.shutdownNow();
     blobMap.forEach((k, v) -> v.close());
   }
 }
