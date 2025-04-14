@@ -16,7 +16,10 @@
 package software.amazon.s3.analyticsaccelerator.io.physical.impl;
 
 import java.io.IOException;
+import java.util.Map;
 import lombok.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
@@ -27,9 +30,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
-import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
-import software.amazon.s3.analyticsaccelerator.util.S3URI;
-import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
+import software.amazon.s3.analyticsaccelerator.util.*;
 
 /** A PhysicalIO frontend */
 public class PhysicalIOImpl implements PhysicalIO {
@@ -39,6 +40,7 @@ public class PhysicalIOImpl implements PhysicalIO {
   private final StreamContext streamContext;
   private ObjectKey objectKey;
   private final ObjectMetadata metadata;
+  private static final Logger LOG = LoggerFactory.getLogger(PhysicalIOImpl.class);
 
   private final long physicalIOBirth = System.nanoTime();
 
@@ -107,6 +109,13 @@ public class PhysicalIOImpl implements PhysicalIO {
    */
   @Override
   public int read(long pos) throws IOException {
+    String methodName = "read";
+    Map<String, Object> logParams =
+        LogParamsBuilder.create()
+            .add("s3URI", objectKey.getS3URI().toString())
+            .add("pos", pos)
+            .build();
+    LogUtils.logMethodEntry(LOG, methodName, logParams);
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     Preconditions.checkArgument(pos < contentLength(), "`pos` must be less than content length");
     try {
@@ -124,8 +133,11 @@ public class PhysicalIOImpl implements PhysicalIO {
                   .build(),
           () -> blobStore.get(this.objectKey, this.metadata, streamContext).read(pos));
     } catch (Exception e) {
+      LogUtils.logMethodError(LOG, methodName, logParams, e);
       handleOperationExceptions(e);
       throw e;
+    } finally {
+      LogUtils.logMethodSuccess(LOG, methodName, logParams);
     }
   }
 
@@ -141,6 +153,16 @@ public class PhysicalIOImpl implements PhysicalIO {
    */
   @Override
   public int read(byte[] buf, int off, int len, long pos) throws IOException {
+    String methodName = "read";
+    Map<String, Object> logParams =
+        LogParamsBuilder.create()
+            .add("s3URI", objectKey.getS3URI().toString())
+            .add("pos", pos)
+            .add("length", len)
+            .add("offset", off)
+            .add("bufferSize", buf.length)
+            .build();
+    LogUtils.logMethodEntry(LOG, methodName, logParams);
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     Preconditions.checkArgument(pos < contentLength(), "`pos` must be less than content length");
     Preconditions.checkArgument(0 <= off, "`off` must not be negative");
@@ -161,8 +183,11 @@ public class PhysicalIOImpl implements PhysicalIO {
                   .build(),
           () -> blobStore.get(objectKey, this.metadata, streamContext).read(buf, off, len, pos));
     } catch (Exception e) {
+      LogUtils.logMethodError(LOG, methodName, logParams, e);
       handleOperationExceptions(e);
       throw e;
+    } finally {
+      LogUtils.logMethodSuccess(LOG, methodName, logParams);
     }
   }
 
@@ -178,6 +203,16 @@ public class PhysicalIOImpl implements PhysicalIO {
    */
   @Override
   public int readTail(byte[] buf, int off, int len) throws IOException {
+    String methodName = "readTail";
+    Map<String, Object> logParams =
+        LogParamsBuilder.create()
+            .add("s3URI", objectKey.getS3URI().toString())
+            .add("length", len)
+            .add("offset", off)
+            .add("bufferSize", buf.length)
+            .build();
+    LogUtils.logMethodEntry(LOG, methodName, logParams);
+
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
     long contentLength = contentLength();
     try {
@@ -198,8 +233,11 @@ public class PhysicalIOImpl implements PhysicalIO {
                   .get(objectKey, this.metadata, streamContext)
                   .read(buf, off, len, contentLength - len));
     } catch (Exception e) {
+      LogUtils.logMethodError(LOG, methodName, logParams, e);
       handleOperationExceptions(e);
       throw e;
+    } finally {
+      LogUtils.logMethodSuccess(LOG, methodName, logParams);
     }
   }
 
@@ -211,18 +249,25 @@ public class PhysicalIOImpl implements PhysicalIO {
    */
   @Override
   public IOPlanExecution execute(IOPlan ioPlan) {
-    return telemetry.measureVerbose(
-        () ->
-            Operation.builder()
-                .name(OPERATION_EXECUTE)
-                .attribute(StreamAttributes.uri(objectKey.getS3URI()))
-                .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
-                .attribute(StreamAttributes.ioPlan(ioPlan))
-                .attribute(
-                    StreamAttributes.physicalIORelativeTimestamp(
-                        System.nanoTime() - physicalIOBirth))
-                .build(),
-        () -> blobStore.get(objectKey, this.metadata, streamContext).execute(ioPlan));
+    String methodName = "execute";
+    Map<String, Object> logParams =
+        LogParamsBuilder.create().add("s3URI", objectKey.getS3URI().toString()).build();
+    LogUtils.logMethodEntry(LOG, methodName, logParams);
+    IOPlanExecution ioPlanExecution =
+        telemetry.measureVerbose(
+            () ->
+                Operation.builder()
+                    .name(OPERATION_EXECUTE)
+                    .attribute(StreamAttributes.uri(objectKey.getS3URI()))
+                    .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
+                    .attribute(StreamAttributes.ioPlan(ioPlan))
+                    .attribute(
+                        StreamAttributes.physicalIORelativeTimestamp(
+                            System.nanoTime() - physicalIOBirth))
+                    .build(),
+            () -> blobStore.get(objectKey, this.metadata, streamContext).execute(ioPlan));
+    LogUtils.logMethodSuccess(LOG, methodName, logParams);
+    return ioPlanExecution;
   }
 
   private void handleOperationExceptions(Exception e) {

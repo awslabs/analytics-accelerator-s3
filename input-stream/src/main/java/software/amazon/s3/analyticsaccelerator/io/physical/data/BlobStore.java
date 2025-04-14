@@ -15,14 +15,10 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
-import static java.time.Instant.now;
-
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,6 +34,8 @@ import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
 import software.amazon.s3.analyticsaccelerator.util.BlockKey;
+import software.amazon.s3.analyticsaccelerator.util.LogParamsBuilder;
+import software.amazon.s3.analyticsaccelerator.util.LogUtils;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 
 /** A BlobStore is a container for Blobs and functions as a data cache. */
@@ -56,13 +54,8 @@ public class BlobStore implements Closeable {
 
   private final AtomicBoolean cleanupInProgress = new AtomicBoolean(false);
 
-  private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_INSTANT;
   private static final long CLEANUP_INTERVAL = 10_000; // 10 seconds in milliseconds
   private final ScheduledExecutorService maintenanceExecutor;
-
-  private String now() {
-    return FORMATTER.format(Instant.now());
-  }
 
   /**
    * Construct an instance of BlobStore.
@@ -124,20 +117,34 @@ public class BlobStore implements Closeable {
   }
 
   private void asyncCleanup() {
-    String startAttempt = now();
-    long startTimeMillis = System.currentTimeMillis();
-    long threadId = Thread.currentThread().getId();
-    LOG.info("[{}] [Thread-{}] Starting cleanup operation", startAttempt, threadId);
-    blobMap.forEach((k, v) -> v.asyncCleanup());
-    long endTimeMillis = System.currentTimeMillis();
-    long durationMillis = endTimeMillis - startTimeMillis;
-    double durationSeconds = durationMillis / 1000.0;
-    LOG.info(
-        "[{}] Cleanup operation completed Processed in {} seconds",
-        startAttempt,
-        String.format("%.3f", durationSeconds));
-  }
+    String methodName = "asyncCleanup";
+    Map<String, Object> logParams = LogParamsBuilder.create().build();
+    LogUtils.logMethodEntry(LOG, methodName, logParams);
 
+    long startTime = System.nanoTime();
+
+    try {
+      blobMap.forEach(
+          (k, v) -> {
+            LogUtils.logInfo(
+                LOG, methodName, logParams, "Processing cleanup for blob %s", k.getS3URI());
+            v.asyncCleanup();
+          });
+
+      double duration = (System.nanoTime() - startTime) / 1_000_000_000.0;
+      LogUtils.logInfo(
+          LOG,
+          methodName,
+          logParams,
+          "Cleanup operation completed for %d blobs in %.3f seconds",
+          blobMap.size(),
+          duration);
+
+    } catch (Exception e) {
+      LogUtils.logMethodError(LOG, methodName, logParams, e);
+      throw e;
+    }
+  }
   /**
    * Opens a new blob if one does not exist or returns the handle to one that exists already.
    *
@@ -147,19 +154,26 @@ public class BlobStore implements Closeable {
    * @return the blob representing the object from the BlobStore
    */
   public Blob get(ObjectKey objectKey, ObjectMetadata metadata, StreamContext streamContext) {
-    LOG.info("rajdchak clean OnRemoval Blobmap size is {}", blobMap.size());
-    LOG.info("Current weight of blobMap in bytes is {}", memoryUsageAcrossBlobMap);
-    return blobMap.computeIfAbsent(
-        objectKey,
-        uri ->
-            new Blob(
-                uri,
-                metadata,
-                new BlockManager(
-                    uri, objectClient, metadata, telemetry, configuration, streamContext),
-                telemetry,
-                indexCache,
-                memoryUsageAcrossBlobMap));
+    String methodName = "get";
+    Map<String, Object> logParams =
+        LogParamsBuilder.create().add("s3URI", objectKey.getS3URI().toString()).build();
+    LogUtils.logMethodEntry(LOG, methodName, logParams);
+    LogUtils.logInfo(LOG, methodName, logParams, "rajdchak Blobmap size is: %d", blobMap.size());
+    Blob blob =
+        blobMap.computeIfAbsent(
+            objectKey,
+            uri ->
+                new Blob(
+                    uri,
+                    metadata,
+                    new BlockManager(
+                        uri, objectClient, metadata, telemetry, configuration, streamContext),
+                    telemetry,
+                    indexCache,
+                    memoryUsageAcrossBlobMap));
+    LogUtils.logMethodSuccess(LOG, methodName, logParams);
+
+    return blob;
   }
 
   /**

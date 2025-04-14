@@ -16,6 +16,7 @@
 package software.amazon.s3.analyticsaccelerator;
 
 import java.io.IOException;
+import java.util.Map;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,8 @@ import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.CacheStats;
+import software.amazon.s3.analyticsaccelerator.util.LogParamsBuilder;
+import software.amazon.s3.analyticsaccelerator.util.LogUtils;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
@@ -60,6 +63,11 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   S3SeekableInputStream(
       @NonNull S3URI s3URI, @NonNull LogicalIO logicalIO, @NonNull Telemetry telemetry) {
+    LogUtils.logMethodEntry(
+        LOG,
+        "S3SeekableInputStreamConstructor",
+        LogParamsBuilder.create().add("s3URI", s3URI.toString()).build());
+
     this.s3URI = s3URI;
     this.logicalIO = logicalIO;
     this.telemetry = telemetry;
@@ -80,27 +88,36 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   @Override
   public int read() throws IOException {
-    throwIfClosed("cannot read from closed stream");
+    String methodName = "read";
+    Map<String, Object> logParams =
+        LogParamsBuilder.create().add("s3URI", s3URI.toString()).build();
+    try {
 
-    // -1 if we are past the end of the stream
-    if (this.position >= getContentLength()) {
-      return EOF;
+      LogUtils.logMethodEntry(LOG, methodName, logParams);
+      throwIfClosed("cannot read from closed stream");
+
+      // -1 if we are past the end of the stream
+      if (this.position >= getContentLength()) {
+        return EOF;
+      }
+
+      // Delegate to the LogicalIO and advance the position by 1
+      return this.telemetry.measureVerbose(
+          () ->
+              Operation.builder()
+                  .name(OPERATION_READ)
+                  .attribute(StreamAttributes.variant(FLAVOR_BYTE))
+                  .attribute(StreamAttributes.uri(this.s3URI))
+                  .attribute(StreamAttributes.range(this.getPos(), this.getPos()))
+                  .build(),
+          () -> {
+            int byteRead = this.logicalIO.read(this.position);
+            advancePosition(1);
+            return byteRead;
+          });
+    } finally {
+      LogUtils.logMethodSuccess(LOG, methodName, logParams);
     }
-
-    // Delegate to the LogicalIO and advance the position by 1
-    return this.telemetry.measureVerbose(
-        () ->
-            Operation.builder()
-                .name(OPERATION_READ)
-                .attribute(StreamAttributes.variant(FLAVOR_BYTE))
-                .attribute(StreamAttributes.uri(this.s3URI))
-                .attribute(StreamAttributes.range(this.getPos(), this.getPos()))
-                .build(),
-        () -> {
-          int byteRead = this.logicalIO.read(this.position);
-          advancePosition(1);
-          return byteRead;
-        });
   }
 
   /**
@@ -137,28 +154,40 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   @Override
   public int read(byte @NonNull [] buffer, int offset, int length) throws IOException {
-    throwIfClosed("cannot read from closed stream");
-    validatePositionedReadArgs(position, buffer, offset, length);
+    String methodName = "read";
+    Map<String, Object> logParams =
+        LogParamsBuilder.create()
+            .add("s3URI", s3URI.toString())
+            .add("offset", offset)
+            .add("length", length)
+            .build();
+    try {
+      LogUtils.logMethodEntry(LOG, methodName, logParams);
+      throwIfClosed("cannot read from closed stream");
+      validatePositionedReadArgs(position, buffer, offset, length);
 
-    if (length == 0) {
-      return 0;
-    } else if (this.position >= getContentLength()) {
-      return EOF;
+      if (length == 0) {
+        return 0;
+      } else if (this.position >= getContentLength()) {
+        return EOF;
+      }
+
+      return this.telemetry.measureVerbose(
+          () ->
+              Operation.builder()
+                  .name(OPERATION_READ)
+                  .attribute(StreamAttributes.uri(this.s3URI))
+                  .attribute(StreamAttributes.etag(this.logicalIO.metadata().getEtag()))
+                  .attribute(StreamAttributes.range(position, position + length - 1))
+                  .build(),
+          () -> {
+            // Delegate to the LogicalIO and advance the position accordingly
+            int bytesRead = this.logicalIO.read(buffer, offset, length, position);
+            return advancePosition(bytesRead);
+          });
+    } finally {
+      LogUtils.logMethodSuccess(LOG, methodName, logParams);
     }
-
-    return this.telemetry.measureVerbose(
-        () ->
-            Operation.builder()
-                .name(OPERATION_READ)
-                .attribute(StreamAttributes.uri(this.s3URI))
-                .attribute(StreamAttributes.etag(this.logicalIO.metadata().getEtag()))
-                .attribute(StreamAttributes.range(position, position + length - 1))
-                .build(),
-        () -> {
-          // Delegate to the LogicalIO and advance the position accordingly
-          int bytesRead = this.logicalIO.read(buffer, offset, length, position);
-          return advancePosition(bytesRead);
-        });
   }
 
   /**
@@ -173,13 +202,21 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   @Override
   public void seek(long pos) throws IOException {
-    // TODO: S3A throws an EOFException here, S3FileIO does IllegalArgumentException
-    // TODO: https://github.com/awslabs/analytics-accelerator-s3/issues/84
-    Preconditions.checkArgument(pos >= 0, "position must be non-negative");
-    throwIfClosed("cannot seek on closed stream");
+    String methodName = "seek";
+    Map<String, Object> logParams =
+        LogParamsBuilder.create().add("s3URI", s3URI.toString()).add("pos", pos).build();
+    try {
+      LogUtils.logMethodEntry(LOG, methodName, logParams);
+      // TODO: S3A throws an EOFException here, S3FileIO does IllegalArgumentException
+      // TODO: https://github.com/awslabs/analytics-accelerator-s3/issues/84
+      Preconditions.checkArgument(pos >= 0, "position must be non-negative");
+      throwIfClosed("cannot seek on closed stream");
 
-    // As we are seeking lazily, we support seek beyond the stream size .
-    this.position = pos;
+      // As we are seeking lazily, we support seek beyond the stream size .
+      this.position = pos;
+    } finally {
+      LogUtils.logMethodSuccess(LOG, methodName, logParams);
+    }
   }
 
   /**
@@ -203,24 +240,36 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   @Override
   public int readTail(byte[] buffer, int offset, int length) throws IOException {
-    throwIfClosed("cannot read from closed stream");
-    validatePositionedReadArgs(position, buffer, offset, length);
+    String methodName = "readTail";
+    Map<String, Object> logParams =
+        LogParamsBuilder.create()
+            .add("s3URI", s3URI.toString())
+            .add("offset", offset)
+            .add("length", length)
+            .build();
+    try {
+      LogUtils.logMethodEntry(LOG, methodName, logParams);
+      throwIfClosed("cannot read from closed stream");
+      validatePositionedReadArgs(position, buffer, offset, length);
 
-    if (length == 0) {
-      return 0;
+      if (length == 0) {
+        return 0;
+      }
+
+      return this.telemetry.measureVerbose(
+          () ->
+              Operation.builder()
+                  .name(OPERATION_READ)
+                  .attribute(StreamAttributes.variant(FLAVOR_TAIL))
+                  .attribute(StreamAttributes.uri(this.s3URI))
+                  .attribute(StreamAttributes.etag(this.logicalIO.metadata().getEtag()))
+                  .attribute(
+                      StreamAttributes.range(getContentLength() - length, getContentLength() - 1))
+                  .build(),
+          () -> logicalIO.readTail(buffer, offset, length));
+    } finally {
+      LogUtils.logMethodSuccess(LOG, methodName, logParams);
     }
-
-    return this.telemetry.measureVerbose(
-        () ->
-            Operation.builder()
-                .name(OPERATION_READ)
-                .attribute(StreamAttributes.variant(FLAVOR_TAIL))
-                .attribute(StreamAttributes.uri(this.s3URI))
-                .attribute(StreamAttributes.etag(this.logicalIO.metadata().getEtag()))
-                .attribute(
-                    StreamAttributes.range(getContentLength() - length, getContentLength() - 1))
-                .build(),
-        () -> logicalIO.readTail(buffer, offset, length));
   }
 
   /**
@@ -230,7 +279,8 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   @Override
   public void close() throws IOException {
-    LOG.info("closing seekable stream");
+    LogUtils.logMethodSuccess(
+        LOG, "close", LogParamsBuilder.create().add("s3URI", s3URI.toString()).build());
     LOG.info(
         "stream Cache Hits: {}, Misses: {}, Hit Rate: {}%",
         CacheStats.getHits(), CacheStats.getMisses(), CacheStats.getHitRate() * 100);

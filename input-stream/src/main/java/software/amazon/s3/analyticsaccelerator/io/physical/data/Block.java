@@ -18,6 +18,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 import com.github.benmanes.caffeine.cache.Cache;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,6 +65,11 @@ public class Block implements Closeable {
 
   private static final Logger LOG = LoggerFactory.getLogger(Block.class);
   private AtomicLong memoryUsageAcrossBlobMap;
+
+  /** @return data */
+  public CompletableFuture<byte[]> getData1() {
+    return data;
+  }
 
   /**
    * Constructs a Block data.
@@ -169,9 +175,17 @@ public class Block implements Closeable {
 
   /** Method to help construct source and data */
   private void generateSourceAndData() throws IOException {
+    String methodName = "generateSourceAndData";
+    Map<String, Object> logParams =
+        LogParamsBuilder.create()
+            .add("s3Uri", blockKey.getObjectKey().getS3URI().toString())
+            .add("range", blockKey.getRange().getStart() + "-" + blockKey.getRange().getEnd())
+            .build();
     int retries = 0;
     while (retries < this.readRetryCount) {
       try {
+        LogUtils.logInfo(LOG, methodName, logParams, "Starting source creation for block");
+
         GetRequest getRequest =
             GetRequest.builder()
                 .s3Uri(this.blockKey.getObjectKey().getS3URI())
@@ -197,7 +211,15 @@ public class Block implements Closeable {
             this.source.thenApply(
                 objectContent -> {
                   try {
+                    long cacheStartTime = System.nanoTime();
                     indexCache.put(blockKey, blockKey.getRange().getLength());
+                    double cacheTime = (System.nanoTime() - cacheStartTime) / 1_000_000_000.0;
+                    LogUtils.logInfo(
+                        LOG,
+                        methodName,
+                        logParams,
+                        "Index cache put operation for block completed in %.3f seconds",
+                        cacheTime);
                     memoryUsageAcrossBlobMap.addAndGet(blockKey.getRange().getLength());
                     return StreamUtils.toByteArray(
                         objectContent,
