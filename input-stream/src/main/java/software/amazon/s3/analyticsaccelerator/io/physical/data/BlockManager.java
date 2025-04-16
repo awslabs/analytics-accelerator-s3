@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
+import lombok.Getter;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
@@ -39,7 +40,7 @@ import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 public class BlockManager implements Closeable {
   private final ObjectKey objectKey;
   private final ObjectMetadata metadata;
-  private final BlockStore blockStore;
+  @Getter private final BlockStore blockStore;
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
   private final SequentialPatternDetector patternDetector;

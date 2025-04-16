@@ -34,6 +34,7 @@ import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.request.Referrer;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
+import software.amazon.s3.analyticsaccelerator.stats.MemoryUsageStats;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 import software.amazon.s3.analyticsaccelerator.util.StreamUtils;
@@ -46,7 +47,7 @@ public class Block implements Closeable {
   private CompletableFuture<ObjectContent> source;
   private CompletableFuture<byte[]> data;
   private final ObjectKey objectKey;
-  private final Range range;
+  @Getter private final Range range;
   private final Telemetry telemetry;
   private final ObjectClient objectClient;
   private final StreamContext streamContext;
@@ -186,6 +187,7 @@ public class Block implements Closeable {
             this.source.thenApply(
                 objectContent -> {
                   try {
+                    MemoryUsageStats.recordMemoryUsageAcrossBlobMap(range.getLength());
                     return StreamUtils.toByteArray(
                         objectContent, this.objectKey, this.range, this.readTimeout);
                   } catch (IOException | TimeoutException e) {

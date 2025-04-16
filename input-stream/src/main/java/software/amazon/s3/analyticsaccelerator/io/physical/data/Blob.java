@@ -17,6 +17,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
 import java.io.IOException;
+import lombok.Getter;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,7 +39,7 @@ public class Blob implements Closeable {
   private static final String OPERATION_EXECUTE = "blob.execute";
 
   private final ObjectKey objectKey;
-  private final BlockManager blockManager;
+  @Getter private final BlockManager blockManager;
   private final ObjectMetadata metadata;
   private final Telemetry telemetry;
 
@@ -72,7 +73,9 @@ public class Blob implements Closeable {
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(pos >= 0, "`pos` must be non-negative");
     blockManager.makePositionAvailable(pos, ReadMode.SYNC);
-    return blockManager.getBlock(pos).get().read(pos);
+    Block block = blockManager.getBlock(pos).get();
+
+    return block.read(pos);
   }
 
   /**

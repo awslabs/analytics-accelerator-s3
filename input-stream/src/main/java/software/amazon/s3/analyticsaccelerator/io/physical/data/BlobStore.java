@@ -19,13 +19,18 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import lombok.Getter;
 import lombok.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
+import software.amazon.s3.analyticsaccelerator.stats.MemoryUsageStats;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 
 /** A BlobStore is a container for Blobs and functions as a data cache. */
@@ -34,7 +39,8 @@ import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
     justification =
         "Inner class is created very infrequently, and fluency justifies the extra pointer")
 public class BlobStore implements Closeable {
-  private final Map<ObjectKey, Blob> blobMap;
+  @Getter private final Map<ObjectKey, Blob> blobMap;
+  private static final Logger LOG = LoggerFactory.getLogger(BlobStore.class);
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
   private final PhysicalIOConfiguration configuration;
@@ -57,7 +63,23 @@ public class BlobStore implements Closeable {
             new LinkedHashMap<ObjectKey, Blob>() {
               @Override
               protected boolean removeEldestEntry(final Map.Entry<ObjectKey, Blob> eldest) {
-                return this.size() > configuration.getBlobStoreCapacity();
+                boolean shouldRemove = this.size() > configuration.getBlobStoreCapacity();
+                if (shouldRemove) {
+                  Blob blobToRemove = eldest.getValue();
+                  long blobMemoryToSubtract = 0;
+
+                  // Calculate memory used by this blob
+                  List<Block> blocks = blobToRemove.getBlockManager().getBlockStore().getBlocks();
+                  for (Block block : blocks) {
+                    blobMemoryToSubtract += block.getRange().getLength();
+                  }
+                  // Subtract the memory of the evicted blob
+                  MemoryUsageStats.recordMemoryUsageAcrossBlobMap(-blobMemoryToSubtract);
+                  LOG.debug(
+                      "Current memory usage of blobMap in bytes is: {}",
+                      MemoryUsageStats.getMemoryUsageAcrossBlobMap());
+                }
+                return shouldRemove;
               }
             });
     this.configuration = configuration;
