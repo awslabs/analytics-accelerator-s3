@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.stats.CacheStats;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 
 /** A BlockStore, which is a collection of Blocks. */
@@ -61,7 +62,13 @@ public class BlockStore implements Closeable {
   public Optional<Block> getBlock(long pos) {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
-    return blocks.stream().filter(b -> b.contains(pos)).findFirst();
+    Optional<Block> block = blocks.stream().filter(b -> b.contains(pos)).findFirst();
+    if (block.isPresent()) {
+      CacheStats.recordHit();
+    } else {
+      CacheStats.recordMiss();
+    }
+    return block;
   }
 
   /**

@@ -226,6 +226,7 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   @Override
   public void close() throws IOException {
+
     this.telemetry.measureVerbose(
         () ->
             Operation.builder()
