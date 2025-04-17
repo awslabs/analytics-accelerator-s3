@@ -19,7 +19,6 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import lombok.Getter;
 import lombok.NonNull;
@@ -66,15 +65,10 @@ public class BlobStore implements Closeable {
                 boolean shouldRemove = this.size() > configuration.getBlobStoreCapacity();
                 if (shouldRemove) {
                   Blob blobToRemove = eldest.getValue();
-                  long blobMemoryToSubtract = 0;
 
-                  // Calculate memory used by this blob
-                  List<Block> blocks = blobToRemove.getBlockManager().getBlockStore().getBlocks();
-                  for (Block block : blocks) {
-                    blobMemoryToSubtract += block.getRange().getLength();
-                  }
                   // Subtract the memory of the evicted blob
-                  MemoryUsageStats.recordMemoryUsageAcrossBlobMap(-blobMemoryToSubtract);
+                  MemoryUsageStats.recordMemoryUsageAcrossBlobMap(
+                      -blobToRemove.getMemoryUsageOfBlob());
                   LOG.debug(
                       "Current memory usage of blobMap in bytes is: {}",
                       MemoryUsageStats.getMemoryUsageAcrossBlobMap());

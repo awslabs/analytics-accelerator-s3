@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.Getter;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
@@ -40,7 +41,7 @@ import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 public class BlockManager implements Closeable {
   private final ObjectKey objectKey;
   private final ObjectMetadata metadata;
-  @Getter private final BlockStore blockStore;
+  private final BlockStore blockStore;
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
   private final SequentialPatternDetector patternDetector;
@@ -49,6 +50,7 @@ public class BlockManager implements Closeable {
   private final PhysicalIOConfiguration configuration;
   private final RangeOptimiser rangeOptimiser;
   private StreamContext streamContext;
+  @Getter private AtomicLong memoryUsage;
 
   private static final String OPERATION_MAKE_RANGE_AVAILABLE = "block.manager.make.range.available";
 
@@ -98,6 +100,7 @@ public class BlockManager implements Closeable {
     this.ioPlanner = new IOPlanner(blockStore);
     this.rangeOptimiser = new RangeOptimiser(configuration);
     this.streamContext = streamContext;
+    this.memoryUsage = new AtomicLong(0);
   }
 
   /**
@@ -210,6 +213,7 @@ public class BlockManager implements Closeable {
                     readMode,
                     this.configuration.getBlockReadTimeout(),
                     this.configuration.getBlockReadRetryCount(),
+                    memoryUsage,
                     streamContext);
             blockStore.add(block);
           }

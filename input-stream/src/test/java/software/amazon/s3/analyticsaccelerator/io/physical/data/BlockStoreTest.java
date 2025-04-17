@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
@@ -68,7 +69,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0)));
 
     // Then: getBlock can retrieve the same block
     Optional<Block> b = blockStore.getBlock(4);
@@ -99,7 +101,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0)));
     blockStore.add(
         new Block(
             objectKey,
@@ -110,7 +113,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0)));
     blockStore.add(
         new Block(
             objectKey,
@@ -121,7 +125,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0)));
 
     // When & Then: we query for the next missing byte, the result is correct
     assertEquals(OptionalLong.of(0), blockStore.findNextMissingByte(0));
@@ -154,7 +159,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0)));
     blockStore.add(
         new Block(
             objectKey,
@@ -165,7 +171,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0)));
     blockStore.add(
         new Block(
             objectKey,
@@ -176,7 +183,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT));
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0)));
 
     // When & Then: we query for the next available byte, the result is correct
     assertEquals(OptionalLong.of(2), blockStore.findNextLoadedByte(0));
@@ -245,7 +253,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
 
     blockStore.add(block);
 
@@ -284,7 +293,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
 
     Block block2 =
         new Block(
@@ -296,7 +306,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
 
     blockStore.add(block1);
     blockStore.add(block2);
@@ -334,7 +345,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
 
     blockStore.add(block);
     blockStore.getBlock(1); // hit
@@ -371,7 +383,8 @@ public class BlockStoreTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
 
     blockStore.add(block);
 

@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
@@ -61,7 +62,8 @@ public class BlockTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
 
     // When: bytes are requested from the block
     int r1 = block.read(0);
@@ -89,7 +91,8 @@ public class BlockTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
 
     // When: bytes are requested from the block
     byte[] b1 = new byte[4];
@@ -211,7 +214,8 @@ public class BlockTest {
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT));
+                DEFAULT_READ_RETRY_COUNT,
+                new AtomicLong(0)));
     assertThrows(
         IllegalArgumentException.class,
         () ->
@@ -224,7 +228,8 @@ public class BlockTest {
                 -1,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT));
+                DEFAULT_READ_RETRY_COUNT,
+                new AtomicLong(0)));
     assertThrows(
         IllegalArgumentException.class,
         () ->
@@ -257,7 +262,8 @@ public class BlockTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
     assertThrows(IllegalArgumentException.class, () -> block.read(-10));
     assertThrows(NullPointerException.class, () -> block.read(null, 0, 3, 1));
     assertThrows(IllegalArgumentException.class, () -> block.read(b, -5, 3, 1));
@@ -280,7 +286,8 @@ public class BlockTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
     assertTrue(block.contains(0));
     assertFalse(block.contains(TEST_DATA.length() + 1));
   }
@@ -300,7 +307,8 @@ public class BlockTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
     assertThrows(IllegalArgumentException.class, () -> block.contains(-1));
   }
 
@@ -321,7 +329,8 @@ public class BlockTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
     assertThrows(IOException.class, () -> block.read(4));
   }
 
@@ -340,7 +349,8 @@ public class BlockTest {
             0,
             ReadMode.SYNC,
             DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT);
+            DEFAULT_READ_RETRY_COUNT,
+            new AtomicLong(0));
     block.close();
     block.close();
   }
@@ -379,7 +389,8 @@ public class BlockTest {
                             0,
                             ReadMode.SYNC,
                             DEFAULT_READ_TIMEOUT,
-                            DEFAULT_READ_RETRY_COUNT);
+                            DEFAULT_READ_RETRY_COUNT,
+                            new AtomicLong(0));
 
                     block.read(startPos);
                     synchronized (blocks) {
@@ -454,7 +465,8 @@ public class BlockTest {
                 i,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT);
+                DEFAULT_READ_RETRY_COUNT,
+                new AtomicLong(0));
 
         block.read(startPos);
         blocks.add(block);
@@ -492,7 +504,8 @@ public class BlockTest {
               0,
               ReadMode.SYNC,
               DEFAULT_READ_TIMEOUT,
-              DEFAULT_READ_RETRY_COUNT);
+              DEFAULT_READ_RETRY_COUNT,
+              new AtomicLong(0));
 
       block.read(0);
 

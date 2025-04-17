@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
@@ -97,7 +98,8 @@ public class IOPlannerTest {
             0,
             ReadMode.SYNC,
             120_000,
-            20));
+            20,
+            new AtomicLong(0)));
     IOPlanner ioPlanner = new IOPlanner(blockStore);
 
     // When: a read plan is requested for a range (0, 400)
