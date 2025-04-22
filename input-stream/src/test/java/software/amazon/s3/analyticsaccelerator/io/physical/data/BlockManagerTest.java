@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -117,14 +118,14 @@ public class BlockManagerTest {
   @Test
   void testGetBlockReturnsAvailableBlock() throws IOException {
     // Given
-    BlockManager blockManager = getTestBlockManager(65 * ONE_KB);
+    BlockManager blockManager = getTestBlockManager(4 * ONE_MB);
 
     // When: have a 64KB block available from 0
     blockManager.makePositionAvailable(0, ReadMode.SYNC);
 
     // Then: 0 returns a block but 64KB + 1 byte returns no block
     assertTrue(blockManager.getBlock(0).isPresent());
-    assertFalse(blockManager.getBlock(64 * ONE_KB).isPresent());
+    assertFalse(blockManager.getBlock(4 * ONE_MB).isPresent());
   }
 
   @Test
@@ -298,5 +299,43 @@ public class BlockManagerTest {
         TestTelemetry.DEFAULT,
         configuration,
         mock(Metrics.class));
+  }
+
+  @Test
+  void testSmallObjectPrefetching() throws IOException {
+    ObjectClient objectClient = mock(ObjectClient.class);
+    int smallObjectSize = 2 * ONE_MB; // Size less than default threshold (3MB)
+
+    BlockManager blockManager =
+        getTestBlockManager(objectClient, smallObjectSize, PhysicalIOConfiguration.DEFAULT);
+
+    // Verify that entire object was prefetched
+    ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
+    verify(objectClient, timeout(5000)).getObject(requestCaptor.capture(), any());
+
+    GetRequest request = requestCaptor.getValue();
+    assertEquals(0, request.getRange().getStart());
+    assertEquals(smallObjectSize - 1, request.getRange().getEnd());
+
+    // Verify BlockManager state
+    assertTrue(blockManager.getBlock(0).isPresent());
+  }
+
+  @Test
+  void testSmallObjectPrefetchingDisabled() throws IOException {
+    // Only override the config we want to test
+    PhysicalIOConfiguration config =
+        PhysicalIOConfiguration.builder()
+            .smallObjectsPrefetchingEnabled(false) // Override default
+            .build();
+
+    ObjectClient objectClient = mock(ObjectClient.class);
+    int smallObjectSize = 2 * ONE_MB;
+
+    BlockManager blockManager = getTestBlockManager(objectClient, smallObjectSize, config);
+
+    // Verify no prefetching occurred
+    verify(objectClient, timeout(1000).times(0)).getObject(any(), any());
+    assertFalse(blockManager.getBlock(0).isPresent());
   }
 }

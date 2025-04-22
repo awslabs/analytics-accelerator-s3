@@ -38,8 +38,6 @@ public class LogicalIOConfiguration {
   private static final long DEFAULT_PREFETCH_FILE_PAGE_INDEX_SIZE = ONE_MB;
   private static final long DEFAULT_PREFETCH_LARGE_FILE_PAGE_INDEX_SIZE = 8 * ONE_MB;
   private static final long DEFAULT_LARGE_FILE_SIZE = ONE_GB;
-  private static final boolean DEFAULT_PREFETCHING_SMALL_OBJECT_ENABLED = true;
-  private static final long DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD = 3 * ONE_MB;
   private static final int DEFAULT_PARQUET_METADATA_STORE_SIZE = 45;
   private static final int DEFAULT_MAX_COLUMN_ACCESS_STORE_SIZE = 15;
   private static final String DEFAULT_PARQUET_FORMAT_SELECTOR_REGEX = "^.*.(parquet|par)$";
@@ -85,16 +83,6 @@ public class LogicalIOConfiguration {
   @Builder.Default private long largeFileSize = DEFAULT_LARGE_FILE_SIZE;
 
   private static final String LARGE_FILE_SIZE = "large.file.size";
-
-  @Builder.Default
-  private boolean smallObjectsPrefetchingEnabled = DEFAULT_PREFETCHING_SMALL_OBJECT_ENABLED;
-
-  private static final String SMALL_OBJECTS_PREFETCHING_ENABLED_KEY =
-      "small.objects.prefetching.enabled";
-
-  @Builder.Default private long smallObjectSizeThreshold = DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD;
-
-  private static final String SMALL_OBJECT_SIZE_THRESHOLD_KEY = "small.object.size.threshold";
 
   private static final String METADATA_AWARE_PREFETCHING_ENABLED_KEY =
       "metadata.aware.prefetching.enabled";
@@ -158,12 +146,6 @@ public class LogicalIOConfiguration {
                 LARGE_FILE_PAGE_INDEX_PREFETCH_SIZE_KEY,
                 DEFAULT_PREFETCH_LARGE_FILE_PAGE_INDEX_SIZE))
         .largeFileSize(configuration.getLong(LARGE_FILE_SIZE, DEFAULT_LARGE_FILE_SIZE))
-        .smallObjectsPrefetchingEnabled(
-            configuration.getBoolean(
-                SMALL_OBJECTS_PREFETCHING_ENABLED_KEY, DEFAULT_PREFETCHING_SMALL_OBJECT_ENABLED))
-        .smallObjectSizeThreshold(
-            configuration.getLong(
-                SMALL_OBJECT_SIZE_THRESHOLD_KEY, DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD))
         .parquetMetadataStoreSize(
             configuration.getInt(
                 PARQUET_METADATA_STORE_SIZE_KEY, DEFAULT_PARQUET_METADATA_STORE_SIZE))
@@ -199,8 +181,6 @@ public class LogicalIOConfiguration {
     builder.append("\tprefetchFilePageIndexSize: " + prefetchFilePageIndexSize + "\n");
     builder.append("\tprefetchLargeFilePageIndexSize: " + prefetchLargeFilePageIndexSize + "\n");
     builder.append("\tlargeFileSize: " + largeFileSize + "\n");
-    builder.append("\tsmallObjectsPrefetchingEnabled: " + smallObjectsPrefetchingEnabled + "\n");
-    builder.append("\tsmallObjectSizeThreshold: " + smallObjectSizeThreshold + "\n");
     builder.append("\tparquetMetadataStoreSize: " + parquetMetadataStoreSize + "\n");
     builder.append("\tmaxColumnAccessCountStoreSize: " + maxColumnAccessCountStoreSize + "\n");
     builder.append("\tparquetFormatSelectorRegex: " + parquetFormatSelectorRegex + "\n");

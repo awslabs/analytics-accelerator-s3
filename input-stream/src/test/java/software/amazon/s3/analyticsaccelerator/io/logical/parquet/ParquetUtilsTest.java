@@ -40,25 +40,6 @@ public class ParquetUtilsTest {
   }
 
   @Test
-  void testGetFileTailRangeSmallFile() {
-    List<Range> ranges =
-        ParquetUtils.getFileTailPrefetchRanges(
-            LogicalIOConfiguration.builder()
-                .smallObjectsPrefetchingEnabled(true)
-                .smallObjectSizeThreshold(2 * ONE_MB)
-                .build(),
-            0,
-            2 * ONE_MB);
-
-    assertEquals(ranges.size(), 1);
-
-    Range range = ranges.get(0);
-
-    assertEquals(range.getStart(), 0);
-    assertEquals(range.getEnd(), 2 * ONE_MB - 1);
-  }
-
-  @Test
   void testGetFileTailPrefetchRanges() {
     List<Range> ranges =
         ParquetUtils.getFileTailPrefetchRanges(LogicalIOConfiguration.DEFAULT, 0, 5 * ONE_MB);
