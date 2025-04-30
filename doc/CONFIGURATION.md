@@ -50,8 +50,6 @@ Options under `<CONNECTOR_PREFIX>.logicalio.`
 | `prefetch.file.page.index.size`       | `1MB`                 | Size of page index to prefetch for regular files                           |
 | `prefetch.large.file.page.index.size` | `8MB`                 | Size of page index to prefetch for large files                             |
 | `large.file.size`                     | `1GB`                 | Threshold to consider a file as large                                      |
-| `small.objects.prefetching.enabled`   | `true`                | Controls prefetching for small objects                                     |
-| `small.object.size.threshold`         | `3MB`                 | Size threshold for small object prefetching                                |
 | `parquet.metadata.store.size`         | `45`                  | Size of the parquet metadata store                                         |
 | `max.column.access.store.size`        | `15`                  | Maximum size of column access store                                        |
 | `parquet.format.selector.regex`       | `^.*.(parquet\|par)$` | Regex pattern to identify parquet files                                    |
@@ -60,16 +58,17 @@ Options under `<CONNECTOR_PREFIX>.logicalio.`
 ## Physical IO Configuration
 Options under `<CONNECTOR_PREFIX>.physicalio.`
 
-| Option                     | Default | Description                                   |
-|----------------------------|---------|-----------------------------------------------|
-| `metadatastore.capacity`   | `50`    | Capacity of the metadata store                |
-| `blocksizebytes`           | `8MB`   | Size of blocks for data transfer              |
-| `readaheadbytes`           | `64KB`  | Number of bytes to read ahead                 |
-| `maxrangesizebytes`        | `8MB`   | Maximum size of range requests                |
-| `partsizebytes`            | `8MB`   | Size of individual parts for transfer         |
-| `sequentialprefetch.base`  | `2.0`   | Base factor for sequential prefetch sizing    |
-| `sequentialprefetch.speed` | `1.0`   | Speed factor for sequential prefetch growth   |
-
+| Option                     | Default | Description                                    |
+|----------------------------|---------|------------------------------------------------|
+| `metadatastore.capacity`   | `50`    | Capacity of the metadata store                 |
+| `blocksizebytes`           | `8MB`   | Size of blocks for data transfer               |
+| `readaheadbytes`           | `64KB`  | Number of bytes to read ahead                  |
+| `maxrangesizebytes`        | `8MB`   | Maximum size of range requests                 |
+| `partsizebytes`            | `8MB`   | Size of individual parts for transfer          |
+| `sequentialprefetch.base`  | `2.0`   | Base factor for sequential prefetch sizing     |
+| `sequentialprefetch.speed` | `1.0`   | Speed factor for sequential prefetch growth    |
+|  `small.objects.prefetching.enabled` | `true`  | Controls prefetching for small objects |
+|`small.object.size.threshold` | `8MB`   | Size of page index to prefetch for large files |
 ## Telemetry Configuration
 Options under `<CONNECTOR_PREFIX>.telemetry.`
 

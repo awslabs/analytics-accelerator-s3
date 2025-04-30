@@ -78,8 +78,6 @@ public class LogicalIOConfigurationTest {
             + "\tprefetchFilePageIndexSize: 10\n"
             + "\tprefetchLargeFilePageIndexSize: 8388608\n"
             + "\tlargeFileSize: 1073741824\n"
-            + "\tsmallObjectsPrefetchingEnabled: true\n"
-            + "\tsmallObjectSizeThreshold: 3145728\n"
             + "\tparquetMetadataStoreSize: 45\n"
             + "\tmaxColumnAccessCountStoreSize: 15\n"
             + "\tparquetFormatSelectorRegex: ^.*.(parquet|par)$\n"

@@ -20,7 +20,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.CompletableFuture;
 import lombok.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
@@ -36,6 +39,7 @@ import software.amazon.s3.analyticsaccelerator.request.StreamContext;
 import software.amazon.s3.analyticsaccelerator.util.BlockMetricsHandler;
 import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
+import software.amazon.s3.analyticsaccelerator.util.ObjectSize;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
 /** Implements a Block Manager responsible for planning and scheduling reads on a key. */
@@ -54,6 +58,10 @@ public class BlockManager implements Closeable {
   private final Metrics blobMetrics;
   private final BlockMetricsHandler metricsHandler;
   private static final String OPERATION_MAKE_RANGE_AVAILABLE = "block.manager.make.range.available";
+  private static final String OPERATION_SMALL_OBJECT_PREFETCH =
+      "block.manager.small.object.prefetch";
+
+  private static final Logger LOG = LoggerFactory.getLogger(BlockManager.class);
 
   /**
    * Constructs a new BlockManager.
@@ -107,6 +115,26 @@ public class BlockManager implements Closeable {
     this.ioPlanner = new IOPlanner(blockStore);
     this.rangeOptimiser = new RangeOptimiser(configuration);
     this.streamContext = streamContext;
+
+    prefetchSmallObject();
+  }
+
+  /**
+   * Initializes the BlockManager with small object prefetching if applicable. This is done
+   * asynchronously to avoid blocking the constructor.
+   */
+  private void prefetchSmallObject() {
+    if (ObjectSize.isSmallObject(configuration, metadata.getContentLength())) {
+      CompletableFuture.runAsync(
+          () -> {
+            try {
+              makeRangeAvailable(0, metadata.getContentLength(), ReadMode.SMALL_OBJECT_PREFETCH);
+            } catch (IOException e) {
+              LOG.debug(
+                  "Failed to prefetch small object for key: {}", objectKey.getS3URI().getKey(), e);
+            }
+          });
+    }
   }
 
   /**

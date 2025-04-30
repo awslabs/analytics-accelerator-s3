@@ -21,5 +21,6 @@ package software.amazon.s3.analyticsaccelerator.request;
  */
 public enum ReadMode {
   SYNC,
-  ASYNC;
+  ASYNC,
+  SMALL_OBJECT_PREFETCH;
 }

@@ -85,10 +85,7 @@ public class ParquetPrefetchTailTaskTest {
 
     HashMap<Long, List<Range>> contentSizeToRanges =
         getPrefetchRangeList(
-            configuration.getPrefetchFileMetadataSize(),
-            configuration.getPrefetchFilePageIndexSize(),
-            configuration.getSmallObjectSizeThreshold(),
-            5L * configuration.getLargeFileSize());
+            configuration.getPrefetchFileMetadataSize(), 5L * configuration.getLargeFileSize());
 
     for (Map.Entry<Long, List<Range>> contentLengthToRangeList : contentSizeToRanges.entrySet()) {
       PhysicalIOImpl mockedPhysicalIO = mock(PhysicalIOImpl.class);
@@ -128,8 +125,7 @@ public class ParquetPrefetchTailTaskTest {
     assertThrows(CompletionException.class, () -> parquetPrefetchTailTask.prefetchTail());
   }
 
-  private HashMap<Long, List<Range>> getPrefetchRangeList(
-      long footerSize, long pageIndexSize, long smallFileSize, long largeFileSize) {
+  private HashMap<Long, List<Range>> getPrefetchRangeList(long footerSize, long largeFileSize) {
     return new HashMap<Long, List<Range>>() {
       {
         put(
@@ -151,24 +147,6 @@ public class ParquetPrefetchTailTaskTest {
             new ArrayList<Range>() {
               {
                 add(new Range(0, footerSize + 9));
-              }
-            });
-        put(
-            -1L + smallFileSize,
-            new ArrayList<Range>() {
-              {
-                add(new Range(0, smallFileSize - 2));
-              }
-            });
-        put(
-            10L + smallFileSize,
-            new ArrayList<Range>() {
-              {
-                add(new Range(smallFileSize + 10 - footerSize, smallFileSize + 9));
-                add(
-                    new Range(
-                        smallFileSize + 10 - footerSize - pageIndexSize,
-                        smallFileSize + 10 - footerSize - 1));
               }
             });
         put(
