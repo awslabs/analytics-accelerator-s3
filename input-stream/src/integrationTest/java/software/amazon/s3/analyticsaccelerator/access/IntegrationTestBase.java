@@ -18,10 +18,12 @@ package software.amazon.s3.analyticsaccelerator.access;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static software.amazon.s3.analyticsaccelerator.access.ChecksumAssertions.assertChecksums;
 import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_KB;
+import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_MB;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -319,6 +321,59 @@ public abstract class IntegrationTestBase extends ExecutionBase {
       // Shutdown. Wait for termination indefinitely - we expect it to always complete
       executorService.shutdown();
       assertTrue(executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS));
+    }
+  }
+
+  /**
+   * Tests the prefetching behavior for S3 objects with focus on cache verification. For objects
+   * smaller than 8MB, the entire object should be prefetched into cache on first read. For objects
+   * larger than 8MB, data should be fetched from S3 as needed.
+   *
+   * @param s3ClientKind the type of S3 client to use
+   * @param s3Object the S3 object to test with
+   * @param streamReadPatternKind the pattern to use for reading the stream
+   * @param AALInputStreamConfigurationKind the configuration for the input stream
+   * @throws IOException if an I/O error occurs during the test
+   */
+  protected void testSmallObjectPrefetching(
+      @NonNull S3ClientKind s3ClientKind,
+      @NonNull S3Object s3Object,
+      @NonNull StreamReadPatternKind streamReadPatternKind,
+      @NonNull AALInputStreamConfigurationKind AALInputStreamConfigurationKind)
+      throws IOException {
+
+    try (S3AALClientStreamReader s3AALClientStreamReader =
+        this.createS3AALClientStreamReader(s3ClientKind, AALInputStreamConfigurationKind)) {
+
+      // First stream
+      S3SeekableInputStream stream = s3AALClientStreamReader.createReadStream(s3Object);
+      Crc32CChecksum firstChecksum = calculateCRC32C(stream, (int) s3Object.getSize());
+
+      S3URI s3URI =
+          s3Object.getObjectUri(this.getS3ExecutionContext().getConfiguration().getBaseUri());
+      S3AsyncClient s3Client = this.getS3ExecutionContext().getS3Client();
+
+      // Change the file content
+      s3Client
+          .putObject(
+              x -> x.bucket(s3URI.getBucket()).key(s3URI.getKey()),
+              AsyncRequestBody.fromBytes(generateRandomBytes((int) s3Object.getSize())))
+          .join();
+
+      // Create second stream
+      S3SeekableInputStream secondStream = s3AALClientStreamReader.createReadStream(s3Object);
+      Crc32CChecksum secondChecksum = calculateCRC32C(secondStream, (int) s3Object.getSize());
+
+      if (s3Object.getSize() < 8 * ONE_MB) {
+        // For small files, checksums should match as data should come from cache
+        assertChecksums(firstChecksum, secondChecksum);
+      } else {
+        // For large files, checksums should be different as second read gets new content
+        assertNotEquals(
+            firstChecksum.getChecksumBytes(),
+            secondChecksum.getChecksumBytes(),
+            "For large files, checksums should be different after file modification");
+      }
     }
   }
 

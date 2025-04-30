@@ -22,9 +22,9 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import lombok.NonNull;
-import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
@@ -39,6 +39,7 @@ import software.amazon.s3.analyticsaccelerator.request.StreamContext;
 import software.amazon.s3.analyticsaccelerator.util.BlockMetricsHandler;
 import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
+import software.amazon.s3.analyticsaccelerator.util.ObjectSize;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
 /** Implements a Block Manager responsible for planning and scheduling reads on a key. */
@@ -115,61 +116,25 @@ public class BlockManager implements Closeable {
     this.rangeOptimiser = new RangeOptimiser(configuration);
     this.streamContext = streamContext;
 
-    initializeBlockManager();
+    prefetchSmallObject();
   }
 
   /**
    * Initializes the BlockManager with small object prefetching if applicable. This is done
    * asynchronously to avoid blocking the constructor.
    */
-  private void initializeBlockManager() {
-    if (isSmallObject()) {
+  private void prefetchSmallObject() {
+    if (ObjectSize.isSmallObject(configuration, metadata.getContentLength())) {
       CompletableFuture.runAsync(
           () -> {
             try {
-              prefetchSmallObject();
+              makeRangeAvailable(0, metadata.getContentLength(), ReadMode.SMALL_OBJECT_PREFETCH);
             } catch (IOException e) {
-              LOG.warn(
+              LOG.debug(
                   "Failed to prefetch small object for key: {}", objectKey.getS3URI().getKey(), e);
-              telemetry.measureStandard(
-                  () ->
-                      Operation.builder()
-                          .name("block.manager.small.object.prefetch.failure")
-                          .attribute(StreamAttributes.uri(this.objectKey.getS3URI()))
-                          .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
-                          .build(),
-                  () -> {
-                    throw new RuntimeException("Small object prefetch failed", e);
-                  });
             }
           });
     }
-  }
-
-  /**
-   * Checks if the current object qualifies as a small object based on configuration.
-   *
-   * @return true if the object should be treated as a small object
-   */
-  private boolean isSmallObject() {
-    return configuration.isSmallObjectsPrefetchingEnabled()
-        && metadata.getContentLength() <= configuration.getSmallObjectSizeThreshold();
-  }
-
-  /**
-   * Prefetches the entire object if it's identified as a small object.
-   *
-   * @throws IOException if an I/O error occurs during prefetching
-   */
-  private void prefetchSmallObject() throws IOException {
-    this.telemetry.measureStandard(
-        () ->
-            Operation.builder()
-                .name(OPERATION_SMALL_OBJECT_PREFETCH)
-                .attribute(StreamAttributes.uri(this.objectKey.getS3URI()))
-                .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
-                .build(),
-        () -> makeRangeAvailable(0, metadata.getContentLength(), ReadMode.ASYNC));
   }
 
   /**

@@ -42,7 +42,7 @@ public class PhysicalIOConfiguration {
   private static final long DEFAULT_BLOCK_READ_TIMEOUT = 30_000;
   private static final int DEFAULT_BLOCK_READ_RETRY_COUNT = 20;
   private static final boolean DEFAULT_SMALL_OBJECTS_PREFETCHING_ENABLED = true;
-  private static final long DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD = 3 * ONE_MB;
+  private static final long DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD = 8 * ONE_MB;
 
   /** Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_CAPACITY_BLOB_STORE} by default. */
   @Builder.Default private int blobStoreCapacity = DEFAULT_CAPACITY_BLOB_STORE;
@@ -152,7 +152,7 @@ public class PhysicalIOConfiguration {
         .smallObjectsPrefetchingEnabled(
             configuration.getBoolean(SMALL_OBJECTS_PREFETCHING_ENABLED_KEY, true))
         .smallObjectSizeThreshold(
-            configuration.getLong(SMALL_OBJECT_SIZE_THRESHOLD_KEY, 3 * ONE_MB))
+            configuration.getLong(SMALL_OBJECT_SIZE_THRESHOLD_KEY, 8 * ONE_MB))
         .build();
   }
 
