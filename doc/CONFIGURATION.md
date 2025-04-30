@@ -40,22 +40,26 @@ spark.sql.catalog.spark_catalog.s3.analytics-accelerator.useragentprefix=my-appl
 ## Logical IO Configuration
 Options under `<CONNECTOR_PREFIX>.logicalio.`
 
-| Option                                | Default               | Description                                                                |
-|---------------------------------------|-----------------------|----------------------------------------------------------------------------|
-| `prefetch.footer.enabled`             | `true`                | Controls whether footer prefetching is enabled                             |
-| `prefetch.page.index.enabled`         | `true`                | Controls whether page index prefetching is enabled                         |
-| `use.format.specific.io`              | `true`                | Controls whether to use format-specific LogicalIO implementations          |
-| `prefetch.file.metadata.size`         | `32KB`                | Size of metadata to prefetch for regular files                             |
-| `prefetch.large.file.metadata.size`   | `1MB`                 | Size of metadata to prefetch for large files                               |
-| `prefetch.file.page.index.size`       | `1MB`                 | Size of page index to prefetch for regular files                           |
-| `prefetch.large.file.page.index.size` | `8MB`                 | Size of page index to prefetch for large files                             |
-| `large.file.size`                     | `1GB`                 | Threshold to consider a file as large                                      |
-| `small.objects.prefetching.enabled`   | `true`                | Controls prefetching for small objects                                     |
-| `small.object.size.threshold`         | `3MB`                 | Size threshold for small object prefetching                                |
-| `parquet.metadata.store.size`         | `45`                  | Size of the parquet metadata store                                         |
-| `max.column.access.store.size`        | `15`                  | Maximum size of column access store                                        |
-| `parquet.format.selector.regex`       | `^.*.(parquet\|par)$` | Regex pattern to identify parquet files                                    |
-| `prefetching.mode`                    | `ROW_GROUP`           | Prefetching mode (valid values: `OFF`, `ALL`, `ROW_GROUP`, `COLUMN_BOUND`) |
+| Option                                   | Default               | Description                                                                           |
+|------------------------------------------|-----------------------|---------------------------------------------------------------------------------------|
+| `prefetch.footer.enabled`                | `true`                | Controls whether footer prefetching is enabled                                        |
+| `prefetch.page.index.enabled`            | `true`                | Controls whether page index prefetching is enabled                                    |
+| `use.format.specific.io`                 | `true`                | Controls whether to use format-specific LogicalIO implementations                     |
+| `prefetch.file.metadata.size`            | `32KB`                | Size of metadata to prefetch for regular files                                        |
+| `prefetch.large.file.metadata.size`      | `1MB`                 | Size of metadata to prefetch for large files                                          |
+| `prefetch.file.page.index.size`          | `1MB`                 | Size of page index to prefetch for regular files                                      |
+| `prefetch.large.file.page.index.size`    | `8MB`                 | Size of page index to prefetch for large files                                        |
+| `large.file.size`                        | `1GB`                 | Threshold to consider a file as large                                                 |
+| `small.objects.prefetching.enabled`      | `true`                | Controls prefetching for small objects                                                |
+| `small.object.size.threshold`            | `3MB`                 | Size threshold for small object prefetching                                           |
+| `parquet.metadata.store.size`            | `45`                  | Size of the parquet metadata store                                                    |
+| `max.column.access.store.size`           | `15`                  | Maximum size of column access store                                                   |
+| `partition.size`                         | `128MB`               | Size of partition for prefetching data in sequential access formats (csv, json, txt)  |
+| `parquet.format.selector.regex`          | `^.*.(parquet\|par)$` | Regex pattern to identify parquet files                                               |
+| `csv.format.selector.regex`              | `^.*\\.(csv\|CSV)$`   | Regex pattern to identify csv files                                                   |
+| `json.format.selector.regex`             | `^.*\\.(json\|JSON)$` | Regex pattern to identify json files                                                  |
+| `txt.format.selector.regex`              | `^.*\\.(txt\|TXT)$`   | Regex pattern to identify txt files                                                   |
+| `prefetching.mode`                       | `ROW_GROUP`           | Prefetching mode (valid values: `OFF`, `ALL`, `ROW_GROUP`, `COLUMN_BOUND`)            |
 
 ## Physical IO Configuration
 Options under `<CONNECTOR_PREFIX>.physicalio.`
