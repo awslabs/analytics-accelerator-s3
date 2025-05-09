@@ -1,3 +1,17 @@
+## v1.1.0 (May 09, 2025)
+
+* feat: Memory Manager https://github.com/awslabs/analytics-accelerator-s3/pull/251
+* feat: Added new metrics like memory usage and cache hit/miss https://github.com/awslabs/analytics-accelerator-s3/pull/257
+* feat: Read optimisations for sequential file formats https://github.com/awslabs/analytics-accelerator-s3/pull/238
+* Improved integration test documentation https://github.com/awslabs/analytics-accelerator-s3/pull/260
+* Added config to use format-specific LogicalIO implementations https://github.com/awslabs/analytics-accelerator-s3/pull/259
+* Reduced waiting time and retry on GrayTest https://github.com/awslabs/analytics-accelerator-s3/pull/256
+* fix: Failing ref tests https://github.com/awslabs/analytics-accelerator-s3/pull/255
+* fix: Setting log path for telemetry https://github.com/awslabs/analytics-accelerator-s3/pull/252
+* Added some debug logs https://github.com/awslabs/analytics-accelerator-s3/pull/250
+* Reduced default block read timeout to 30 seconds https://github.com/awslabs/analytics-accelerator-s3/pull/249
+* Enabled Iceberg unit-tests https://github.com/awslabs/analytics-accelerator-s3/pull/245
+
 ## v1.0.0 (March 04, 2025)
 
 * Adds retrying of block reads https://github.com/awslabs/analytics-accelerator-s3/pull/229
