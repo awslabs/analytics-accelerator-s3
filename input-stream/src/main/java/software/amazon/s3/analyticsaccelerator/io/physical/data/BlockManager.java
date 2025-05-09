@@ -24,6 +24,7 @@ import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
+import software.amazon.s3.analyticsaccelerator.io.physical.Cache;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.SequentialPatternDetector;
 import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.SequentialReadProgression;
@@ -47,6 +48,7 @@ public class BlockManager implements Closeable {
   private final IOPlanner ioPlanner;
   private final PhysicalIOConfiguration configuration;
   private final RangeOptimiser rangeOptimiser;
+  private final Cache cache;
   private StreamContext streamContext;
 
   private static final String OPERATION_MAKE_RANGE_AVAILABLE = "block.manager.make.range.available";
@@ -66,7 +68,7 @@ public class BlockManager implements Closeable {
       @NonNull ObjectMetadata metadata,
       @NonNull Telemetry telemetry,
       @NonNull PhysicalIOConfiguration configuration) {
-    this(objectKey, objectClient, metadata, telemetry, configuration, null);
+    this(objectKey, objectClient, metadata, telemetry, configuration, null, null);
   }
 
   /**
@@ -78,6 +80,7 @@ public class BlockManager implements Closeable {
    * @param metadata the metadata for the object
    * @param configuration the physicalIO configuration
    * @param streamContext contains audit headers to be attached in the request header
+   * @param cache an instance of {@link Cache} to use
    */
   public BlockManager(
       @NonNull ObjectKey objectKey,
@@ -85,12 +88,14 @@ public class BlockManager implements Closeable {
       @NonNull ObjectMetadata metadata,
       @NonNull Telemetry telemetry,
       @NonNull PhysicalIOConfiguration configuration,
+      Cache cache,
       StreamContext streamContext) {
     this.objectKey = objectKey;
     this.objectClient = objectClient;
     this.metadata = metadata;
     this.telemetry = telemetry;
     this.configuration = configuration;
+    this.cache = cache;
     this.blockStore = new BlockStore(objectKey, metadata);
     this.patternDetector = new SequentialPatternDetector(blockStore);
     this.sequentialReadProgression = new SequentialReadProgression(configuration);
@@ -209,6 +214,9 @@ public class BlockManager implements Closeable {
                     readMode,
                     this.configuration.getBlockReadTimeout(),
                     this.configuration.getBlockReadRetryCount(),
+                    metadata.getContentLength(),
+                    this.configuration.isEnableTailMetadataCaching(),
+                    cache,
                     streamContext);
             blockStore.add(block);
           }

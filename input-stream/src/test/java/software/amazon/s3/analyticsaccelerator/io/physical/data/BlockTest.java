@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
+import software.amazon.s3.analyticsaccelerator.io.physical.Cache;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
@@ -116,8 +117,7 @@ public class BlockTest {
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                null));
+                DEFAULT_READ_RETRY_COUNT));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -130,8 +130,7 @@ public class BlockTest {
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                null));
+                DEFAULT_READ_RETRY_COUNT));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -144,8 +143,7 @@ public class BlockTest {
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                null));
+                DEFAULT_READ_RETRY_COUNT));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -158,8 +156,7 @@ public class BlockTest {
                 0,
                 null,
                 DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                null));
+                DEFAULT_READ_RETRY_COUNT));
   }
 
   @Test
@@ -178,8 +175,7 @@ public class BlockTest {
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                null));
+                DEFAULT_READ_RETRY_COUNT));
     assertThrows(
         IllegalArgumentException.class,
         () ->
@@ -192,8 +188,7 @@ public class BlockTest {
                 0,
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                null));
+                DEFAULT_READ_RETRY_COUNT));
     assertThrows(
         IllegalArgumentException.class,
         () ->
@@ -232,8 +227,7 @@ public class BlockTest {
                 TEST_DATA.length(),
                 ReadMode.SYNC,
                 DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                null));
+                DEFAULT_READ_RETRY_COUNT));
   }
 
   @SneakyThrows
@@ -338,5 +332,75 @@ public class BlockTest {
             DEFAULT_READ_RETRY_COUNT);
     block.close();
     block.close();
+  }
+
+  @Test
+  void testCacheHitForTailMetadata() throws IOException {
+    String TEST_DATA = "test-data";
+    ObjectClient mockObjectClient = mock(ObjectClient.class);
+    Cache mockCache = mock(Cache.class);
+
+    //    simulate cache hit
+    when(mockCache.get(any())).thenReturn(TEST_DATA.getBytes(StandardCharsets.UTF_8));
+
+    Block block =
+        new Block(
+            objectKey,
+            mockObjectClient,
+            TestTelemetry.DEFAULT,
+            0,
+            TEST_DATA.length(),
+            0,
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT,
+            0,
+            true,
+            mockCache,
+            null);
+
+    byte[] buffer = new byte[TEST_DATA.length()];
+    block.read(buffer, 0, buffer.length, 0);
+
+    assertEquals(TEST_DATA, new String(buffer, StandardCharsets.UTF_8));
+
+    verify(mockCache).get(any());
+
+    verify(mockObjectClient, never()).getObject(any(), any());
+  }
+
+  @Test
+  void testCacheMissForTailMetadata() throws IOException {
+    final String TEST_DATA = "test-data";
+    ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
+    Cache mockCache = mock(Cache.class);
+
+    //    simulate cache miss
+    when(mockCache.get(any())).thenReturn(null);
+
+    Block block =
+        new Block(
+            objectKey,
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            0,
+            TEST_DATA.length(),
+            0,
+            ReadMode.SYNC,
+            DEFAULT_READ_TIMEOUT,
+            DEFAULT_READ_RETRY_COUNT,
+            0,
+            true,
+            mockCache,
+            null);
+
+    byte[] buffer = new byte[TEST_DATA.length()];
+    block.read(buffer, 0, buffer.length, 0);
+
+    assertEquals(TEST_DATA, new String(buffer, StandardCharsets.UTF_8));
+
+    verify(mockCache).get(any());
+
+    verify(mockCache).set(any(), any());
   }
 }

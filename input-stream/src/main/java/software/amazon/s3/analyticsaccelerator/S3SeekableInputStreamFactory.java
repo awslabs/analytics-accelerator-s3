@@ -27,9 +27,11 @@ import software.amazon.s3.analyticsaccelerator.io.logical.impl.DefaultLogicalIOI
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetColumnPrefetchStore;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.SequentialLogicalIOImpl;
+import software.amazon.s3.analyticsaccelerator.io.physical.Cache;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
+import software.amazon.s3.analyticsaccelerator.io.physical.impl.ValkeyCacheImpl;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.util.ObjectFormatSelector;
@@ -51,6 +53,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   private final S3SeekableInputStreamConfiguration configuration;
   private final ParquetColumnPrefetchStore parquetColumnPrefetchStore;
   private final MetadataStore objectMetadataStore;
+  private final Cache cache;
   private final BlobStore objectBlobStore;
   private final Telemetry telemetry;
   private final ObjectFormatSelector objectFormatSelector;
@@ -68,7 +71,6 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   public S3SeekableInputStreamFactory(
       @NonNull ObjectClient objectClient,
       @NonNull S3SeekableInputStreamConfiguration configuration) {
-    LOG.debug("Initializing S3SeekableInputStreamFactory with configuration: {}", configuration);
     this.configuration = configuration;
     this.telemetry = Telemetry.createTelemetry(configuration.getTelemetryConfiguration());
     this.parquetColumnPrefetchStore =
@@ -76,8 +78,19 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
     this.objectMetadataStore =
         new MetadataStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration());
     this.objectFormatSelector = new ObjectFormatSelector(configuration.getLogicalIOConfiguration());
+    if (configuration.getPhysicalIOConfiguration().isEnableTailMetadataCaching()) {
+      this.cache =
+          new ValkeyCacheImpl(configuration.getPhysicalIOConfiguration().getCacheEndpoint());
+      LOG.info("Cache successfully instantiated");
+      LOG.info(configuration.getPhysicalIOConfiguration().getCacheEndpoint());
+
+    } else {
+      LOG.info("Cache disabled");
+
+      this.cache = null;
+    }
     this.objectBlobStore =
-        new BlobStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration());
+        new BlobStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration(), cache);
   }
 
   /**
@@ -180,5 +193,8 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
     this.objectMetadataStore.close();
     this.objectBlobStore.close();
     this.telemetry.close();
+    if (cache instanceof ValkeyCacheImpl) {
+      ((ValkeyCacheImpl) cache).close();
+    }
   }
 }

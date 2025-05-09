@@ -10,7 +10,7 @@ import com.github.jk1.license.render.TextReportRenderer
 
 val group = "software.amazon.s3.analyticsaccelerator"
 val artefact = "analyticsaccelerator-s3"
-val currentVersionNumber = "1.0.0"
+val currentVersionNumber = "2.0.0"
 
 val isSnapshot = findProperty("snapshotBuild") == "true"
 val currentVersion = if (isSnapshot) "SNAPSHOT" else currentVersionNumber;
@@ -72,6 +72,7 @@ dependencies {
     implementation(project(":common"))
     implementation(libs.parquet.format)
     implementation(libs.slf4j.api)
+    implementation("io.valkey:valkey-java:5.3.0")
 
     jmhImplementation(libs.s3)
     jmhImplementation(libs.s3.transfer.manager)
@@ -148,8 +149,6 @@ val shadowJar = tasks.withType<ShadowJar> {
 }
 
 val refTest = task<Test>("referenceTest") {
-    maxHeapSize = "2g"
-    jvmArgs = listOf("-Xms1g", "-Xmx2g")
     description = "Runs reference tests."
     group = "verification"
 
@@ -375,10 +374,10 @@ publishing {
         maven {
             name = "sonatype"
             url = uri("https://aws.oss.sonatype.org/service/local/staging/deploy/maven2/")
-           credentials {
-               username = findProperty("mavenUsername") as String? ?: ""
-               password = findProperty("mavenPassword") as String? ?: ""
-           }
+            credentials {
+                username = findProperty("mavenUsername") as String? ?: ""
+                password = findProperty("mavenPassword") as String? ?: ""
+            }
         }
     }
 }

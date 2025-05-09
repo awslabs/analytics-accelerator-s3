@@ -41,6 +41,9 @@ public class PhysicalIOConfiguration {
   private static final double DEFAULT_SEQUENTIAL_PREFETCH_SPEED = 1.0;
   private static final long DEFAULT_BLOCK_READ_TIMEOUT = 30_000;
   private static final int DEFAULT_BLOCK_READ_RETRY_COUNT = 20;
+  private static final boolean DEFAULT_ENABLE_TAIL_METADATA_CACHING = false;
+  //  TODO: find a way to pass the cache endpoint down without hardcoding
+  private static final String DEFAULT_CACHE_ENDPOINT = "";
 
   /** Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_CAPACITY_BLOB_STORE} by default. */
   @Builder.Default private int blobStoreCapacity = DEFAULT_CAPACITY_BLOB_STORE;
@@ -105,6 +108,16 @@ public class PhysicalIOConfiguration {
 
   private static final String BLOCK_READ_RETRY_COUNT_KEY = "blockreadretrycount";
 
+  /** Enable tail metadata caching with ElastiCache */
+  @Builder.Default private boolean enableTailMetadataCaching = DEFAULT_ENABLE_TAIL_METADATA_CACHING;
+
+  private static final String ENABLE_TAIL_METADATA_CACHING_KEY = "cache.enabled";
+
+  /** ElastiCache endpoint */
+  @Builder.Default private String cacheEndpoint = DEFAULT_CACHE_ENDPOINT;
+
+  private static final String CACHE_ENDPOINT_KEY = "cache.endpoint";
+
   /** Default set of settings for {@link PhysicalIO} */
   public static final PhysicalIOConfiguration DEFAULT = PhysicalIOConfiguration.builder().build();
 
@@ -132,6 +145,10 @@ public class PhysicalIOConfiguration {
         .blockReadTimeout(configuration.getLong(BLOCK_READ_TIMEOUT_KEY, DEFAULT_BLOCK_READ_TIMEOUT))
         .blockReadRetryCount(
             configuration.getInt(BLOCK_READ_RETRY_COUNT_KEY, DEFAULT_BLOCK_READ_RETRY_COUNT))
+        .enableTailMetadataCaching(
+            configuration.getBoolean(
+                ENABLE_TAIL_METADATA_CACHING_KEY, DEFAULT_ENABLE_TAIL_METADATA_CACHING))
+        .cacheEndpoint(configuration.getString(CACHE_ENDPOINT_KEY, DEFAULT_CACHE_ENDPOINT))
         .build();
   }
 
@@ -150,6 +167,8 @@ public class PhysicalIOConfiguration {
    *     prefetched physical blocks.
    * @param blockReadTimeout Timeout duration (in milliseconds) for reading a block object from S3
    * @param blockReadRetryCount Number of retries for block read failure
+   * @param enableTailMetadataCaching Boolean flag to enable or disable tail metadata caching
+   * @param cacheEndpoint The endpoint of the ElastiCache cache in use
    */
   @Builder
   private PhysicalIOConfiguration(
@@ -162,7 +181,9 @@ public class PhysicalIOConfiguration {
       double sequentialPrefetchBase,
       double sequentialPrefetchSpeed,
       long blockReadTimeout,
-      int blockReadRetryCount) {
+      int blockReadRetryCount,
+      boolean enableTailMetadataCaching,
+      String cacheEndpoint) {
     Preconditions.checkArgument(blobStoreCapacity > 0, "`blobStoreCapacity` must be positive");
     Preconditions.checkArgument(
         metadataStoreCapacity > 0, "`metadataStoreCapacity` must be positive");
@@ -177,6 +198,12 @@ public class PhysicalIOConfiguration {
     Preconditions.checkArgument(blockReadTimeout > 0, "`blockReadTimeout` must be positive");
     Preconditions.checkArgument(blockReadRetryCount > 0, "`blockReadRetryCount` must be positive");
 
+    if (enableTailMetadataCaching) {
+      Preconditions.checkArgument(
+          cacheEndpoint != null && !cacheEndpoint.isEmpty(),
+          "`cacheEndpoint` must be set when tail metadata caching is enabled");
+    }
+
     this.blobStoreCapacity = blobStoreCapacity;
     this.metadataStoreCapacity = metadataStoreCapacity;
     this.blockSizeBytes = blockSizeBytes;
@@ -187,6 +214,8 @@ public class PhysicalIOConfiguration {
     this.sequentialPrefetchSpeed = sequentialPrefetchSpeed;
     this.blockReadTimeout = blockReadTimeout;
     this.blockReadRetryCount = blockReadRetryCount;
+    this.enableTailMetadataCaching = enableTailMetadataCaching;
+    this.cacheEndpoint = cacheEndpoint;
   }
 
   @Override
@@ -204,6 +233,10 @@ public class PhysicalIOConfiguration {
     builder.append("\tsequentialPrefetchSpeed: " + sequentialPrefetchSpeed + "\n");
     builder.append("\tblockReadTimeout: " + blockReadTimeout + "\n");
     builder.append("\tblockReadRetryCount: " + blockReadRetryCount + "\n");
+    builder.append("\tenableTailMetadataCaching: " + enableTailMetadataCaching + "\n");
+    if (enableTailMetadataCaching) {
+      builder.append("\tcacheEndpoint: " + cacheEndpoint + "\n");
+    }
 
     return builder.toString();
   }

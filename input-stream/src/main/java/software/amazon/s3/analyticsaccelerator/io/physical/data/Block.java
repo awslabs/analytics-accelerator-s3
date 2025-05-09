@@ -15,8 +15,11 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
+import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_MB;
+
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
 import lombok.Getter;
@@ -27,6 +30,7 @@ import software.amazon.s3.analyticsaccelerator.S3SdkObjectClient;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
+import software.amazon.s3.analyticsaccelerator.io.physical.Cache;
 import software.amazon.s3.analyticsaccelerator.request.GetRequest;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectContent;
@@ -54,6 +58,9 @@ public class Block implements Closeable {
   private final Referrer referrer;
   private final long readTimeout;
   private final int readRetryCount;
+  private final long contentLength;
+  private final boolean enableTailMetadataCaching;
+  private static Cache cache;
 
   @Getter private final long start;
   @Getter private final long end;
@@ -99,6 +106,9 @@ public class Block implements Closeable {
         readMode,
         readTimeout,
         readRetryCount,
+        0,
+        false,
+        null,
         null);
   }
 
@@ -114,6 +124,9 @@ public class Block implements Closeable {
    * @param readMode read mode describing whether this is a sync or async fetch
    * @param readTimeout Timeout duration (in milliseconds) for reading a block object from S3
    * @param readRetryCount Number of retries for block read failure
+   * @param contentLength Length of the parquet file
+   * @param enableTailMetadataCaching Boolean flag to enable or disable tail metadata caching
+   * @param cache an instance of {@link Cache} to use
    * @param streamContext contains audit headers to be attached in the request header
    */
   public Block(
@@ -126,6 +139,9 @@ public class Block implements Closeable {
       @NonNull ReadMode readMode,
       long readTimeout,
       int readRetryCount,
+      long contentLength,
+      boolean enableTailMetadataCaching,
+      Cache cache,
       StreamContext streamContext)
       throws IOException {
 
@@ -152,6 +168,12 @@ public class Block implements Closeable {
     this.referrer = new Referrer(range.toHttpString(), readMode);
     this.readTimeout = readTimeout;
     this.readRetryCount = readRetryCount;
+    this.contentLength = contentLength;
+    this.enableTailMetadataCaching = enableTailMetadataCaching;
+
+    if (enableTailMetadataCaching && Block.cache == null && cache != null) {
+      Block.cache = cache;
+    }
 
     generateSourceAndData();
   }
@@ -159,8 +181,39 @@ public class Block implements Closeable {
   /** Method to help construct source and data */
   private void generateSourceAndData() throws IOException {
     int retries = 0;
-    while (retries < this.readRetryCount) {
+    while (retries < readRetryCount) {
       try {
+        if (enableTailMetadataCaching && isTailMetadata() && cache != null) {
+          String cacheKey = generateCacheKey();
+
+          long cacheGetStartTime = System.nanoTime();
+
+          byte[] cachedData = Block.cache.get(cacheKey.getBytes(StandardCharsets.UTF_8));
+
+          long cacheGetDuration = System.nanoTime() - cacheGetStartTime;
+          double cacheGetMsDuration = cacheGetDuration / 1_000_000.0;
+
+          if (cachedData != null) {
+            LOG.info(
+                "Cache hit for tail metadata: {}. Request took: {}ms, start = {}, end = {}.",
+                cacheKey,
+                String.format("%.2f", cacheGetMsDuration),
+                range.getStart(),
+                range.getEnd());
+
+            data = CompletableFuture.completedFuture(cachedData);
+            return;
+
+          } else {
+            LOG.info(
+                "Cache miss for tail metadata: {}. Request took: {}ms, start = {}, end = {}.",
+                cacheKey,
+                String.format("%.2f", cacheGetMsDuration),
+                range.getStart(),
+                range.getEnd());
+          }
+        }
+
         GetRequest getRequest =
             GetRequest.builder()
                 .s3Uri(this.objectKey.getS3URI())
@@ -186,8 +239,41 @@ public class Block implements Closeable {
             this.source.thenApply(
                 objectContent -> {
                   try {
-                    return StreamUtils.toByteArray(
-                        objectContent, this.objectKey, this.range, this.readTimeout);
+                    long s3GetStartTime = System.nanoTime();
+
+                    byte[] fetchedData =
+                        StreamUtils.toByteArray(
+                            objectContent, this.objectKey, this.range, this.readTimeout);
+
+                    long s3GetDuration = System.nanoTime() - s3GetStartTime;
+                    double s3GetMsDuration = s3GetDuration / 1_000_000.0;
+
+                    LOG.info(
+                        "S3 GET request for: {}. Request took: {}ms, start = {}, end = {}.",
+                        this.objectKey.getS3URI(),
+                        String.format("%.2f", s3GetMsDuration),
+                        range.getStart(),
+                        range.getEnd());
+
+                    if (enableTailMetadataCaching && this.isTailMetadata() && Block.cache != null) {
+                      String cacheKey = generateCacheKey();
+
+                      long cacheSetStartTime = System.nanoTime();
+
+                      Block.cache.set(cacheKey.getBytes(StandardCharsets.UTF_8), fetchedData);
+
+                      long cacheSetDuration = System.nanoTime() - cacheSetStartTime;
+                      double cacheSetMsDuration = cacheSetDuration / 1_000_000.0;
+
+                      LOG.info(
+                          "Cached tail metadata: {}. Cache set took: {}ms, start = {}, end = {}.",
+                          cacheKey,
+                          String.format("%.2f", cacheSetMsDuration),
+                          range.getStart(),
+                          range.getEnd());
+                    }
+
+                    return fetchedData;
                   } catch (IOException | TimeoutException e) {
                     throw new RuntimeException(
                         "Error while converting InputStream to byte array", e);
@@ -329,5 +415,25 @@ public class Block implements Closeable {
   public void close() {
     // Only the source needs to be canceled, the continuation will cancel on its own
     this.source.cancel(false);
+  }
+
+  /**
+   * Checks if the current block is a tail block.
+   *
+   * @return true if the current block is a tail block, false otherwise
+   */
+  private boolean isTailMetadata() {
+    /** hardcoded right now such that ONE_MB matches DEFAULT_PREFETCH_LARGE_FILE_METADATA_SIZE */
+    //    TODO: find a way to adjust this dynamically instead of just using ONE_MB (if necessary)
+    return start + 8 * ONE_MB + 8 * ONE_MB >= contentLength;
+  }
+
+  /**
+   * Creates a cache key for the current block.
+   *
+   * @return cache key for the current block in the format "{s3Uri}#{etag}#{range}"
+   */
+  private String generateCacheKey() {
+    return objectKey.getS3URI() + "#" + objectKey.getEtag() + "#" + range;
   }
 }
