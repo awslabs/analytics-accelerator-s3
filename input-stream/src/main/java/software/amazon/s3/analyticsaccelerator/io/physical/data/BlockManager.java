@@ -26,7 +26,6 @@ import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
-import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.SequentialPatternDetector;
 import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.SequentialReadProgression;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
@@ -42,7 +41,6 @@ public class BlockManager implements Closeable {
   private final BlockStore blockStore;
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
-  private final SequentialPatternDetector patternDetector;
   private final SequentialReadProgression sequentialReadProgression;
   private final IOPlanner ioPlanner;
   private final PhysicalIOConfiguration configuration;
@@ -111,7 +109,6 @@ public class BlockManager implements Closeable {
     this.aggregatingMetrics = aggregatingMetrics;
     this.indexCache = indexCache;
     this.blockStore = new BlockStore(objectKey, metadata, aggregatingMetrics, indexCache);
-    this.patternDetector = new SequentialPatternDetector(blockStore);
     this.sequentialReadProgression = new SequentialReadProgression(configuration);
     this.ioPlanner = new IOPlanner(blockStore);
     this.rangeOptimiser = new RangeOptimiser(configuration);
@@ -194,14 +191,15 @@ public class BlockManager implements Closeable {
     // TODO: Improve readModes, as tracked in
     // https://github.com/awslabs/analytics-accelerator-s3/issues/195
     final long generation;
-    if (readMode != ReadMode.ASYNC && patternDetector.isSequentialRead(pos)) {
-      generation = patternDetector.getGeneration(pos);
+    if (readMode == ReadMode.ASYNC || pos == 0) {
+      generation = 0;
+    } else {
+      // Check if it is sequential pattern
+      generation = blockStore.getBlock(pos - 1).map(block -> block.getGeneration() + 1).orElse(0L);
       effectiveEnd =
           Math.max(
               effectiveEnd,
               truncatePos(pos + sequentialReadProgression.getSizeForGeneration(generation)));
-    } else {
-      generation = 0;
     }
 
     // Fix "effectiveEnd", so we can pass it into the lambda
