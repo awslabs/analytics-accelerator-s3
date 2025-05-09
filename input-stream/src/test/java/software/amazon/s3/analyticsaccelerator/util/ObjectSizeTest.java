@@ -35,13 +35,14 @@ class ObjectSizeTest {
 
   @Test
   void testUtilityClass() throws Exception {
-    Constructor<ObjectSize> constructor = ObjectSize.class.getDeclaredConstructor();
+    Constructor<AnalayticsAcceleratorUtils> constructor =
+        AnalayticsAcceleratorUtils.class.getDeclaredConstructor();
 
     constructor.newInstance();
 
     // Verify all methods are static
     assertTrue(
-        Arrays.stream(ObjectSize.class.getDeclaredMethods())
+        Arrays.stream(AnalayticsAcceleratorUtils.class.getDeclaredMethods())
             .allMatch(method -> Modifier.isStatic(method.getModifiers())),
         "All methods in utility class should be static");
   }
@@ -55,7 +56,7 @@ class ObjectSizeTest {
 
     // When/Then
     assertTrue(
-        ObjectSize.isSmallObject(configuration, contentLength),
+        AnalayticsAcceleratorUtils.isSmallObject(configuration, contentLength),
         "5MB object should be considered small when threshold is 8MB");
   }
 
@@ -68,7 +69,7 @@ class ObjectSizeTest {
 
     // When/Then
     assertFalse(
-        ObjectSize.isSmallObject(configuration, contentLength),
+        AnalayticsAcceleratorUtils.isSmallObject(configuration, contentLength),
         "10MB object should not be considered small when threshold is 8MB");
   }
 }

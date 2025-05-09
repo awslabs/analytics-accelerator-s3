@@ -36,10 +36,10 @@ import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
+import software.amazon.s3.analyticsaccelerator.util.AnalayticsAcceleratorUtils;
 import software.amazon.s3.analyticsaccelerator.util.BlockMetricsHandler;
 import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
-import software.amazon.s3.analyticsaccelerator.util.ObjectSize;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
 /** Implements a Block Manager responsible for planning and scheduling reads on a key. */
@@ -58,8 +58,6 @@ public class BlockManager implements Closeable {
   private final Metrics blobMetrics;
   private final BlockMetricsHandler metricsHandler;
   private static final String OPERATION_MAKE_RANGE_AVAILABLE = "block.manager.make.range.available";
-  private static final String OPERATION_SMALL_OBJECT_PREFETCH =
-      "block.manager.small.object.prefetch";
 
   private static final Logger LOG = LoggerFactory.getLogger(BlockManager.class);
 
@@ -124,7 +122,7 @@ public class BlockManager implements Closeable {
    * asynchronously to avoid blocking the constructor.
    */
   private void prefetchSmallObject() {
-    if (ObjectSize.isSmallObject(configuration, metadata.getContentLength())) {
+    if (AnalayticsAcceleratorUtils.isSmallObject(configuration, metadata.getContentLength())) {
       CompletableFuture.runAsync(
           () -> {
             try {

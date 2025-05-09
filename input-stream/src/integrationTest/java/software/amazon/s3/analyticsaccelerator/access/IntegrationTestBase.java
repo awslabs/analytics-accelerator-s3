@@ -335,6 +335,7 @@ public abstract class IntegrationTestBase extends ExecutionBase {
    * @param AALInputStreamConfigurationKind the configuration for the input stream
    * @throws IOException if an I/O error occurs during the test
    */
+  // TODO: Update test to assert on GET request metrics once we have them
   protected void testSmallObjectPrefetching(
       @NonNull S3ClientKind s3ClientKind,
       @NonNull S3Object s3Object,

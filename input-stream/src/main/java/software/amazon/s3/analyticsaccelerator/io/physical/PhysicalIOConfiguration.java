@@ -150,9 +150,11 @@ public class PhysicalIOConfiguration {
         .blockReadRetryCount(
             configuration.getInt(BLOCK_READ_RETRY_COUNT_KEY, DEFAULT_BLOCK_READ_RETRY_COUNT))
         .smallObjectsPrefetchingEnabled(
-            configuration.getBoolean(SMALL_OBJECTS_PREFETCHING_ENABLED_KEY, true))
+            configuration.getBoolean(
+                SMALL_OBJECTS_PREFETCHING_ENABLED_KEY, DEFAULT_SMALL_OBJECTS_PREFETCHING_ENABLED))
         .smallObjectSizeThreshold(
-            configuration.getLong(SMALL_OBJECT_SIZE_THRESHOLD_KEY, 8 * ONE_MB))
+            configuration.getLong(
+                SMALL_OBJECT_SIZE_THRESHOLD_KEY, DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD))
         .build();
   }
 
@@ -202,6 +204,8 @@ public class PhysicalIOConfiguration {
         sequentialPrefetchSpeed > 0, "`sequentialPrefetchSpeed` must be positive");
     Preconditions.checkArgument(blockReadTimeout > 0, "`blockReadTimeout` must be positive");
     Preconditions.checkArgument(blockReadRetryCount > 0, "`blockReadRetryCount` must be positive");
+    Preconditions.checkArgument(
+        smallObjectSizeThreshold > 0, "`smallObjectSizeThreshold` must be positive");
 
     this.blobStoreCapacity = blobStoreCapacity;
     this.metadataStoreCapacity = metadataStoreCapacity;
