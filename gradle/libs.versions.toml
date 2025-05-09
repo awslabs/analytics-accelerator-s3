@@ -1,6 +1,6 @@
 [versions]
 junit = "5.10.1"
-mockito = "4.11.0"
+mockito = "5.2.0"
 spotless = "6.13.0"
 spotbugs = "6.0.20"
 s3 = "2.25.31"
