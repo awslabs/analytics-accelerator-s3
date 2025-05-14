@@ -136,6 +136,29 @@ public class BlockManagerTest {
                 null,
                 mock(Metrics.class),
                 mock(BlobStoreIndexCache.class)));
+
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            new BlockManager(
+                mock(ObjectKey.class),
+                mock(ObjectClient.class),
+                mock(ObjectMetadata.class),
+                mock(Telemetry.class),
+                mock(PhysicalIOConfiguration.class),
+                null,
+                mock(BlobStoreIndexCache.class)));
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            new BlockManager(
+                mock(ObjectKey.class),
+                mock(ObjectClient.class),
+                mock(ObjectMetadata.class),
+                mock(Telemetry.class),
+                mock(PhysicalIOConfiguration.class),
+                mock(Metrics.class),
+                null));
   }
 
   @Test
@@ -223,6 +246,25 @@ public class BlockManagerTest {
     assertEquals(65_536, firstRequest.getRange().getLength());
     assertEquals(65_535, secondRequest.getRange().getLength());
     assertEquals(1, lastRequest.getRange().getLength());
+  }
+
+  @Test
+  void testMakeRangeAvailableReadsSequentiallyForGeneration() throws IOException {
+    ObjectClient objectClient = mock(ObjectClient.class);
+    BlockManager blockManager = getTestBlockManager(objectClient, 32 * ONE_MB);
+    blockManager.makePositionAvailable(0, ReadMode.SYNC);
+    blockManager.makePositionAvailable(64 * ONE_KB, ReadMode.SYNC);
+
+    ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
+    verify(objectClient, times(2)).getObject(requestCaptor.capture(), any());
+
+    GetRequest firstRequest = requestCaptor.getAllValues().get(0);
+    GetRequest secondRequest = requestCaptor.getAllValues().get(1);
+
+    assertEquals(65_536, firstRequest.getRange().getLength());
+    // Because of the sequential read progression logic, second request should be at least 4MB if
+    // the o\content length is enough
+    assertEquals(4_194_305, secondRequest.getRange().getLength());
   }
 
   @Test
