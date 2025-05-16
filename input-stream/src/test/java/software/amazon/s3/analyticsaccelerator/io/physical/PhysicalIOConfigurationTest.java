@@ -72,6 +72,7 @@ public class PhysicalIOConfigurationTest {
             + "\tsequentialPrefetchBase: 2.0\n"
             + "\tsequentialPrefetchSpeed: 1.0\n"
             + "\tblockReadTimeout: 30000\n"
-            + "\tblockReadRetryCount: 20\n");
+            + "\tblockReadRetryCount: 20\n"
+            + "\tenableTailMetadataCaching: false\n");
   }
 }

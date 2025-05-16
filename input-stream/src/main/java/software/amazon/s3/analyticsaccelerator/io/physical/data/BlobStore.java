@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
+import software.amazon.s3.analyticsaccelerator.io.physical.Cache;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
@@ -38,6 +39,7 @@ public class BlobStore implements Closeable {
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
   private final PhysicalIOConfiguration configuration;
+  private final Cache cache;
 
   /**
    * Construct an instance of BlobStore.
@@ -50,6 +52,22 @@ public class BlobStore implements Closeable {
       @NonNull ObjectClient objectClient,
       @NonNull Telemetry telemetry,
       @NonNull PhysicalIOConfiguration configuration) {
+    this(objectClient, telemetry, configuration, null);
+  }
+
+  /**
+   * Construct an instance of BlobStore with caching enabled.
+   *
+   * @param objectClient object client capable of interacting with the underlying object store
+   * @param telemetry an instance of {@link Telemetry} to use
+   * @param configuration the PhysicalIO configuration
+   * @param cache an instance of {@link Cache} to use
+   */
+  public BlobStore(
+      @NonNull ObjectClient objectClient,
+      @NonNull Telemetry telemetry,
+      @NonNull PhysicalIOConfiguration configuration,
+      Cache cache) {
     this.objectClient = objectClient;
     this.telemetry = telemetry;
     this.blobMap =
@@ -61,6 +79,7 @@ public class BlobStore implements Closeable {
               }
             });
     this.configuration = configuration;
+    this.cache = cache;
   }
 
   /**
@@ -79,7 +98,7 @@ public class BlobStore implements Closeable {
                 uri,
                 metadata,
                 new BlockManager(
-                    uri, objectClient, metadata, telemetry, configuration, streamContext),
+                    uri, objectClient, metadata, telemetry, configuration, cache, streamContext),
                 telemetry));
   }
 

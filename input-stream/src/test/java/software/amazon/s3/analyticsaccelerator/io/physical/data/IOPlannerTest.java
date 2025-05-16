@@ -53,9 +53,9 @@ public class IOPlannerTest {
     BlockStore blockStore = new BlockStore(objectKey, mockMetadataStore);
     IOPlanner ioPlanner = new IOPlanner(blockStore);
 
-    assertThrows(IllegalArgumentException.class, () -> ioPlanner.planRead(-5, 10, 100));
-    assertThrows(IllegalArgumentException.class, () -> ioPlanner.planRead(10, 5, 100));
-    assertThrows(IllegalArgumentException.class, () -> ioPlanner.planRead(5, 5, 2));
+    assertThrows(IllegalArgumentException.class, () -> ioPlanner.planRead(-5, 10, null, 100));
+    assertThrows(IllegalArgumentException.class, () -> ioPlanner.planRead(10, 5, null, 100));
+    assertThrows(IllegalArgumentException.class, () -> ioPlanner.planRead(5, 5, null, 2));
   }
 
   @Test
@@ -68,7 +68,7 @@ public class IOPlannerTest {
     IOPlanner ioPlanner = new IOPlanner(blockStore);
 
     // When: a read plan is requested for a range
-    List<Range> missingRanges = ioPlanner.planRead(10, 100, OBJECT_SIZE - 1);
+    List<Range> missingRanges = ioPlanner.planRead(10, 100, null, OBJECT_SIZE - 1);
 
     // Then: it just falls through
     List<Range> expected = new LinkedList<>();
@@ -101,7 +101,7 @@ public class IOPlannerTest {
     IOPlanner ioPlanner = new IOPlanner(blockStore);
 
     // When: a read plan is requested for a range (0, 400)
-    List<Range> missingRanges = ioPlanner.planRead(0, 400, OBJECT_SIZE - 1);
+    List<Range> missingRanges = ioPlanner.planRead(0, 400, null, OBJECT_SIZE - 1);
 
     // Then: we only request (0, 99) and (201, 400)
     List<Range> expected = new LinkedList<>();
@@ -121,7 +121,7 @@ public class IOPlannerTest {
     IOPlanner ioPlanner = new IOPlanner(blockStore);
 
     // When: a read plan is requested for a range (0, 400)
-    List<Range> missingRanges = ioPlanner.planRead(0, 400, OBJECT_SIZE - 1);
+    List<Range> missingRanges = ioPlanner.planRead(0, 400, null, OBJECT_SIZE - 1);
 
     // Then: we request the single byte range (0, 0)
     List<Range> expected = new LinkedList<>();

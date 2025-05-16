@@ -72,6 +72,7 @@ dependencies {
     implementation(project(":common"))
     implementation(libs.parquet.format)
     implementation(libs.slf4j.api)
+    implementation("io.valkey:valkey-java:5.3.0")
 
     jmhImplementation(libs.s3)
     jmhImplementation(libs.s3.transfer.manager)
@@ -148,8 +149,6 @@ val shadowJar = tasks.withType<ShadowJar> {
 }
 
 val refTest = task<Test>("referenceTest") {
-    maxHeapSize = "2g"
-    jvmArgs = listOf("-Xms1g", "-Xmx2g")
     description = "Runs reference tests."
     group = "verification"
 
@@ -375,10 +374,10 @@ publishing {
         maven {
             name = "sonatype"
             url = uri("https://aws.oss.sonatype.org/service/local/staging/deploy/maven2/")
-           credentials {
-               username = findProperty("mavenUsername") as String? ?: ""
-               password = findProperty("mavenPassword") as String? ?: ""
-           }
+            credentials {
+                username = findProperty("mavenUsername") as String? ?: ""
+                password = findProperty("mavenPassword") as String? ?: ""
+            }
         }
     }
 }

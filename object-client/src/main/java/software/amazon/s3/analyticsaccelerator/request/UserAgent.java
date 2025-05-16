@@ -31,7 +31,7 @@ public final class UserAgent {
    */
   private static final String UA_DENYLIST_REGEX = "[() ,/:;<=>?@\\[\\]{}\\\\]";
 
-  private String userAgent = UA_STRING + "/" + VERSION_INFO;
+  private String userAgent = UA_STRING + "/" + VERSION_INFO + "/" + "sharedCache";
 
   /**
    * Prepend hard-coded user-agent string with input string provided.

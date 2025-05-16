@@ -20,6 +20,7 @@ import java.util.List;
 import lombok.Value;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.util.RangeType;
 
 /**
  * RangeSplitter is responsible for splitting up big ranges into smaller reads. The need for such
@@ -44,7 +45,7 @@ public class RangeOptimiser {
     List<Range> splits = new LinkedList<>();
     for (Range range : ranges) {
       if (range.getLength() > configuration.getMaxRangeSizeBytes()) {
-        splitRange(range.getStart(), range.getEnd()).forEach(splits::add);
+        splitRange(range.getStart(), range.getEnd(), range.getRangeType()).forEach(splits::add);
       } else {
         splits.add(range);
       }
@@ -53,13 +54,13 @@ public class RangeOptimiser {
     return splits;
   }
 
-  private List<Range> splitRange(long start, long end) {
+  private List<Range> splitRange(long start, long end, RangeType rangeType) {
     long nextRangeStart = start;
     List<Range> generatedRanges = new LinkedList<>();
 
     while (nextRangeStart < end) {
       long rangeEnd = Math.min(nextRangeStart + configuration.getPartSizeBytes() - 1, end);
-      generatedRanges.add(new Range(nextRangeStart, rangeEnd));
+      generatedRanges.add(new Range(nextRangeStart, rangeEnd, rangeType));
       nextRangeStart = rangeEnd + 1;
     }
 
