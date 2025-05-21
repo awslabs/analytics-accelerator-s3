@@ -19,11 +19,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.IntFunction;
-
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.TelemetryLevel;
@@ -46,7 +44,6 @@ public class DefaultLogicalIOImpl implements LogicalIO {
 
   // When is the LogicalIO instance created?
   private final long birthTimestamp = System.nanoTime();
-
 
   private static final Logger LOG = LoggerFactory.getLogger(DefaultLogicalIOImpl.class);
 
@@ -122,8 +119,9 @@ public class DefaultLogicalIOImpl implements LogicalIO {
   }
 
   @Override
-  public void readVectored(List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate) throws IOException {
-    LOG.info("AAL: READVECTORED()");
+  public void readVectored(List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate)
+      throws IOException {
+    // TODO: add telemetry here
     physicalIO.readVectored(ranges, allocate);
   }
 

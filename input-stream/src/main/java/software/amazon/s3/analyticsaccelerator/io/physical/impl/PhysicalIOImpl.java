@@ -20,11 +20,9 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.function.IntFunction;
-
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
@@ -57,7 +55,6 @@ public class PhysicalIOImpl implements PhysicalIO {
   private static final String FLAVOR_TAIL = "tail";
   private static final String FLAVOR_BYTE = "byte";
 
-
   private static final Logger LOG = LoggerFactory.getLogger(PhysicalIOImpl.class);
 
   /**
@@ -69,11 +66,11 @@ public class PhysicalIOImpl implements PhysicalIO {
    * @param telemetry The {@link Telemetry} to use to report measurements.
    */
   public PhysicalIOImpl(
-          @NonNull S3URI s3URI,
-          @NonNull MetadataStore metadataStore,
-          @NonNull BlobStore blobStore,
-          @NonNull Telemetry telemetry,
-          @NonNull ExecutorService executorService)
+      @NonNull S3URI s3URI,
+      @NonNull MetadataStore metadataStore,
+      @NonNull BlobStore blobStore,
+      @NonNull Telemetry telemetry,
+      @NonNull ExecutorService executorService)
       throws IOException {
     this(s3URI, metadataStore, blobStore, telemetry, null, executorService);
   }
@@ -242,27 +239,27 @@ public class PhysicalIOImpl implements PhysicalIO {
   }
 
   @Override
-  public void readVectored(List<ObjectRange> objectRanges, IntFunction<ByteBuffer> allocate) throws IOException {
-
+  public void readVectored(List<ObjectRange> objectRanges, IntFunction<ByteBuffer> allocate)
+      throws IOException {
     for (ObjectRange objectRange : objectRanges) {
       ByteBuffer buffer = allocate.apply(objectRange.getLength());
-
-      executorService.submit(() -> {
-        try {
-          LOG.info("Using readVectored in AAL, for key: {}, range: {} - {}", objectKey.getS3URI(),
+      executorService.submit(
+          () -> {
+            try {
+              LOG.debug(
+                  "Starting readVectored for key: {}, range: {} - {}",
+                  objectKey.getS3URI(),
                   objectRange.getOffset(),
                   objectRange.getOffset() + objectRange.getLength() - 1);
-          // TODO: if it's direct buffer, you need to do some extra logic!
-          blobStore.get(objectKey, this.metadata, streamContext)
+              // TODO: if it's direct buffer, you need to do some extra logic!
+              blobStore
+                  .get(objectKey, this.metadata, streamContext)
                   .read(buffer.array(), 0, objectRange.getLength(), objectRange.getOffset());
-          objectRange.getByteBufferCompletableFuture().complete(buffer);
-          LOG.info("Done readVectored in AAL, for key: {}, range: {} - {}", objectKey.getS3URI(),
-                  objectRange.getOffset(),
-                  objectRange.getOffset() + objectRange.getLength() - 1);
-        } catch (Exception e) {
-          objectRange.getByteBufferCompletableFuture().completeExceptionally(e);
-        }
-      });
+              objectRange.getByteBuffer().complete(buffer);
+            } catch (Exception e) {
+              objectRange.getByteBuffer().completeExceptionally(e);
+            }
+          });
     }
   }
 

@@ -18,7 +18,6 @@ package software.amazon.s3.analyticsaccelerator;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -85,10 +84,11 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
     this.objectFormatSelector = new ObjectFormatSelector(configuration.getLogicalIOConfiguration());
     this.objectBlobStore =
         new BlobStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration(), metrics);
-    this.executorService = Executors.newFixedThreadPool(400);
+    // TODO: calling applications should be able to pass in a thread pool if they so wish
+    this.executorService =
+        Executors.newFixedThreadPool(
+            configuration.getPhysicalIOConfiguration().getThreadPoolSize());
     objectBlobStore.schedulePeriodicCleanup();
-
-    LOG.info("AAL: USING READ VECTORED!!");
   }
 
   /**
@@ -146,7 +146,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
                 objectBlobStore,
                 telemetry,
                 openStreamInformation.getStreamContext(),
-               executorService),
+                executorService),
             telemetry,
             configuration.getLogicalIOConfiguration(),
             parquetColumnPrefetchStore);
@@ -173,7 +173,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
                 objectBlobStore,
                 telemetry,
                 openStreamInformation.getStreamContext(),
-               executorService),
+                executorService),
             telemetry);
     }
   }

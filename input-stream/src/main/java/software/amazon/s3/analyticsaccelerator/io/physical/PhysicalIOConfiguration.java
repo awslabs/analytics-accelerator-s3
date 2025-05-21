@@ -46,6 +46,7 @@ public class PhysicalIOConfiguration {
   private static final int DEFAULT_MEMORY_CLEANUP_FREQUENCY_MILLISECONDS = 5000;
   private static final boolean DEFAULT_SMALL_OBJECTS_PREFETCHING_ENABLED = true;
   private static final long DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD = 8 * ONE_MB;
+  private static final int DEFAULT_THREAD_POOL_SIZE = 200;
 
   /**
    * Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_MEMORY_CAPACITY_BYTES} by default.
@@ -149,6 +150,10 @@ public class PhysicalIOConfiguration {
 
   private static final String SMALL_OBJECT_SIZE_THRESHOLD_KEY = "small.object.size.threshold";
 
+  @Builder.Default private int threadPoolSize = DEFAULT_THREAD_POOL_SIZE;
+
+  private static final String THREAD_POOL_SIZE_KEY = "thread.pool.size";
+
   /**
    * Constructs {@link PhysicalIOConfiguration} from {@link ConnectorConfiguration} object.
    *
@@ -186,6 +191,7 @@ public class PhysicalIOConfiguration {
         .smallObjectSizeThreshold(
             configuration.getLong(
                 SMALL_OBJECT_SIZE_THRESHOLD_KEY, DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD))
+        .threadPoolSize(configuration.getInt(THREAD_POOL_SIZE_KEY, DEFAULT_THREAD_POOL_SIZE))
         .build();
   }
 
@@ -224,7 +230,8 @@ public class PhysicalIOConfiguration {
       long blockReadTimeout,
       int blockReadRetryCount,
       boolean smallObjectsPrefetchingEnabled,
-      long smallObjectSizeThreshold) {
+      long smallObjectSizeThreshold,
+      int threadPoolSize) {
     Preconditions.checkArgument(memoryCapacityBytes > 0, "`memoryCapacityBytes` must be positive");
     Preconditions.checkArgument(
         memoryCleanupFrequencyMilliseconds > 0,
@@ -245,6 +252,7 @@ public class PhysicalIOConfiguration {
     Preconditions.checkArgument(blockReadRetryCount > 0, "`blockReadRetryCount` must be positive");
     Preconditions.checkArgument(
         smallObjectSizeThreshold > 0, "`smallObjectSizeThreshold` must be positive");
+    Preconditions.checkNotNull(threadPoolSize > 0, "`threadPoolSize` must be positive");
 
     this.memoryCapacityBytes = memoryCapacityBytes;
     this.memoryCleanupFrequencyMilliseconds = memoryCleanupFrequencyMilliseconds;
@@ -282,6 +290,7 @@ public class PhysicalIOConfiguration {
     builder.append("\tblockReadRetryCount: " + blockReadRetryCount + "\n");
     builder.append("\tsmallObjectsPrefetchingEnabled: " + smallObjectsPrefetchingEnabled + "\n");
     builder.append("\tsmallObjectSizeThreshold: " + smallObjectSizeThreshold + "\n");
+    builder.append("\tthreadPoolSize: " + threadPoolSize + "\n");
 
     return builder.toString();
   }

@@ -16,15 +16,10 @@
 package software.amazon.s3.analyticsaccelerator.io.logical.impl;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.function.IntFunction;
-
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
-import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 /**
