@@ -21,6 +21,7 @@ import java.util.Optional;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
+import software.amazon.s3.analyticsaccelerator.util.RangeType;
 
 /** Utils class for the Parquet logical layer. */
 public final class ParquetUtils {
@@ -81,13 +82,14 @@ public final class ParquetUtils {
       if (!shouldPrefetchSmallFile) {
         long fileMetadataStartIndex =
             contentLength - footerPrefetchSize.getFileMetadataPrefetchSize();
-        ranges.add(new Range(fileMetadataStartIndex, contentLength - 1));
+        ranges.add(new Range(fileMetadataStartIndex, contentLength - 1, RangeType.FOOTER_METADATA));
 
         if (logicalIOConfiguration.isPrefetchPageIndexEnabled()) {
           ranges.add(
               new Range(
                   fileMetadataStartIndex - footerPrefetchSize.getPageIndexPrefetchSize(),
-                  fileMetadataStartIndex - 1));
+                  fileMetadataStartIndex - 1,
+                  RangeType.FOOTER_PAGE_INDEX));
         }
 
         return ranges;

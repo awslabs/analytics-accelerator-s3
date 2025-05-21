@@ -22,6 +22,7 @@ import java.util.OptionalLong;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.util.RangeType;
 
 /**
  * Class responsible for implementing how to plan reads over a BlockStore. Today its main
@@ -49,7 +50,8 @@ public class IOPlanner {
    * @return a list of Ranges that need to be fetched
    * @throws IOException if an I/O error occurs
    */
-  public List<Range> planRead(long pos, long end, long lastObjectByte) throws IOException {
+  public List<Range> planRead(long pos, long end, RangeType rangeType, long lastObjectByte)
+      throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must be non-negative");
     Preconditions.checkArgument(pos <= end, "`pos` must be less than or equal to `end`");
     Preconditions.checkArgument(
@@ -70,7 +72,7 @@ public class IOPlanner {
         endOfRange = Math.min(end, lastObjectByte);
       }
 
-      missingRanges.add(new Range(nextMissingByte.getAsLong(), endOfRange));
+      missingRanges.add(new Range(nextMissingByte.getAsLong(), endOfRange, rangeType));
       nextMissingByte = blockStore.findNextMissingByte(endOfRange + 1);
     }
     return missingRanges;

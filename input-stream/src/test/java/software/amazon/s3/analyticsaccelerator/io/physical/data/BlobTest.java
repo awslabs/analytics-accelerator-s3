@@ -149,8 +149,8 @@ public class BlobTest {
 
     // Then: correct ranges are submitted
     assertEquals(SUBMITTED, execution.getState());
-    verify(blockManager).makeRangeAvailable(0, 101, ReadMode.ASYNC);
-    verify(blockManager).makeRangeAvailable(999, 2, ReadMode.ASYNC);
+    verify(blockManager).makeRangeAvailable(0, 101, null, ReadMode.ASYNC);
+    verify(blockManager).makeRangeAvailable(999, 2, null, ReadMode.ASYNC);
   }
 
   @Test

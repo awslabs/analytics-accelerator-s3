@@ -168,7 +168,7 @@ public class BlockManagerTest {
     blockManager.makePositionAvailable(64 * ONE_KB + 1, ReadMode.SYNC);
 
     // When: requesting the byte at 64KB
-    blockManager.makeRangeAvailable(64 * ONE_KB, 100, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(64 * ONE_KB, 100, null, ReadMode.SYNC);
     ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
     verify(objectClient, times(3)).getObject(requestCaptor.capture(), any());
 
@@ -217,13 +217,13 @@ public class BlockManagerTest {
             objectClient,
             128 * ONE_MB,
             PhysicalIOConfiguration.builder().sequentialPrefetchBase(2.0).build());
-    blockManager.makeRangeAvailable(20_837_974, 8_323_072, ReadMode.SYNC);
-    blockManager.makeRangeAvailable(20_772_438, 65_536, ReadMode.SYNC);
-    blockManager.makeRangeAvailable(29_161_046, 4_194_305, ReadMode.SYNC);
-    blockManager.makeRangeAvailable(106_182_410, 1_048_576, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(20_837_974, 8_323_072, null, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(20_772_438, 65_536, null, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(29_161_046, 4_194_305, null, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(106_182_410, 1_048_576, null, ReadMode.SYNC);
 
     // When: [29161046 - 37549653] is requested
-    blockManager.makeRangeAvailable(29_161_046, 8_388_608, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(29_161_046, 8_388_608, null, ReadMode.SYNC);
 
     // Then: position 33_355_351 should be available
     // This was throwing before, and it shouldn't, given that 33_355_351 is contained in [29161046 -
