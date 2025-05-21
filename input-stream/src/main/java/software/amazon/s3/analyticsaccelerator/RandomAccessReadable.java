@@ -17,7 +17,12 @@ package software.amazon.s3.analyticsaccelerator;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.function.IntFunction;
+
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
 
 /** An InputStream-like entity implementing blocking random-access reads. */
 public interface RandomAccessReadable extends Closeable {
@@ -61,4 +66,6 @@ public interface RandomAccessReadable extends Closeable {
    * @throws IOException if an error occurs while reading the file
    */
   int readTail(byte[] buf, int off, int len) throws IOException;
+
+  void readVectored(List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate) throws IOException;
 }

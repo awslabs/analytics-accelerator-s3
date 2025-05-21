@@ -16,7 +16,15 @@
 package software.amazon.s3.analyticsaccelerator.io.physical.impl;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.function.IntFunction;
+
 import lombok.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
@@ -26,6 +34,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
@@ -39,6 +48,7 @@ public class PhysicalIOImpl implements PhysicalIO {
   private final StreamContext streamContext;
   private ObjectKey objectKey;
   private final ObjectMetadata metadata;
+  private final ExecutorService executorService;
 
   private final long physicalIOBirth = System.nanoTime();
 
@@ -46,6 +56,9 @@ public class PhysicalIOImpl implements PhysicalIO {
   private static final String OPERATION_EXECUTE = "physical.io.execute";
   private static final String FLAVOR_TAIL = "tail";
   private static final String FLAVOR_BYTE = "byte";
+
+
+  private static final Logger LOG = LoggerFactory.getLogger(PhysicalIOImpl.class);
 
   /**
    * Construct a new instance of PhysicalIOV2.
@@ -56,12 +69,13 @@ public class PhysicalIOImpl implements PhysicalIO {
    * @param telemetry The {@link Telemetry} to use to report measurements.
    */
   public PhysicalIOImpl(
-      @NonNull S3URI s3URI,
-      @NonNull MetadataStore metadataStore,
-      @NonNull BlobStore blobStore,
-      @NonNull Telemetry telemetry)
+          @NonNull S3URI s3URI,
+          @NonNull MetadataStore metadataStore,
+          @NonNull BlobStore blobStore,
+          @NonNull Telemetry telemetry,
+          @NonNull ExecutorService executorService)
       throws IOException {
-    this(s3URI, metadataStore, blobStore, telemetry, null);
+    this(s3URI, metadataStore, blobStore, telemetry, null, executorService);
   }
 
   /**
@@ -78,7 +92,8 @@ public class PhysicalIOImpl implements PhysicalIO {
       @NonNull MetadataStore metadataStore,
       @NonNull BlobStore blobStore,
       @NonNull Telemetry telemetry,
-      StreamContext streamContext)
+      StreamContext streamContext,
+      ExecutorService executorService)
       throws IOException {
     this.metadataStore = metadataStore;
     this.blobStore = blobStore;
@@ -86,6 +101,7 @@ public class PhysicalIOImpl implements PhysicalIO {
     this.streamContext = streamContext;
     this.metadata = this.metadataStore.get(s3URI);
     this.objectKey = ObjectKey.builder().s3URI(s3URI).etag(metadata.getEtag()).build();
+    this.executorService = executorService;
   }
 
   /**
@@ -223,6 +239,31 @@ public class PhysicalIOImpl implements PhysicalIO {
                         System.nanoTime() - physicalIOBirth))
                 .build(),
         () -> blobStore.get(objectKey, this.metadata, streamContext).execute(ioPlan));
+  }
+
+  @Override
+  public void readVectored(List<ObjectRange> objectRanges, IntFunction<ByteBuffer> allocate) throws IOException {
+
+    for (ObjectRange objectRange : objectRanges) {
+      ByteBuffer buffer = allocate.apply(objectRange.getLength());
+
+      executorService.submit(() -> {
+        try {
+          LOG.info("Using readVectored in AAL, for key: {}, range: {} - {}", objectKey.getS3URI(),
+                  objectRange.getOffset(),
+                  objectRange.getOffset() + objectRange.getLength() - 1);
+          // TODO: if it's direct buffer, you need to do some extra logic!
+          blobStore.get(objectKey, this.metadata, streamContext)
+                  .read(buffer.array(), 0, objectRange.getLength(), objectRange.getOffset());
+          objectRange.getByteBufferCompletableFuture().complete(buffer);
+          LOG.info("Done readVectored in AAL, for key: {}, range: {} - {}", objectKey.getS3URI(),
+                  objectRange.getOffset(),
+                  objectRange.getOffset() + objectRange.getLength() - 1);
+        } catch (Exception e) {
+          objectRange.getByteBufferCompletableFuture().completeExceptionally(e);
+        }
+      });
+    }
   }
 
   private void handleOperationExceptions(Exception e) {

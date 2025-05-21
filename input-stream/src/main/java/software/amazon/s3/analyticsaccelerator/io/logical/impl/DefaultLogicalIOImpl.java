@@ -16,13 +16,21 @@
 package software.amazon.s3.analyticsaccelerator.io.logical.impl;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.function.IntFunction;
+
 import lombok.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.TelemetryLevel;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
@@ -38,6 +46,9 @@ public class DefaultLogicalIOImpl implements LogicalIO {
 
   // When is the LogicalIO instance created?
   private final long birthTimestamp = System.nanoTime();
+
+
+  private static final Logger LOG = LoggerFactory.getLogger(DefaultLogicalIOImpl.class);
 
   /**
    * Constructs an instance of LogicalIOImpl.
@@ -108,6 +119,12 @@ public class DefaultLogicalIOImpl implements LogicalIO {
                     StreamAttributes.logicalIORelativeTimestamp(System.nanoTime() - birthTimestamp))
                 .build(),
         () -> physicalIO.readTail(buf, off, len));
+  }
+
+  @Override
+  public void readVectored(List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate) throws IOException {
+    LOG.info("AAL: READVECTORED()");
+    physicalIO.readVectored(ranges, allocate);
   }
 
   /**

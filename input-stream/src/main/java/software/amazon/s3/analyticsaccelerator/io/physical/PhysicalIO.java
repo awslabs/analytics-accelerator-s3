@@ -16,9 +16,14 @@
 package software.amazon.s3.analyticsaccelerator.io.physical;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.function.IntFunction;
+
 import software.amazon.s3.analyticsaccelerator.RandomAccessReadable;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
+import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
 
 /** An interface defining how a logical IO layer gets hooked into Physical IO. */
 public interface PhysicalIO extends RandomAccessReadable {
@@ -30,6 +35,8 @@ public interface PhysicalIO extends RandomAccessReadable {
    * @return an IOPlanExecution object tracking the execution of the submitted plan
    */
   IOPlanExecution execute(IOPlan ioPlan) throws IOException;
+
+  void readVectored(List<ObjectRange> objectRanges, IntFunction<ByteBuffer> allocate) throws IOException;
 
   /**
    * Closes the PhysicalIO and optionally evicts associated data.

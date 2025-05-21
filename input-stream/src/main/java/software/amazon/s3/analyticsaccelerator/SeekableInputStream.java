@@ -17,7 +17,14 @@ package software.amazon.s3.analyticsaccelerator;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.IntFunction;
+
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
+import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
+import software.amazon.s3.analyticsaccelerator.request.Range;
 
 /**
  * A SeekableInputStream is like a conventional InputStream but equipped with two additional
@@ -58,6 +65,10 @@ public abstract class SeekableInputStream extends InputStream {
    * @throws IOException if an error occurs while reading the file
    */
   public abstract int readTail(byte[] buf, int off, int n) throws IOException;
+
+
+ public abstract void readVectored(List<ObjectRange> ranges, final IntFunction<ByteBuffer> allocate, final Consumer<ByteBuffer> release) throws IOException;
+
 
   /**
    * Validates the arguments for a read operation. This method is available to use in all subclasses
