@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.IntFunction;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
-import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
+import software.amazon.s3.analyticsaccelerator.common.ObjectRange;
 
 /** An InputStream-like entity implementing blocking random-access reads. */
 public interface RandomAccessReadable extends Closeable {

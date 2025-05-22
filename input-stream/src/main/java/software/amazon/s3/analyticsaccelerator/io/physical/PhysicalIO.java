@@ -22,7 +22,7 @@ import java.util.function.IntFunction;
 import software.amazon.s3.analyticsaccelerator.RandomAccessReadable;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
-import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
+import software.amazon.s3.analyticsaccelerator.common.ObjectRange;
 
 /** An interface defining how a logical IO layer gets hooked into Physical IO. */
 public interface PhysicalIO extends RandomAccessReadable {

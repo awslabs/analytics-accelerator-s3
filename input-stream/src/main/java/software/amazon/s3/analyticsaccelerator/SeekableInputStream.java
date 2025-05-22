@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.IntFunction;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
-import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
+import software.amazon.s3.analyticsaccelerator.common.ObjectRange;
 
 /**
  * A SeekableInputStream is like a conventional InputStream but equipped with two additional

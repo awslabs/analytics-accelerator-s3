@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.function.IntFunction;
 import org.junit.platform.commons.util.Preconditions;
 import software.amazon.s3.analyticsaccelerator.SeekableInputStream;
-import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
+import software.amazon.s3.analyticsaccelerator.common.ObjectRange;
 
 /**
  * An in-memory implementation of a seekable input stream. It is used to implement reference tests.

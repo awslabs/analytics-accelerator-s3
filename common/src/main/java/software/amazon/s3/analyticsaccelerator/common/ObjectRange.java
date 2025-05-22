@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package software.amazon.s3.analyticsaccelerator.request;
+package software.amazon.s3.analyticsaccelerator.common;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
