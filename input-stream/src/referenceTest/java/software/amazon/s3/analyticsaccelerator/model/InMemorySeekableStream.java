@@ -15,9 +15,13 @@
  */
 package software.amazon.s3.analyticsaccelerator.model;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.function.IntFunction;
 import org.junit.platform.commons.util.Preconditions;
 import software.amazon.s3.analyticsaccelerator.SeekableInputStream;
+import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
 
 /**
  * An in-memory implementation of a seekable input stream. It is used to implement reference tests.
@@ -65,6 +69,12 @@ public class InMemorySeekableStream extends SeekableInputStream {
     data.position((int) this.position);
 
     return n;
+  }
+
+  @Override
+  public void readVectored(List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate)
+      throws IOException {
+    // TODO
   }
 
   @Override

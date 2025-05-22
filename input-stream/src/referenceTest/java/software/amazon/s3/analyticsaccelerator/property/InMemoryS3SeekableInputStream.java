@@ -17,12 +17,11 @@ package software.amazon.s3.analyticsaccelerator.property;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.nio.ByteBuffer;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.IntFunction;
 import lombok.Getter;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamConfiguration;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
@@ -120,6 +119,12 @@ public class InMemoryS3SeekableInputStream extends SeekableInputStream {
   @Override
   public int readTail(byte[] buf, int off, int n) throws IOException {
     return this.delegate.readTail(buf, off, n);
+  }
+
+  @Override
+  public void readVectored(List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate)
+      throws IOException {
+    // TODO
   }
 
   @Override

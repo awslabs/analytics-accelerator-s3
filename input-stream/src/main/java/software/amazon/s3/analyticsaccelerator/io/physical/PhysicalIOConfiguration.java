@@ -132,9 +132,6 @@ public class PhysicalIOConfiguration {
 
   private static final String BLOCK_READ_RETRY_COUNT_KEY = "blockreadretrycount";
 
-  /** Default set of settings for {@link PhysicalIO} */
-  public static final PhysicalIOConfiguration DEFAULT = PhysicalIOConfiguration.builder().build();
-
   /** Controls whether small object prefetching is enabled */
   @Builder.Default
   private boolean smallObjectsPrefetchingEnabled = DEFAULT_SMALL_OBJECTS_PREFETCHING_ENABLED;
@@ -153,6 +150,9 @@ public class PhysicalIOConfiguration {
   @Builder.Default private int threadPoolSize = DEFAULT_THREAD_POOL_SIZE;
 
   private static final String THREAD_POOL_SIZE_KEY = "thread.pool.size";
+
+  /** Default set of settings for {@link PhysicalIO} */
+  public static final PhysicalIOConfiguration DEFAULT = PhysicalIOConfiguration.builder().build();
 
   /**
    * Constructs {@link PhysicalIOConfiguration} from {@link ConnectorConfiguration} object.
@@ -214,6 +214,7 @@ public class PhysicalIOConfiguration {
    * @param blockReadRetryCount Number of retries for block read failure
    * @param smallObjectsPrefetchingEnabled Whether small object prefetching is enabled
    * @param smallObjectSizeThreshold Maximum size in bytes for an object to be considered small
+   * @param threadPoolSize Size of thread pool to be used for async operations
    */
   @Builder
   private PhysicalIOConfiguration(
@@ -268,6 +269,7 @@ public class PhysicalIOConfiguration {
     this.blockReadRetryCount = blockReadRetryCount;
     this.smallObjectsPrefetchingEnabled = smallObjectsPrefetchingEnabled;
     this.smallObjectSizeThreshold = smallObjectSizeThreshold;
+    this.threadPoolSize = threadPoolSize;
   }
 
   @Override

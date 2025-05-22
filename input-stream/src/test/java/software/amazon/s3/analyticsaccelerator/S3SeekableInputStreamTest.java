@@ -368,7 +368,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
               () -> {
                 try {
                   PhysicalIO physicalIO =
-                      new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
+                      new PhysicalIOImpl(
+                          s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT, executorService);
                   LogicalIO logicalIO =
                       new ParquetLogicalIOImpl(
                           TEST_OBJECT,
@@ -463,7 +464,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
         s3URI,
         new ParquetLogicalIOImpl(
             s3URI,
-            new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT),
+            new PhysicalIOImpl(
+                s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT, executorService),
             TestTelemetry.DEFAULT,
             LogicalIOConfiguration.DEFAULT,
             new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT)),

@@ -18,7 +18,6 @@ package software.amazon.s3.analyticsaccelerator;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
@@ -225,12 +224,10 @@ public class S3SeekableInputStream extends SeekableInputStream {
   }
 
   @Override
-  public void readVectored(
-      List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate, Consumer<ByteBuffer> release)
+  public void readVectored(List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate)
       throws IOException {
     Preconditions.checkNotNull(ranges, "ranges must not be null");
     Preconditions.checkNotNull(allocate, "allocate must not be null");
-    Preconditions.checkNotNull(release, "release must not be null");
 
     logicalIO.readVectored(ranges, allocate);
   }

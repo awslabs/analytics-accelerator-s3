@@ -64,6 +64,7 @@ public class PhysicalIOImpl implements PhysicalIO {
    * @param metadataStore a metadata cache
    * @param blobStore a data cache
    * @param telemetry The {@link Telemetry} to use to report measurements.
+   * @param executorService Thread pool for async operations
    */
   public PhysicalIOImpl(
       @NonNull S3URI s3URI,
@@ -83,6 +84,7 @@ public class PhysicalIOImpl implements PhysicalIO {
    * @param blobStore a data cache
    * @param telemetry The {@link Telemetry} to use to report measurements.
    * @param streamContext contains audit headers to be attached in the request header
+   * @param executorService Thread pool for async operations
    */
   public PhysicalIOImpl(
       @NonNull S3URI s3URI,

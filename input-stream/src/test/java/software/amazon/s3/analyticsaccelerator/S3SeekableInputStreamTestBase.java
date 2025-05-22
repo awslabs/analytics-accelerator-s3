@@ -18,6 +18,8 @@ package software.amazon.s3.analyticsaccelerator;
 import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIO;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
@@ -46,12 +48,16 @@ public class S3SeekableInputStreamTestBase {
 
   protected final LogicalIO fakeLogicalIO;
 
+  protected final ExecutorService executorService =
+      Executors.newFixedThreadPool(physicalIOConfiguration.getThreadPoolSize());
+
   {
     try {
       fakeLogicalIO =
           new ParquetLogicalIOImpl(
               TEST_OBJECT,
-              new PhysicalIOImpl(TEST_OBJECT, metadataStore, blobStore, TestTelemetry.DEFAULT),
+              new PhysicalIOImpl(
+                  TEST_OBJECT, metadataStore, blobStore, TestTelemetry.DEFAULT, executorService),
               TestTelemetry.DEFAULT,
               logicalIOConfiguration,
               new ParquetColumnPrefetchStore(logicalIOConfiguration));
