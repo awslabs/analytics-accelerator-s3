@@ -58,7 +58,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   private final Telemetry telemetry;
   private final ObjectFormatSelector objectFormatSelector;
   private final Metrics metrics;
-  private final ExecutorService executorService;
+  private final ExecutorService threadPool;
 
   private static final Logger LOG = LoggerFactory.getLogger(S3SeekableInputStreamFactory.class);
 
@@ -85,8 +85,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
     this.objectBlobStore =
         new BlobStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration(), metrics);
     // TODO: calling applications should be able to pass in a thread pool if they so wish
-    this.executorService =
-        Executors.newFixedThreadPool(
+    this.threadPool = Executors.newFixedThreadPool(
             configuration.getPhysicalIOConfiguration().getThreadPoolSize());
     objectBlobStore.schedulePeriodicCleanup();
   }
@@ -146,7 +145,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
                 objectBlobStore,
                 telemetry,
                 openStreamInformation.getStreamContext(),
-                executorService),
+                threadPool),
             telemetry,
             configuration.getLogicalIOConfiguration(),
             parquetColumnPrefetchStore);
@@ -160,7 +159,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
                 objectBlobStore,
                 telemetry,
                 openStreamInformation.getStreamContext(),
-                executorService),
+                threadPool),
             telemetry,
             configuration.getLogicalIOConfiguration());
 
@@ -173,7 +172,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
                 objectBlobStore,
                 telemetry,
                 openStreamInformation.getStreamContext(),
-                executorService),
+                threadPool),
             telemetry);
     }
   }

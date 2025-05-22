@@ -47,7 +47,7 @@ public class PhysicalIOImpl implements PhysicalIO {
   private final StreamContext streamContext;
   private ObjectKey objectKey;
   private final ObjectMetadata metadata;
-  private final ExecutorService executorService;
+  private final ExecutorService threadPool;
 
   private final long physicalIOBirth = System.nanoTime();
 
@@ -65,16 +65,16 @@ public class PhysicalIOImpl implements PhysicalIO {
    * @param metadataStore a metadata cache
    * @param blobStore a data cache
    * @param telemetry The {@link Telemetry} to use to report measurements.
-   * @param executorService Thread pool for async operations
+   * @param threadPool Thread pool for async operations
    */
   public PhysicalIOImpl(
       @NonNull S3URI s3URI,
       @NonNull MetadataStore metadataStore,
       @NonNull BlobStore blobStore,
       @NonNull Telemetry telemetry,
-      @NonNull ExecutorService executorService)
+      @NonNull ExecutorService threadPool)
       throws IOException {
-    this(s3URI, metadataStore, blobStore, telemetry, null, executorService);
+    this(s3URI, metadataStore, blobStore, telemetry, null, threadPool);
   }
 
   /**
@@ -85,7 +85,7 @@ public class PhysicalIOImpl implements PhysicalIO {
    * @param blobStore a data cache
    * @param telemetry The {@link Telemetry} to use to report measurements.
    * @param streamContext contains audit headers to be attached in the request header
-   * @param executorService Thread pool for async operations
+   * @param threadPool Thread pool for async operations
    */
   public PhysicalIOImpl(
       @NonNull S3URI s3URI,
@@ -93,7 +93,7 @@ public class PhysicalIOImpl implements PhysicalIO {
       @NonNull BlobStore blobStore,
       @NonNull Telemetry telemetry,
       StreamContext streamContext,
-      ExecutorService executorService)
+      ExecutorService threadPool)
       throws IOException {
     this.metadataStore = metadataStore;
     this.blobStore = blobStore;
@@ -101,7 +101,7 @@ public class PhysicalIOImpl implements PhysicalIO {
     this.streamContext = streamContext;
     this.metadata = this.metadataStore.get(s3URI);
     this.objectKey = ObjectKey.builder().s3URI(s3URI).etag(metadata.getEtag()).build();
-    this.executorService = executorService;
+    this.threadPool = threadPool;
   }
 
   /**
@@ -250,7 +250,7 @@ public class PhysicalIOImpl implements PhysicalIO {
       throws IOException {
     for (ObjectRange objectRange : objectRanges) {
       ByteBuffer buffer = allocate.apply(objectRange.getLength());
-      executorService.submit(
+      threadPool.submit(
           () -> {
             try {
               LOG.debug(
