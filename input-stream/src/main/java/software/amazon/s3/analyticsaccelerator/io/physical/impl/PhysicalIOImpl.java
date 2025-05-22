@@ -15,6 +15,7 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.impl;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -240,6 +241,10 @@ public class PhysicalIOImpl implements PhysicalIO {
         () -> blobStore.get(objectKey, this.metadata, streamContext).execute(ioPlan));
   }
 
+  @SuppressFBWarnings(
+      value = "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE",
+      justification =
+          "This is complaining about `executor.submit`. In this case we do not have any use for this Future")
   @Override
   public void readVectored(List<ObjectRange> objectRanges, IntFunction<ByteBuffer> allocate)
       throws IOException {

@@ -133,4 +133,56 @@ public class ParquetColumnPrefetchStoreTest {
         parquetColumnPrefetchStore.isDictionaryRowGroupPrefetched(S3URI.of("test", "key_3"), 0),
         false);
   }
+
+  @Test
+  void addRecentDictionaries() {
+    StringBuilder concatedColumnString =
+        new StringBuilder().append("sk_test").append("sk_test_2").append("sk_test_3");
+    int schemaHash = concatedColumnString.toString().hashCode();
+    Map<S3URI, ColumnMappers> columnMappersStore = new HashMap<>();
+    Map<S3URI, List<Integer>> rowGroupsPrefetched = new HashMap<>();
+    Map<S3URI, List<Integer>> dictionaryRowGroupsPrefetched = new HashMap<>();
+
+    ColumnMetadata sk_test = new ColumnMetadata(0, "sk_test", 0, 0, 0, 500, schemaHash);
+    ColumnMetadata sk_test2 = new ColumnMetadata(0, "sk_test2", 0, 0, 0, 500, schemaHash);
+    ColumnMetadata sk_test3 = new ColumnMetadata(0, "sk_test3", 0, 0, 0, 500, schemaHash);
+
+    Map<Integer, LinkedList<String>> recentlyReadColumnsPerSchema = new HashMap<>();
+    Map<Integer, LinkedList<String>> recentlyReadDictionariesPerSchema = new HashMap<>();
+
+    ParquetColumnPrefetchStore parquetColumnPrefetchStore =
+        new ParquetColumnPrefetchStore(
+            LogicalIOConfiguration.builder().maxColumnAccessCountStoreSize(3).build(),
+            columnMappersStore,
+            recentlyReadColumnsPerSchema,
+            recentlyReadDictionariesPerSchema,
+            rowGroupsPrefetched,
+            dictionaryRowGroupsPrefetched);
+
+    parquetColumnPrefetchStore.addRecentDictionary(sk_test);
+    parquetColumnPrefetchStore.addRecentDictionary(sk_test2);
+    parquetColumnPrefetchStore.addRecentDictionary(sk_test);
+    parquetColumnPrefetchStore.addRecentDictionary(sk_test2);
+    parquetColumnPrefetchStore.addRecentDictionary(sk_test3);
+    parquetColumnPrefetchStore.addRecentDictionary(sk_test3);
+
+    assertEquals(recentlyReadDictionariesPerSchema.get(schemaHash).size(), 3);
+
+    // We should only have the last 3 recently read columns in the list
+    List<String> expectedDictionaries = new ArrayList<>();
+    expectedDictionaries.add("sk_test2");
+    expectedDictionaries.add("sk_test3");
+    expectedDictionaries.add("sk_test3");
+
+    assertEquals(recentlyReadDictionariesPerSchema.get(schemaHash), expectedDictionaries);
+
+    // We should only have unique columns in the list
+    Set<String> expectedUniqueDictionaries = new HashSet<>();
+    expectedUniqueDictionaries.add("sk_test2");
+    expectedUniqueDictionaries.add("sk_test3");
+
+    assertEquals(
+        parquetColumnPrefetchStore.getUniqueRecentDictionaryForSchema(schemaHash),
+        expectedUniqueDictionaries);
+  }
 }

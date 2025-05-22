@@ -15,15 +15,20 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.impl;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.IntFunction;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -40,6 +45,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfigurati
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
 import software.amazon.s3.analyticsaccelerator.util.MetricKey;
@@ -362,5 +368,39 @@ public class PhysicalIOImplTest {
         metrics.get(MetricKey.MEMORY_USAGE),
         "Memory usage should equal total data length");
     assertEquals(4, bytesRead, "Should have read requested number of bytes");
+  }
+
+  @Test
+  void testReadVectored() throws IOException {
+    final String TEST_DATA = "test data for read vectored";
+    FakeObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
+    MetadataStore metadataStore =
+        new MetadataStore(fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
+    Metrics metrics = new Metrics();
+    BlobStore blobStore =
+        new BlobStore(
+            fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT, metrics);
+    PhysicalIOImpl physicalIO =
+        new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT, executorService);
+
+    IntFunction<ByteBuffer> allocate = ByteBuffer::allocate;
+
+    List<ObjectRange> objectRanges = new ArrayList<>();
+    objectRanges.add(new ObjectRange(new CompletableFuture<>(), 2, 3));
+    objectRanges.add(new ObjectRange(new CompletableFuture<>(), 8, 1));
+    objectRanges.add(new ObjectRange(new CompletableFuture<>(), 12, 6));
+
+    // first buffer to contain "st "
+    byte[] firstBufferExpected = new byte[] {115, 116, 32};
+    // second buffer to contain "a"
+    byte[] secondBufferExpected = new byte[] {97};
+    // third buffer to contain "r read"
+    byte[] thirdBufferExpected = new byte[] {114, 32, 114, 101, 97, 100};
+
+    physicalIO.readVectored(objectRanges, allocate);
+
+    assertArrayEquals(objectRanges.get(0).getByteBuffer().join().array(), firstBufferExpected);
+    assertArrayEquals(objectRanges.get(1).getByteBuffer().join().array(), secondBufferExpected);
+    assertArrayEquals(objectRanges.get(2).getByteBuffer().join().array(), thirdBufferExpected);
   }
 }
