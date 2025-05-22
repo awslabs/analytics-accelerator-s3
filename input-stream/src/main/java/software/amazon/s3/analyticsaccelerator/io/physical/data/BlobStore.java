@@ -20,6 +20,7 @@ import java.io.Closeable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -48,6 +49,7 @@ public class BlobStore implements Closeable {
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
   private final PhysicalIOConfiguration configuration;
+  private final ExecutorService readThreadPool;
 
   @Getter private final Metrics metrics;
   final BlobStoreIndexCache indexCache;
@@ -62,12 +64,14 @@ public class BlobStore implements Closeable {
    * @param telemetry an instance of {@link Telemetry} to use
    * @param configuration the PhysicalIO configuration
    * @param metrics an instance of {@link Metrics} to track metrics across the factory
+   * @param readThreadPool Read Thread pool
    */
   public BlobStore(
       @NonNull ObjectClient objectClient,
       @NonNull Telemetry telemetry,
       @NonNull PhysicalIOConfiguration configuration,
-      @NonNull Metrics metrics) {
+      @NonNull Metrics metrics,
+      @NonNull ExecutorService readThreadPool) {
     this.objectClient = objectClient;
     this.telemetry = telemetry;
     this.metrics = metrics;
@@ -82,6 +86,7 @@ public class BlobStore implements Closeable {
               return cleanupThread;
             });
     this.configuration = configuration;
+    this.readThreadPool = readThreadPool;
   }
 
   /** Schedules a periodic cleanup task to sync the blop map with the index cache */
@@ -138,6 +143,7 @@ public class BlobStore implements Closeable {
                     configuration,
                     metrics,
                     indexCache,
+                    readThreadPool,
                     streamContext),
                 telemetry));
   }

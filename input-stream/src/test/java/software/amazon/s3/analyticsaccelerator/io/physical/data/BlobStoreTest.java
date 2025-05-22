@@ -80,7 +80,9 @@ public class BlobStoreTest {
     ConnectorConfiguration connectorConfig = new ConnectorConfiguration(configMap);
     config = PhysicalIOConfiguration.fromConfiguration(connectorConfig);
 
-    blobStore = new BlobStore(objectClient, TestTelemetry.DEFAULT, config, metrics);
+    blobStore =
+        new BlobStore(
+            objectClient, TestTelemetry.DEFAULT, config, metrics, Executors.newFixedThreadPool(4));
     blobStore.schedulePeriodicCleanup();
 
     mockObjectClient = mock(ObjectClient.class);
@@ -91,7 +93,13 @@ public class BlobStoreTest {
     when(mockConfig.getMemoryCleanupFrequencyMilliseconds()).thenReturn(1);
 
     // Create mock BlobStore with configured mocks
-    mockBlobStore = new BlobStore(mockObjectClient, TestTelemetry.DEFAULT, mockConfig, mockMetrics);
+    mockBlobStore =
+        new BlobStore(
+            mockObjectClient,
+            TestTelemetry.DEFAULT,
+            mockConfig,
+            mockMetrics,
+            Executors.newFixedThreadPool(4));
     mockBlobStore = spy(mockBlobStore);
   }
 
@@ -123,7 +131,8 @@ public class BlobStoreTest {
                 null,
                 mock(Telemetry.class),
                 mock(PhysicalIOConfiguration.class),
-                mock(Metrics.class)));
+                mock(Metrics.class),
+                Executors.newFixedThreadPool(4)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -131,7 +140,8 @@ public class BlobStoreTest {
                 null,
                 mock(Telemetry.class),
                 mock(PhysicalIOConfiguration.class),
-                mock(Metrics.class)));
+                mock(Metrics.class),
+                Executors.newFixedThreadPool(4)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -139,12 +149,17 @@ public class BlobStoreTest {
                 mock(ObjectClient.class),
                 null,
                 mock(PhysicalIOConfiguration.class),
-                mock(Metrics.class)));
+                mock(Metrics.class),
+                Executors.newFixedThreadPool(4)));
     assertThrows(
         NullPointerException.class,
         () ->
             new BlobStore(
-                mock(ObjectClient.class), mock(Telemetry.class), null, mock(Metrics.class)));
+                mock(ObjectClient.class),
+                mock(Telemetry.class),
+                null,
+                mock(Metrics.class),
+                Executors.newFixedThreadPool(4)));
   }
 
   @Test
@@ -224,7 +239,9 @@ public class BlobStoreTest {
 
     ObjectClient objectClient = new FakeObjectClient(TEST_DATA);
     Metrics metrics = new Metrics();
-    BlobStore blobStore = new BlobStore(objectClient, TestTelemetry.DEFAULT, config, metrics);
+    BlobStore blobStore =
+        new BlobStore(
+            objectClient, TestTelemetry.DEFAULT, config, metrics, Executors.newFixedThreadPool(4));
     blobStore.schedulePeriodicCleanup();
 
     // Create multiple ObjectKeys

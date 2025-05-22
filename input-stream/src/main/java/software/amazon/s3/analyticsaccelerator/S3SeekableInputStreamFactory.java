@@ -16,6 +16,8 @@
 package software.amazon.s3.analyticsaccelerator;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -56,6 +58,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   private final Telemetry telemetry;
   private final ObjectFormatSelector objectFormatSelector;
   private final Metrics metrics;
+  private ExecutorService readThreadPool;
 
   private static final Logger LOG = LoggerFactory.getLogger(S3SeekableInputStreamFactory.class);
 
@@ -79,8 +82,14 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
     this.objectMetadataStore =
         new MetadataStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration());
     this.objectFormatSelector = new ObjectFormatSelector(configuration.getLogicalIOConfiguration());
+    this.readThreadPool = Executors.newFixedThreadPool(64);
     this.objectBlobStore =
-        new BlobStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration(), metrics);
+        new BlobStore(
+            objectClient,
+            telemetry,
+            configuration.getPhysicalIOConfiguration(),
+            metrics,
+            readThreadPool);
     objectBlobStore.schedulePeriodicCleanup();
   }
 
@@ -181,6 +190,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
    */
   @Override
   public void close() throws IOException {
+    this.readThreadPool.shutdown();
     this.objectMetadataStore.close();
     this.objectBlobStore.close();
     this.telemetry.close();

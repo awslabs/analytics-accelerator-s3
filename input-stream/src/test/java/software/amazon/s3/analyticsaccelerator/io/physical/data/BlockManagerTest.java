@@ -61,6 +61,7 @@ public class BlockManagerTest {
     PhysicalIOConfiguration configuration = mock(PhysicalIOConfiguration.class);
     Metrics aggregatingMetrics = new Metrics();
     BlobStoreIndexCache indexCache = mock(BlobStoreIndexCache.class);
+
     StreamContext streamContext = mock(StreamContext.class);
 
     // Act
@@ -73,6 +74,7 @@ public class BlockManagerTest {
             configuration,
             aggregatingMetrics,
             indexCache,
+            Executors.newFixedThreadPool(4),
             streamContext);
 
     // Assert
@@ -91,7 +93,8 @@ public class BlockManagerTest {
                 mock(Telemetry.class),
                 mock(PhysicalIOConfiguration.class),
                 mock(Metrics.class),
-                mock(BlobStoreIndexCache.class)));
+                mock(BlobStoreIndexCache.class),
+                mock(ExecutorService.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -102,7 +105,8 @@ public class BlockManagerTest {
                 mock(Telemetry.class),
                 mock(PhysicalIOConfiguration.class),
                 mock(Metrics.class),
-                mock(BlobStoreIndexCache.class)));
+                mock(BlobStoreIndexCache.class),
+                mock(ExecutorService.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -113,7 +117,8 @@ public class BlockManagerTest {
                 mock(Telemetry.class),
                 mock(PhysicalIOConfiguration.class),
                 mock(Metrics.class),
-                mock(BlobStoreIndexCache.class)));
+                mock(BlobStoreIndexCache.class),
+                mock(ExecutorService.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -124,7 +129,8 @@ public class BlockManagerTest {
                 null,
                 mock(PhysicalIOConfiguration.class),
                 mock(Metrics.class),
-                mock(BlobStoreIndexCache.class)));
+                mock(BlobStoreIndexCache.class),
+                mock(ExecutorService.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -135,7 +141,8 @@ public class BlockManagerTest {
                 mock(Telemetry.class),
                 null,
                 mock(Metrics.class),
-                mock(BlobStoreIndexCache.class)));
+                mock(BlobStoreIndexCache.class),
+                mock(ExecutorService.class)));
   }
 
   @Test
@@ -335,7 +342,8 @@ public class BlockManagerTest {
         TestTelemetry.DEFAULT,
         configuration,
         mock(Metrics.class),
-        mock(BlobStoreIndexCache.class));
+        mock(BlobStoreIndexCache.class),
+        mock(ExecutorService.class));
   }
 
   @Test
