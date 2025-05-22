@@ -21,12 +21,15 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+
 import static software.amazon.s3.analyticsaccelerator.access.ChecksumAssertions.assertChecksums;
 import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_KB;
 import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_MB;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.*;
@@ -41,6 +44,7 @@ import software.amazon.awssdk.core.checksums.Crc32CChecksum;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
+import software.amazon.s3.analyticsaccelerator.request.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 /** Base class for the integration tests */
@@ -166,6 +170,51 @@ public abstract class IntegrationTestBase extends ExecutionBase {
               executeReadPatternOnAAL(
                   s3Object, s3AALClientStreamReader, streamReadPattern, Optional.of(datChecksum)));
       assert (datChecksum.getChecksumBytes().length > 0);
+    }
+  }
+
+  /**
+   * This test verifies that the data in the buffers is the same when a file is read through
+   * readVectored() vs stream.read(buf[], off, len).
+   *
+   * @param s3ClientKind S3 client kind to use
+   * @param s3Object S3 object to read
+   * @param streamReadPatternKind stream read pattern to apply
+   * @param AALInputStreamConfigurationKind configuration kind
+   * @throws IOException on any IOException
+   */
+  protected void testReadVectored(
+      @NonNull S3ClientKind s3ClientKind,
+      @NonNull S3Object s3Object,
+      @NonNull StreamReadPatternKind streamReadPatternKind,
+      @NonNull AALInputStreamConfigurationKind AALInputStreamConfigurationKind)
+      throws IOException {
+
+    try (S3AALClientStreamReader s3AALClientStreamReader =
+        this.createS3AALClientStreamReader(s3ClientKind, AALInputStreamConfigurationKind)) {
+
+      S3SeekableInputStream s3SeekableInputStream =
+          s3AALClientStreamReader.createReadStream(s3Object);
+
+      List<ObjectRange> objectRanges = new ArrayList<>();
+      objectRanges.add(new ObjectRange(new CompletableFuture<>(), 50, 500));
+      objectRanges.add(new ObjectRange(new CompletableFuture<>(), 1000, 800));
+      objectRanges.add(new ObjectRange(new CompletableFuture<>(), 4000, 5000));
+
+      s3SeekableInputStream.readVectored(objectRanges, ByteBuffer::allocate);
+
+      for (ObjectRange objectRange : objectRanges) {
+        ByteBuffer byteBuffer = objectRange.getByteBuffer().join();
+
+        S3SeekableInputStream verificationStream =
+            s3AALClientStreamReader.createReadStream(s3Object);
+        verificationStream.seek(objectRange.getOffset());
+        byte[] buffer = new byte[objectRange.getLength()];
+        int readBytes = verificationStream.read(buffer, 0, buffer.length);
+
+        assertEquals(readBytes, buffer.length);
+        assertArrayEquals(buffer, byteBuffer.array());
+      }
     }
   }
 
