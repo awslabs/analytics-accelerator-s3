@@ -29,4 +29,21 @@ public class ObjectRange {
   CompletableFuture<ByteBuffer> byteBuffer;
   long offset;
   int length;
+
+  /**
+   * Constructor to create object range.
+   *
+   * @param byteBuffer future to be completed when read is completed.
+   * @param offset position to start the read from
+   * @param length length of the read
+   */
+  public ObjectRange(CompletableFuture<ByteBuffer> byteBuffer, long offset, int length) {
+    Preconditions.checkNotNull(byteBuffer);
+    Preconditions.checkArgument(offset >= 0);
+    Preconditions.checkArgument(length >= 0);
+
+    this.byteBuffer = byteBuffer;
+    this.offset = offset;
+    this.length = length;
+  }
 }
