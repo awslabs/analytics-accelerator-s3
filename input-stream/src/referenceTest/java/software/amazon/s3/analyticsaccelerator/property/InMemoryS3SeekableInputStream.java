@@ -124,7 +124,7 @@ public class InMemoryS3SeekableInputStream extends SeekableInputStream {
   @Override
   public void readVectored(List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate)
       throws IOException {
-    // TODO
+    this.delegate.readVectored(ranges, allocate);
   }
 
   @Override
