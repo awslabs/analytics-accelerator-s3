@@ -29,6 +29,7 @@ import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
+import software.amazon.s3.analyticsaccelerator.io.physical.data.Blob;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
@@ -55,6 +56,7 @@ public class PhysicalIOImpl implements PhysicalIO {
   private static final String OPERATION_EXECUTE = "physical.io.execute";
   private static final String FLAVOR_TAIL = "tail";
   private static final String FLAVOR_BYTE = "byte";
+  private static final int TMP_BUFFER_MAX_SIZE = 64 * 1024;
 
   private static final Logger LOG = LoggerFactory.getLogger(PhysicalIOImpl.class);
 
@@ -248,6 +250,8 @@ public class PhysicalIOImpl implements PhysicalIO {
   @Override
   public void readVectored(List<ObjectRange> objectRanges, IntFunction<ByteBuffer> allocate)
       throws IOException {
+    Blob blob = blobStore.get(objectKey, this.metadata, streamContext);
+
     for (ObjectRange objectRange : objectRanges) {
       ByteBuffer buffer = allocate.apply(objectRange.getLength());
       threadPool.submit(
@@ -258,15 +262,46 @@ public class PhysicalIOImpl implements PhysicalIO {
                   objectKey.getS3URI(),
                   objectRange.getOffset(),
                   objectRange.getOffset() + objectRange.getLength() - 1);
-              // TODO: if it's direct buffer, you need to do some extra logic!
-              blobStore
-                  .get(objectKey, this.metadata, streamContext)
-                  .read(buffer.array(), 0, objectRange.getLength(), objectRange.getOffset());
+
+              if (buffer.isDirect()) {
+                // Direct buffers do not support the buffer.array() method, so we need to read into
+                // them using a temp buffer.
+                readIntoDirectBuffer(buffer, blob, objectRange);
+                buffer.flip();
+              } else {
+                blob.read(buffer.array(), 0, objectRange.getLength(), objectRange.getOffset());
+              }
+              // there is no use of a temp byte buffer, or buffer.put() calls,
+              // so flip() is not needed.
               objectRange.getByteBuffer().complete(buffer);
             } catch (Exception e) {
               objectRange.getByteBuffer().completeExceptionally(e);
             }
           });
+    }
+  }
+
+  private void readIntoDirectBuffer(ByteBuffer buffer, Blob blob, ObjectRange range)
+      throws IOException {
+    int length = range.getLength();
+    if (length == 0) {
+      // no-op
+      return;
+    }
+
+    int readBytes = 0;
+    long position = range.getOffset();
+    int tmpBufferMaxSize = Math.min(TMP_BUFFER_MAX_SIZE, length);
+    byte[] tmp = new byte[tmpBufferMaxSize];
+    while (readBytes < length) {
+      int currentLength =
+          (readBytes + tmpBufferMaxSize) < length ? tmpBufferMaxSize : (length - readBytes);
+      LOG.debug(
+          "Reading {} bytes from position {} (bytes read={}", currentLength, position, readBytes);
+      blob.read(tmp, 0, currentLength, position);
+      buffer.put(tmp, 0, currentLength);
+      position = position + currentLength;
+      readBytes = readBytes + currentLength;
     }
   }
 

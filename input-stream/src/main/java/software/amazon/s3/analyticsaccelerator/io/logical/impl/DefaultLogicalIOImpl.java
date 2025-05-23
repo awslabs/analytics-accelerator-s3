@@ -20,8 +20,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.IntFunction;
 import lombok.NonNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
@@ -44,8 +42,6 @@ public class DefaultLogicalIOImpl implements LogicalIO {
 
   // When is the LogicalIO instance created?
   private final long birthTimestamp = System.nanoTime();
-
-  private static final Logger LOG = LoggerFactory.getLogger(DefaultLogicalIOImpl.class);
 
   /**
    * Constructs an instance of LogicalIOImpl.

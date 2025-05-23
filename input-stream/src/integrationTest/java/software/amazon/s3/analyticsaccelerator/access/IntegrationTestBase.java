@@ -15,7 +15,6 @@
  */
 package software.amazon.s3.analyticsaccelerator.access;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -33,6 +32,7 @@ import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntFunction;
 import java.util.stream.Stream;
 import lombok.NonNull;
 import org.junit.jupiter.api.AfterEach;
@@ -180,13 +180,15 @@ public abstract class IntegrationTestBase extends ExecutionBase {
    * @param s3Object S3 object to read
    * @param streamReadPatternKind stream read pattern to apply
    * @param AALInputStreamConfigurationKind configuration kind
+   * @param allocate method to allocate the buffer, can be direct or non-direct
    * @throws IOException on any IOException
    */
   protected void testReadVectored(
       @NonNull S3ClientKind s3ClientKind,
       @NonNull S3Object s3Object,
       @NonNull StreamReadPatternKind streamReadPatternKind,
-      @NonNull AALInputStreamConfigurationKind AALInputStreamConfigurationKind)
+      @NonNull AALInputStreamConfigurationKind AALInputStreamConfigurationKind,
+      @NonNull IntFunction<ByteBuffer> allocate)
       throws IOException {
 
     try (S3AALClientStreamReader s3AALClientStreamReader =
@@ -200,7 +202,7 @@ public abstract class IntegrationTestBase extends ExecutionBase {
       objectRanges.add(new ObjectRange(new CompletableFuture<>(), 1000, 800));
       objectRanges.add(new ObjectRange(new CompletableFuture<>(), 4000, 5000));
 
-      s3SeekableInputStream.readVectored(objectRanges, ByteBuffer::allocate);
+      s3SeekableInputStream.readVectored(objectRanges, allocate);
 
       for (ObjectRange objectRange : objectRanges) {
         ByteBuffer byteBuffer = objectRange.getByteBuffer().join();
@@ -212,7 +214,7 @@ public abstract class IntegrationTestBase extends ExecutionBase {
         int readBytes = verificationStream.read(buffer, 0, buffer.length);
 
         assertEquals(readBytes, buffer.length);
-        assertArrayEquals(buffer, byteBuffer.array());
+        verifyBufferContentsEqual(byteBuffer, buffer);
       }
     }
   }
@@ -230,6 +232,18 @@ public abstract class IntegrationTestBase extends ExecutionBase {
       throws IOException {
     int readBytes = stream.read(buffer, offset, len);
     assertEquals(readBytes, len);
+  }
+
+  /**
+   * Verify the contents of two buffers are equal
+   *
+   * @param buffer ByteBuffer to verify contents for
+   * @param expected expected contents in byte buffer
+   */
+  private void verifyBufferContentsEqual(ByteBuffer buffer, byte[] expected) {
+    for (int i = 0; i < expected.length; i++) {
+      assertEquals(buffer.get(i), expected[i]);
+    }
   }
 
   /**

@@ -16,6 +16,7 @@
 package software.amazon.s3.analyticsaccelerator.access;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -32,7 +33,12 @@ public class ReadVectoredTest extends IntegrationTestBase {
       StreamReadPatternKind streamReadPattern,
       AALInputStreamConfigurationKind configuration)
       throws IOException {
-    testReadVectored(s3ClientKind, s3Object, streamReadPattern, configuration);
+    // Run with non-direct buffers
+    testReadVectored(
+        s3ClientKind, s3Object, streamReadPattern, configuration, ByteBuffer::allocate);
+    // Run with direct buffers
+    testReadVectored(
+        s3ClientKind, s3Object, streamReadPattern, configuration, ByteBuffer::allocateDirect);
   }
 
   static Stream<Arguments> vectoredReads() {

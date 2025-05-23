@@ -15,7 +15,6 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.impl;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
@@ -372,6 +371,12 @@ public class PhysicalIOImplTest {
 
   @Test
   void testReadVectored() throws IOException {
+    // Run for both direct and non-direct buffers.
+    readVectored(ByteBuffer::allocate);
+    readVectored(ByteBuffer::allocateDirect);
+  }
+
+  private void readVectored(IntFunction<ByteBuffer> allocate) throws IOException {
     final String TEST_DATA = "test data for read vectored";
     FakeObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
     MetadataStore metadataStore =
@@ -382,8 +387,6 @@ public class PhysicalIOImplTest {
             fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT, metrics);
     PhysicalIOImpl physicalIO =
         new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT, executorService);
-
-    IntFunction<ByteBuffer> allocate = ByteBuffer::allocate;
 
     List<ObjectRange> objectRanges = new ArrayList<>();
     objectRanges.add(new ObjectRange(new CompletableFuture<>(), 2, 3));
@@ -399,8 +402,20 @@ public class PhysicalIOImplTest {
 
     physicalIO.readVectored(objectRanges, allocate);
 
-    assertArrayEquals(objectRanges.get(0).getByteBuffer().join().array(), firstBufferExpected);
-    assertArrayEquals(objectRanges.get(1).getByteBuffer().join().array(), secondBufferExpected);
-    assertArrayEquals(objectRanges.get(2).getByteBuffer().join().array(), thirdBufferExpected);
+    verifyBufferContentsEqual(objectRanges.get(0).getByteBuffer().join(), firstBufferExpected);
+    verifyBufferContentsEqual(objectRanges.get(1).getByteBuffer().join(), secondBufferExpected);
+    verifyBufferContentsEqual(objectRanges.get(2).getByteBuffer().join(), thirdBufferExpected);
+  }
+
+  /**
+   * Verify the contents of two buffers are equal
+   *
+   * @param buffer ByteBuffer to verify contents for
+   * @param expected expected contents in byte buffer
+   */
+  private void verifyBufferContentsEqual(ByteBuffer buffer, byte[] expected) {
+    for (int i = 0; i < expected.length; i++) {
+      assertEquals(buffer.get(i), expected[i]);
+    }
   }
 }
