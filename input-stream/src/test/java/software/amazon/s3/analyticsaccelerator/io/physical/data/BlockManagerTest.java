@@ -167,9 +167,13 @@ public class BlockManagerTest {
   @Test
   void testMakePositionAvailableRespectsReadAhead() throws IOException {
     // Given
-    final int objectSize = (int) PhysicalIOConfiguration.DEFAULT.getReadAheadBytes() + ONE_KB;
+
+    PhysicalIOConfiguration config =
+        PhysicalIOConfiguration.builder().smallObjectsPrefetchingEnabled(false).build();
+
+    final int objectSize = (int) config.getReadAheadBytes() + ONE_KB;
     ObjectClient objectClient = mock(ObjectClient.class);
-    BlockManager blockManager = getTestBlockManager(objectClient, objectSize);
+    BlockManager blockManager = getTestBlockManager(objectClient, objectSize, config);
 
     // When
     blockManager.makePositionAvailable(0, ReadMode.SYNC);

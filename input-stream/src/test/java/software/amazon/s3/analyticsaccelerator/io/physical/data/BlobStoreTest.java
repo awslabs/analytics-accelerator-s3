@@ -77,6 +77,8 @@ public class BlobStoreTest {
     Map<String, String> configMap = new HashMap<>();
     configMap.put("max.memory.limit", "1000");
     configMap.put("memory.cleanup.frequency", "1");
+    // when small objects prefetching is async, causing fleakiness in tests.
+    configMap.put("small.objects.prefetching.enabled", "false");
     ConnectorConfiguration connectorConfig = new ConnectorConfiguration(configMap);
     config = PhysicalIOConfiguration.fromConfiguration(connectorConfig);
 
@@ -207,11 +209,11 @@ public class BlobStoreTest {
     byte[] b = new byte[TEST_DATA.length()];
     blob.read(b, 0, b.length, 0);
 
-    assertEquals(2, blobStore.getMetrics().get(MetricKey.CACHE_HIT));
+    assertEquals(1, blobStore.getMetrics().get(MetricKey.CACHE_HIT));
 
     blob.read(b, 0, b.length, 0);
 
-    assertEquals(4, blobStore.getMetrics().get(MetricKey.CACHE_HIT));
+    assertEquals(3, blobStore.getMetrics().get(MetricKey.CACHE_HIT));
   }
 
   @Test
@@ -327,9 +329,7 @@ public class BlobStoreTest {
     blobStore.close();
 
     // Then: Verify the hit rate
-    assertTrue(
-        expectedHitRate >= 59.0 && expectedHitRate <= 60.0,
-        "Hit rate should be between 59% and 60%, but was " + expectedHitRate);
+    assertEquals(60.0, expectedHitRate, 0.01, "Hit rate should be approximately 60%");
   }
 
   @Test

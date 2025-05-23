@@ -41,6 +41,7 @@ import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
 import software.amazon.s3.analyticsaccelerator.util.MetricKey;
+import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 @SuppressFBWarnings(
@@ -83,6 +84,7 @@ public class PhysicalIOImplTest {
         () -> {
           new PhysicalIOImpl(s3URI, mock(MetadataStore.class), mock(BlobStore.class), null);
         });
+
     assertThrows(
         NullPointerException.class,
         () -> {
@@ -94,6 +96,7 @@ public class PhysicalIOImplTest {
         () -> {
           new PhysicalIOImpl(s3URI, mock(MetadataStore.class), null, TestTelemetry.DEFAULT);
         });
+
     assertThrows(
         NullPointerException.class,
         () -> {
@@ -136,6 +139,8 @@ public class PhysicalIOImplTest {
     assertEquals(97, physicalIOImplV2.read(0)); // a
     assertEquals(98, physicalIOImplV2.read(1)); // b
     assertEquals(99, physicalIOImplV2.read(2)); // c
+    assertThrows(IllegalArgumentException.class, () -> physicalIOImplV2.read(-1));
+    assertThrows(IllegalArgumentException.class, () -> physicalIOImplV2.read(10000));
   }
 
   @Test
@@ -298,6 +303,25 @@ public class PhysicalIOImplTest {
         TEST_DATA.length(),
         metrics.get(MetricKey.MEMORY_USAGE),
         "Memory usage should remain unchanged after close without eviction");
+  }
+
+  @Test
+  void testCloseWithEviction() throws IOException {
+    // Given
+    final String TEST_DATA = "test data longer than buffer";
+    FakeObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
+
+    BlobStore mockBlobStore = mock(BlobStore.class);
+    MetadataStore metadataStore =
+        new MetadataStore(fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
+
+    PhysicalIOImpl physicalIO =
+        new PhysicalIOImpl(s3URI, metadataStore, mockBlobStore, TestTelemetry.DEFAULT);
+    ObjectKey objectKey = ObjectKey.builder().s3URI(s3URI).etag(fakeObjectClient.getEtag()).build();
+    // When
+    physicalIO.close(true);
+    // Then
+    verify(mockBlobStore, times(1)).evictKey(objectKey);
   }
 
   @Test
