@@ -16,6 +16,8 @@
 package software.amazon.s3.analyticsaccelerator;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -56,6 +58,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   private final Telemetry telemetry;
   private final ObjectFormatSelector objectFormatSelector;
   private final Metrics metrics;
+  private final ExecutorService threadPool;
 
   private static final Logger LOG = LoggerFactory.getLogger(S3SeekableInputStreamFactory.class);
 
@@ -81,6 +84,10 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
     this.objectFormatSelector = new ObjectFormatSelector(configuration.getLogicalIOConfiguration());
     this.objectBlobStore =
         new BlobStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration(), metrics);
+    // TODO: calling applications should be able to pass in a thread pool if they so wish
+    this.threadPool =
+        Executors.newFixedThreadPool(
+            configuration.getPhysicalIOConfiguration().getThreadPoolSize());
     objectBlobStore.schedulePeriodicCleanup();
   }
 
@@ -138,7 +145,8 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
                 objectMetadataStore,
                 objectBlobStore,
                 telemetry,
-                openStreamInformation.getStreamContext()),
+                openStreamInformation.getStreamContext(),
+                threadPool),
             telemetry,
             configuration.getLogicalIOConfiguration(),
             parquetColumnPrefetchStore);
@@ -151,7 +159,8 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
                 objectMetadataStore,
                 objectBlobStore,
                 telemetry,
-                openStreamInformation.getStreamContext()),
+                openStreamInformation.getStreamContext(),
+                threadPool),
             telemetry,
             configuration.getLogicalIOConfiguration());
 
@@ -163,7 +172,8 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
                 objectMetadataStore,
                 objectBlobStore,
                 telemetry,
-                openStreamInformation.getStreamContext()),
+                openStreamInformation.getStreamContext(),
+                threadPool),
             telemetry);
     }
   }

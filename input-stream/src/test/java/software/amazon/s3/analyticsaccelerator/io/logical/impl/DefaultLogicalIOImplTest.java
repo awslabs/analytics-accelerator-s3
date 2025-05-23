@@ -24,7 +24,12 @@ import static org.mockito.Mockito.when;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.IntFunction;
 import org.junit.jupiter.api.Test;
+import software.amazon.s3.analyticsaccelerator.common.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
@@ -111,5 +116,17 @@ public class DefaultLogicalIOImplTest {
     byte[] buffer = new byte[5];
     logicalIO.readTail(buffer, 0, 5);
     verify(physicalIO).readTail(buffer, 0, 5);
+  }
+
+  @Test
+  void testReadVectored() throws IOException {
+    PhysicalIO physicalIO = mock(PhysicalIO.class);
+    when(physicalIO.metadata())
+        .thenReturn(ObjectMetadata.builder().contentLength(123).etag("random").build());
+    DefaultLogicalIOImpl logicalIO = new DefaultLogicalIOImpl(TEST_URI, physicalIO, Telemetry.NOOP);
+    List<ObjectRange> ranges = new ArrayList<>();
+    IntFunction<ByteBuffer> allocate = ByteBuffer::allocate;
+    logicalIO.readVectored(ranges, allocate);
+    verify(physicalIO).readVectored(ranges, allocate);
   }
 }

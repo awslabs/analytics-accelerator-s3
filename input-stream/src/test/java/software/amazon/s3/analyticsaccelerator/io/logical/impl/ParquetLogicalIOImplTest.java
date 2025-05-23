@@ -21,6 +21,7 @@ import static org.mockito.Mockito.*;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
@@ -145,7 +146,8 @@ public class ParquetLogicalIOImplTest {
             PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class));
     PhysicalIOImpl physicalIO =
-        new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
+        new PhysicalIOImpl(
+            s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT, mock(ExecutorService.class));
     assertDoesNotThrow(
         () ->
             new ParquetLogicalIOImpl(

@@ -16,7 +16,11 @@
 package software.amazon.s3.analyticsaccelerator.io.physical;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.function.IntFunction;
 import software.amazon.s3.analyticsaccelerator.RandomAccessReadable;
+import software.amazon.s3.analyticsaccelerator.common.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 
@@ -30,6 +34,18 @@ public interface PhysicalIO extends RandomAccessReadable {
    * @return an IOPlanExecution object tracking the execution of the submitted plan
    */
   IOPlanExecution execute(IOPlan ioPlan) throws IOException;
+
+  /**
+   * Fetches the list of provided ranges in parallel. Byte buffers are created using the allocate
+   * method, and may be direct or non-direct depending on the implementation of the allocate method.
+   * When a provided range has been fully read, the associated future for it is completed.
+   *
+   * @param objectRanges Ranges to be fetched in parallel
+   * @param allocate the function to allocate ByteBuffer
+   * @throws IOException on any IO failure
+   */
+  void readVectored(List<ObjectRange> objectRanges, IntFunction<ByteBuffer> allocate)
+      throws IOException;
 
   /**
    * Closes the PhysicalIO and optionally evicts associated data.

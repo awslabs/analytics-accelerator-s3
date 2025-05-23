@@ -17,6 +17,10 @@ package software.amazon.s3.analyticsaccelerator;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.function.IntFunction;
+import software.amazon.s3.analyticsaccelerator.common.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 
 /**
@@ -58,6 +62,18 @@ public abstract class SeekableInputStream extends InputStream {
    * @throws IOException if an error occurs while reading the file
    */
   public abstract int readTail(byte[] buf, int off, int n) throws IOException;
+
+  /**
+   * Reads the list of provided ranges in parallel. Byte buffers are created using the allocate
+   * method, and may be direct or non-direct depending on the implementation of the allocate method.
+   * When a provided range has been fully read, the associated future for it is completed.
+   *
+   * @param ranges Ranges to be fetched in parallel
+   * @param allocate the function to allocate ByteBuffer
+   * @throws IOException on any IO failure
+   */
+  public abstract void readVectored(
+      List<ObjectRange> ranges, final IntFunction<ByteBuffer> allocate) throws IOException;
 
   /**
    * Validates the arguments for a read operation. This method is available to use in all subclasses

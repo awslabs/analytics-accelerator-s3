@@ -46,6 +46,7 @@ public class PhysicalIOConfiguration {
   private static final int DEFAULT_MEMORY_CLEANUP_FREQUENCY_MILLISECONDS = 5000;
   private static final boolean DEFAULT_SMALL_OBJECTS_PREFETCHING_ENABLED = true;
   private static final long DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD = 8 * ONE_MB;
+  private static final int DEFAULT_THREAD_POOL_SIZE = 96;
 
   /**
    * Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_MEMORY_CAPACITY_BYTES} by default.
@@ -131,9 +132,6 @@ public class PhysicalIOConfiguration {
 
   private static final String BLOCK_READ_RETRY_COUNT_KEY = "blockreadretrycount";
 
-  /** Default set of settings for {@link PhysicalIO} */
-  public static final PhysicalIOConfiguration DEFAULT = PhysicalIOConfiguration.builder().build();
-
   /** Controls whether small object prefetching is enabled */
   @Builder.Default
   private boolean smallObjectsPrefetchingEnabled = DEFAULT_SMALL_OBJECTS_PREFETCHING_ENABLED;
@@ -148,6 +146,13 @@ public class PhysicalIOConfiguration {
   @Builder.Default private long smallObjectSizeThreshold = DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD;
 
   private static final String SMALL_OBJECT_SIZE_THRESHOLD_KEY = "small.object.size.threshold";
+
+  @Builder.Default private int threadPoolSize = DEFAULT_THREAD_POOL_SIZE;
+
+  private static final String THREAD_POOL_SIZE_KEY = "thread.pool.size";
+
+  /** Default set of settings for {@link PhysicalIO} */
+  public static final PhysicalIOConfiguration DEFAULT = PhysicalIOConfiguration.builder().build();
 
   /**
    * Constructs {@link PhysicalIOConfiguration} from {@link ConnectorConfiguration} object.
@@ -186,6 +191,7 @@ public class PhysicalIOConfiguration {
         .smallObjectSizeThreshold(
             configuration.getLong(
                 SMALL_OBJECT_SIZE_THRESHOLD_KEY, DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD))
+        .threadPoolSize(configuration.getInt(THREAD_POOL_SIZE_KEY, DEFAULT_THREAD_POOL_SIZE))
         .build();
   }
 
@@ -208,6 +214,7 @@ public class PhysicalIOConfiguration {
    * @param blockReadRetryCount Number of retries for block read failure
    * @param smallObjectsPrefetchingEnabled Whether small object prefetching is enabled
    * @param smallObjectSizeThreshold Maximum size in bytes for an object to be considered small
+   * @param threadPoolSize Size of thread pool to be used for async operations
    */
   @Builder
   private PhysicalIOConfiguration(
@@ -224,7 +231,8 @@ public class PhysicalIOConfiguration {
       long blockReadTimeout,
       int blockReadRetryCount,
       boolean smallObjectsPrefetchingEnabled,
-      long smallObjectSizeThreshold) {
+      long smallObjectSizeThreshold,
+      int threadPoolSize) {
     Preconditions.checkArgument(memoryCapacityBytes > 0, "`memoryCapacityBytes` must be positive");
     Preconditions.checkArgument(
         memoryCleanupFrequencyMilliseconds > 0,
@@ -245,6 +253,7 @@ public class PhysicalIOConfiguration {
     Preconditions.checkArgument(blockReadRetryCount > 0, "`blockReadRetryCount` must be positive");
     Preconditions.checkArgument(
         smallObjectSizeThreshold > 0, "`smallObjectSizeThreshold` must be positive");
+    Preconditions.checkNotNull(threadPoolSize > 0, "`threadPoolSize` must be positive");
 
     this.memoryCapacityBytes = memoryCapacityBytes;
     this.memoryCleanupFrequencyMilliseconds = memoryCleanupFrequencyMilliseconds;
@@ -260,6 +269,7 @@ public class PhysicalIOConfiguration {
     this.blockReadRetryCount = blockReadRetryCount;
     this.smallObjectsPrefetchingEnabled = smallObjectsPrefetchingEnabled;
     this.smallObjectSizeThreshold = smallObjectSizeThreshold;
+    this.threadPoolSize = threadPoolSize;
   }
 
   @Override
@@ -282,6 +292,7 @@ public class PhysicalIOConfiguration {
     builder.append("\tblockReadRetryCount: " + blockReadRetryCount + "\n");
     builder.append("\tsmallObjectsPrefetchingEnabled: " + smallObjectsPrefetchingEnabled + "\n");
     builder.append("\tsmallObjectSizeThreshold: " + smallObjectSizeThreshold + "\n");
+    builder.append("\tthreadPoolSize: " + threadPoolSize + "\n");
 
     return builder.toString();
   }
