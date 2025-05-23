@@ -15,8 +15,10 @@
  */
 package software.amazon.s3.analyticsaccelerator.util;
 
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import software.amazon.s3.analyticsaccelerator.common.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Attribute;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.request.Range;
@@ -33,6 +35,7 @@ public enum StreamAttributes {
   GENERATION("generation"),
   COLUMN("column"),
   IOPLAN("ioplan"),
+  VECTORED_RANGES("vectored.ranges"),
   LOGICAL_READ_POSITION("logicalread.position"),
   LOGICAL_READ_LENGTH("logicalread.length"),
   RANGE_LENGTH("range.length"),
@@ -141,6 +144,16 @@ public enum StreamAttributes {
    */
   public static Attribute ioPlan(IOPlan ioPlan) {
     return Attribute.of(StreamAttributes.IOPLAN.getName(), ioPlan.toString());
+  }
+
+  /**
+   * Creates an {@link Attribute} for vectoredRanges.
+   *
+   * @param objectRanges the ranges for vectoredReads().
+   * @return The new instance of the {@link Attribute}.
+   */
+  public static Attribute vectoredRanges(List<ObjectRange> objectRanges) {
+    return Attribute.of(StreamAttributes.VECTORED_RANGES.getName(), objectRanges.toString());
   }
 
   /**

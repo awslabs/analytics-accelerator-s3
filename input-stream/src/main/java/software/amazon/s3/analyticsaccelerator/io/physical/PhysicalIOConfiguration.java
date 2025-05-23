@@ -46,7 +46,7 @@ public class PhysicalIOConfiguration {
   private static final int DEFAULT_MEMORY_CLEANUP_FREQUENCY_MILLISECONDS = 5000;
   private static final boolean DEFAULT_SMALL_OBJECTS_PREFETCHING_ENABLED = true;
   private static final long DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD = 8 * ONE_MB;
-  private static final int DEFAULT_THREAD_POOL_SIZE = 200;
+  private static final int DEFAULT_THREAD_POOL_SIZE = 96;
 
   /**
    * Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_MEMORY_CAPACITY_BYTES} by default.

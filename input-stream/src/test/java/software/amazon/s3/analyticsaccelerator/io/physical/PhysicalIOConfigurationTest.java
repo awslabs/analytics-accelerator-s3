@@ -77,6 +77,6 @@ public class PhysicalIOConfigurationTest {
             + "\tblockReadRetryCount: 20\n"
             + "\tsmallObjectsPrefetchingEnabled: true\n"
             + "\tsmallObjectSizeThreshold: 8388608\n"
-            + "\tthreadPoolSize: 200\n");
+            + "\tthreadPoolSize: 96\n");
   }
 }

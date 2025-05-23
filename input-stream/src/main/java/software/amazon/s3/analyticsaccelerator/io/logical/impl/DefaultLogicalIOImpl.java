@@ -29,11 +29,13 @@ import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
+import software.amazon.s3.analyticsaccelerator.util.VectoredReadUtils;
 
 /** The default implementation of a LogicalIO layer. Will be used for all non-parquet files. */
 public class DefaultLogicalIOImpl implements LogicalIO {
 
   private static final String OPERATION_LOGICAL_READ = "logical.read";
+  private static final String OPERATION_LOGICAL_VECTORED_READ = "logical.vectored.read";
 
   // Dependencies
   private final S3URI s3URI;
@@ -117,8 +119,19 @@ public class DefaultLogicalIOImpl implements LogicalIO {
   @Override
   public void readVectored(List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate)
       throws IOException {
-    // TODO: add telemetry here
-    physicalIO.readVectored(ranges, allocate);
+    telemetry.measureStandard(
+        () ->
+            Operation.builder()
+                .name(OPERATION_LOGICAL_VECTORED_READ)
+                .attribute(StreamAttributes.vectoredRanges(ranges))
+                .attribute(StreamAttributes.uri(s3URI))
+                .attribute(
+                    StreamAttributes.logicalIORelativeTimestamp(System.nanoTime() - birthTimestamp))
+                .build(),
+        () -> {
+          VectoredReadUtils.validateAndSortRanges(ranges, physicalIO.metadata().getContentLength());
+          physicalIO.readVectored(ranges, allocate);
+        });
   }
 
   /**
