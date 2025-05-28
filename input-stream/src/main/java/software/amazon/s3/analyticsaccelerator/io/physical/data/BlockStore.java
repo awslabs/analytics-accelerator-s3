@@ -16,18 +16,13 @@
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
-import java.io.IOException;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.OptionalLong;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
-import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 
@@ -38,9 +33,10 @@ public class BlockStore implements Closeable {
 
   private final ObjectKey s3URI;
   private final ObjectMetadata metadata;
-  private final Map<BlockKey, Block> blocks;
+  private final Map<Integer, Block> blocks;
   private final Metrics aggregatingMetrics;
   private final BlobStoreIndexCache indexCache;
+  private static final long blockSize = 8 * 1024; // TODO: pass in constructor
 
   /**
    * Constructs a new instance of a BlockStore.
@@ -60,7 +56,7 @@ public class BlockStore implements Closeable {
 
     this.s3URI = objectKey;
     this.metadata = metadata;
-    this.blocks = new LinkedHashMap<>();
+    this.blocks = new ConcurrentHashMap<>();
     this.aggregatingMetrics = aggregatingMetrics;
     this.indexCache = indexCache;
   }
@@ -84,13 +80,23 @@ public class BlockStore implements Closeable {
   public Optional<Block> getBlock(long pos) {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
 
-    Optional<Block> block = blocks.values().stream().filter(b -> b.contains(pos)).findFirst();
+    Optional<Block> block = Optional.ofNullable(blocks.getOrDefault(getPositionIndex(pos), null));
     if (block.isPresent()) {
       aggregatingMetrics.add(MetricKey.CACHE_HIT, 1L);
     } else {
       aggregatingMetrics.add(MetricKey.CACHE_MISS, 1L);
     }
     return block;
+  }
+
+  /**
+   * Return blocks by index
+   *
+   * @param index index
+   * @return block
+   */
+  public Optional<Block> getBlockByIndex(int index) {
+    return Optional.ofNullable(blocks.getOrDefault(index, null));
   }
 
   /**
@@ -101,18 +107,18 @@ public class BlockStore implements Closeable {
    * @param pos a byte position
    * @return the position of the next available byte or empty if there is no next available byte
    */
-  public OptionalLong findNextLoadedByte(long pos) {
-    Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
-
-    if (getBlock(pos).isPresent()) {
-      return OptionalLong.of(pos);
-    }
-
-    return blocks.values().stream()
-        .mapToLong(block -> block.getBlockKey().getRange().getStart())
-        .filter(startPos -> pos < startPos)
-        .min();
-  }
+  //  public OptionalLong findNextLoadedByte(long pos) {
+  //    Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
+  //
+  //    if (getBlock(pos).isPresent()) {
+  //      return OptionalLong.of(pos);
+  //    }
+  //
+  //    return blocks.values().stream()
+  //        .mapToLong(block -> block.getBlockKey().getRange().getStart())
+  //        .filter(startPos -> pos < startPos)
+  //        .min();
+  //  }
 
   /**
    * Given a position, return the position of the next byte that IS NOT present in the BlockStore to
@@ -123,30 +129,37 @@ public class BlockStore implements Closeable {
    *     present
    * @throws IOException if an I/O error occurs
    */
-  public OptionalLong findNextMissingByte(long pos) throws IOException {
-    Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
-
-    long nextMissingByte = pos;
-    Optional<Block> nextBlock;
-    while ((nextBlock = getBlock(nextMissingByte)).isPresent()) {
-      nextMissingByte = nextBlock.get().getBlockKey().getRange().getEnd() + 1;
-    }
-
-    return nextMissingByte <= getLastObjectByte()
-        ? OptionalLong.of(nextMissingByte)
-        : OptionalLong.empty();
-  }
+  //  public OptionalLong findNextMissingByte(long pos) throws IOException {
+  //    Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
+  //
+  //    long nextMissingByte = pos;
+  //    Optional<Block> nextBlock;
+  //    while ((nextBlock = getBlock(nextMissingByte)).isPresent()) {
+  //      nextMissingByte = nextBlock.get().getBlockKey().getRange().getEnd() + 1;
+  //    }
+  //
+  //    return nextMissingByte <= getLastObjectByte()
+  //        ? OptionalLong.of(nextMissingByte)
+  //        : OptionalLong.empty();
+  //  }
 
   /**
    * Add a Block to the BlockStore.
    *
    * @param block the block to add to the BlockStore
-   * @param blockKey key to the block
    */
-  public void add(BlockKey blockKey, Block block) {
+  public void add(Block block) {
     Preconditions.checkNotNull(block, "`block` must not be null");
 
-    this.blocks.put(blockKey, block);
+    this.blocks.putIfAbsent(getBlockIndex(block), block);
+  }
+
+  private int getBlockIndex(Block block) {
+    return getPositionIndex(block.getBlockKey().getRange().getStart());
+  }
+
+  private int getPositionIndex(long pos) {
+    return (int) (pos / blockSize);
   }
 
   /**
@@ -157,33 +170,47 @@ public class BlockStore implements Closeable {
    */
   public void cleanUp() {
 
-    Iterator<Map.Entry<BlockKey, Block>> iterator = blocks.entrySet().iterator();
-
-    while (iterator.hasNext()) {
-      Map.Entry<BlockKey, Block> entry = iterator.next();
-      BlockKey blockKey = entry.getKey();
-
-      if (entry.getValue().isDataLoaded() && !indexCache.contains(blockKey)) {
-        // The block is not in the index cache, so remove it from the block store
-        int range = blockKey.getRange().getLength();
-        try {
-          iterator.remove(); // Remove from the iterator as well
-          aggregatingMetrics.reduce(MetricKey.MEMORY_USAGE, range);
-          LOG.debug(
-              "Removed block with key {}-{}-{} from block store during cleanup",
-              blockKey.getObjectKey().getS3URI(),
-              blockKey.getRange().getStart(),
-              blockKey.getRange().getEnd());
-
-        } catch (Exception e) {
-          LOG.error("Error in removing block {}", e.getMessage());
-        }
-      }
-    }
+    //    Iterator<Map.Entry<BlockKey, Block>> iterator = blocks.entrySet().iterator();
+    //
+    //    while (iterator.hasNext()) {
+    //      Map.Entry<BlockKey, Block> entry = iterator.next();
+    //      BlockKey blockKey = entry.getKey();
+    //
+    //      if (entry.getValue().isDataLoaded() && !indexCache.contains(blockKey)) {
+    //        // The block is not in the index cache, so remove it from the block store
+    //        int range = blockKey.getRange().getLength();
+    //        try {
+    //          iterator.remove(); // Remove from the iterator as well
+    //          aggregatingMetrics.reduce(MetricKey.MEMORY_USAGE, range);
+    //          LOG.debug(
+    //              "Removed block with key {}-{}-{} from block store during cleanup",
+    //              blockKey.getObjectKey().getS3URI(),
+    //              blockKey.getRange().getStart(),
+    //              blockKey.getRange().getEnd());
+    //
+    //        } catch (Exception e) {
+    //          LOG.error("Error in removing block {}", e.getMessage());
+    //        }
+    //      }
+    //    }
   }
 
-  private long getLastObjectByte() {
-    return this.metadata.getContentLength() - 1;
+  /**
+   * Return missing block indexes
+   *
+   * @param startIndex start
+   * @param endIndex end
+   * @return list of indexes
+   */
+  public List<Integer> getMissingBlockIndexes(int startIndex, int endIndex) {
+    // TODO Should be thread safe
+    List<Integer> missingBlockIndexes = new ArrayList<>();
+
+    for (int index = startIndex; index <= endIndex; index++) {
+      if (!blocks.containsKey(index)) missingBlockIndexes.add(index);
+    }
+
+    return missingBlockIndexes;
   }
 
   private void safeClose(Block block) {

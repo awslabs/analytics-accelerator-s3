@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.utils.IoUtils;
@@ -356,7 +357,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
             fakeObjectClient,
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT,
-            mock(Metrics.class));
+            mock(Metrics.class),
+            Executors.newFixedThreadPool(4));
 
     AtomicReference<Throwable> thrown = new AtomicReference<>();
 
@@ -457,7 +459,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
             fakeObjectClient,
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT,
-            mock(Metrics.class));
+            mock(Metrics.class),
+            Executors.newFixedThreadPool(4));
 
     return new S3SeekableInputStream(
         s3URI,

@@ -17,20 +17,21 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
-import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.SequentialPatternDetector;
 import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.SequentialReadProgression;
+import software.amazon.s3.analyticsaccelerator.io.physical.reader.StreamReader;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.Range;
@@ -47,15 +48,16 @@ public class BlockManager implements Closeable {
   private final Telemetry telemetry;
   private final SequentialPatternDetector patternDetector;
   private final SequentialReadProgression sequentialReadProgression;
-  private final IOPlanner ioPlanner;
   private final PhysicalIOConfiguration configuration;
   private final RangeOptimiser rangeOptimiser;
-  private StreamContext streamContext;
+  private final StreamContext streamContext;
   private final Metrics aggregatingMetrics;
   private final BlobStoreIndexCache indexCache;
-  private static final String OPERATION_MAKE_RANGE_AVAILABLE = "block.manager.make.range.available";
+  private final ExecutorService readThreadPool;
 
   private static final Logger LOG = LoggerFactory.getLogger(BlockManager.class);
+  private static final long blockSize = 8 * 1024; // TODO: pass in constructor
+  private final StreamReader streamReader;
 
   /**
    * Constructs a new BlockManager.
@@ -67,6 +69,7 @@ public class BlockManager implements Closeable {
    * @param configuration the physicalIO configuration
    * @param aggregatingMetrics factory metrics
    * @param indexCache blobstore index cache
+   * @param readThreadPool IO thread pool for read
    */
   public BlockManager(
       @NonNull ObjectKey objectKey,
@@ -75,7 +78,8 @@ public class BlockManager implements Closeable {
       @NonNull Telemetry telemetry,
       @NonNull PhysicalIOConfiguration configuration,
       @NonNull Metrics aggregatingMetrics,
-      @NonNull BlobStoreIndexCache indexCache) {
+      @NonNull BlobStoreIndexCache indexCache,
+      @NonNull ExecutorService readThreadPool) {
     this(
         objectKey,
         objectClient,
@@ -84,6 +88,7 @@ public class BlockManager implements Closeable {
         configuration,
         aggregatingMetrics,
         indexCache,
+        readThreadPool,
         null);
   }
 
@@ -97,6 +102,7 @@ public class BlockManager implements Closeable {
    * @param configuration the physicalIO configuration
    * @param aggregatingMetrics factory metrics
    * @param indexCache blobstore index cache
+   * @param readThreadPool IO thread pool for read
    * @param streamContext contains audit headers to be attached in the request header
    */
   public BlockManager(
@@ -107,6 +113,7 @@ public class BlockManager implements Closeable {
       @NonNull PhysicalIOConfiguration configuration,
       @NonNull Metrics aggregatingMetrics,
       @NonNull BlobStoreIndexCache indexCache,
+      @NonNull ExecutorService readThreadPool,
       StreamContext streamContext) {
     this.objectKey = objectKey;
     this.objectClient = objectClient;
@@ -118,9 +125,10 @@ public class BlockManager implements Closeable {
     this.blockStore = new BlockStore(objectKey, metadata, aggregatingMetrics, indexCache);
     this.patternDetector = new SequentialPatternDetector(blockStore);
     this.sequentialReadProgression = new SequentialReadProgression(configuration);
-    this.ioPlanner = new IOPlanner(blockStore);
     this.rangeOptimiser = new RangeOptimiser(configuration);
+    this.readThreadPool = readThreadPool;
     this.streamContext = streamContext;
+    this.streamReader = new StreamReader(objectClient, objectKey, readThreadPool, streamContext);
 
     prefetchSmallObject();
   }
@@ -176,21 +184,6 @@ public class BlockManager implements Closeable {
     makeRangeAvailable(pos, 1, readMode);
   }
 
-  private boolean isRangeAvailable(long pos, long len) throws IOException {
-    Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
-    Preconditions.checkArgument(0 <= len, "`len` must not be negative");
-
-    long lastByteOfRange = pos + len - 1;
-
-    OptionalLong nextMissingByte = blockStore.findNextMissingByte(pos);
-    if (nextMissingByte.isPresent()) {
-      return lastByteOfRange < nextMissingByte.getAsLong();
-    }
-
-    // If there is no missing byte after pos, then the whole object is already fetched
-    return true;
-  }
-
   /**
    * Method that ensures that a range is fully available in the object store. After calling this
    * method the BlockStore should contain all bytes in the range and we should be able to service a
@@ -206,63 +199,78 @@ public class BlockManager implements Closeable {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
 
-    if (isRangeAvailable(pos, len)) {
-      return;
-    }
+    int startBlockIndex = getPositionIndex(pos);
 
     // In case of a sequential reading pattern, calculate the generation and adjust the requested
     // effectiveEnd of the requested range
     long effectiveEnd = pos + Math.max(len, configuration.getReadAheadBytes()) - 1;
 
-    // Check sequential prefetching. If read mode is ASYNC, that is the request is from the parquet
-    // prefetch path, then do not extend the request.
-    // TODO: Improve readModes, as tracked in
-    // https://github.com/awslabs/analytics-accelerator-s3/issues/195
     final long generation;
-    if (readMode != ReadMode.ASYNC && patternDetector.isSequentialRead(pos)) {
-      generation = patternDetector.getGeneration(pos);
-      effectiveEnd =
-          Math.max(
-              effectiveEnd,
-              truncatePos(pos + sequentialReadProgression.getSizeForGeneration(generation)));
+    if (readMode != ReadMode.ASYNC) {
+      if (startBlockIndex == 0) generation = 0;
+      else {
+        Optional<Block> previousBlock = blockStore.getBlock(startBlockIndex - 1);
+        generation = previousBlock.map(block -> block.getGeneration() + 1).orElse(0L);
+        effectiveEnd =
+            Math.max(
+                effectiveEnd, pos + sequentialReadProgression.getSizeForGeneration(generation));
+      }
     } else {
       generation = 0;
     }
 
-    // Fix "effectiveEnd", so we can pass it into the lambda
-    final long effectiveEndFinal = effectiveEnd;
-    this.telemetry.measureStandard(
-        () ->
-            Operation.builder()
-                .name(OPERATION_MAKE_RANGE_AVAILABLE)
-                .attribute(StreamAttributes.uri(this.objectKey.getS3URI()))
-                .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
-                .attribute(StreamAttributes.range(pos, pos + len - 1))
-                .attribute(StreamAttributes.effectiveRange(pos, effectiveEndFinal))
-                .attribute(StreamAttributes.generation(generation))
-                .build(),
-        () -> {
-          // Determine the missing ranges and fetch them
-          List<Range> missingRanges =
-              ioPlanner.planRead(pos, effectiveEndFinal, getLastObjectByte());
-          List<Range> splits = rangeOptimiser.splitRanges(missingRanges);
-          for (Range r : splits) {
-            BlockKey blockKey = new BlockKey(objectKey, r);
-            Block block =
-                new Block(
-                    blockKey,
-                    objectClient,
-                    telemetry,
-                    generation,
-                    readMode,
-                    this.configuration.getBlockReadTimeout(),
-                    this.configuration.getBlockReadRetryCount(),
-                    aggregatingMetrics,
-                    indexCache,
-                    streamContext);
-            blockStore.add(blockKey, block);
-          }
-        });
+    effectiveEnd = truncatePos(effectiveEnd);
+    int endBlockIndex = getPositionIndex(effectiveEnd);
+
+    List<Integer> missingBlockIndexes =
+        blockStore.getMissingBlockIndexes(startBlockIndex, endBlockIndex);
+
+    if (!missingBlockIndexes.isEmpty()) {
+
+      List<Block> blocks = new ArrayList<>();
+      int rangeStart = missingBlockIndexes.get(0);
+      for (int index : missingBlockIndexes) {
+        long blockStartPos = index * blockSize;
+        Range range =
+            new Range(blockStartPos, Math.min(blockStartPos + blockSize - 1, getLastObjectByte()));
+        BlockKey blockKey = new BlockKey(objectKey, range);
+        Block block = new Block(blockKey, generation, indexCache);
+        if (blocks.isEmpty()) {
+          blocks.add(block);
+          blockStore.add(block);
+          rangeStart = index;
+        } else if (index - rangeStart <= 1024) {
+          blocks.add(block);
+          blockStore.add(block);
+        } else {
+          streamReader.read(blocks);
+          blocks = new ArrayList<>();
+          blocks.add(block);
+          blockStore.add(block);
+          rangeStart = index;
+        }
+      }
+
+      streamReader.read(blocks);
+    }
+  }
+
+  /**
+   * Return blocks
+   *
+   * @param pos position
+   * @param len length
+   * @return list of blocks
+   */
+  public synchronized List<Block> getBlocks(long pos, long len) {
+    int startBlockIndex = getPositionIndex(pos);
+    int endBlockIndex = getPositionIndex(Math.min(pos + len - 1, getLastObjectByte()));
+
+    List<Block> blocks = new ArrayList<>();
+    for (int index = startBlockIndex; index <= endBlockIndex; index++) {
+      blocks.add(blockStore.getBlockByIndex(index).get());
+    }
+    return blocks;
   }
 
   /** cleans data from memory */
@@ -284,5 +292,9 @@ public class BlockManager implements Closeable {
   @Override
   public void close() {
     blockStore.close();
+  }
+
+  private int getPositionIndex(long pos) {
+    return (int) (pos / blockSize);
   }
 }

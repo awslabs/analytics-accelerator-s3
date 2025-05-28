@@ -23,6 +23,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
@@ -177,7 +178,8 @@ public class BlobTest {
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class),
-            mock(BlobStoreIndexCache.class));
+            mock(BlobStoreIndexCache.class),
+            mock(ExecutorService.class));
 
     return new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
   }

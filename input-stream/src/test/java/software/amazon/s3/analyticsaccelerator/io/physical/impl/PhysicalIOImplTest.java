@@ -22,6 +22,7 @@ import static org.mockito.Mockito.*;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -130,7 +131,8 @@ public class PhysicalIOImplTest {
             fakeObjectClient,
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT,
-            mock(Metrics.class));
+            mock(Metrics.class),
+            Executors.newFixedThreadPool(4));
     PhysicalIOImpl physicalIOImplV2 =
         new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
 
@@ -155,7 +157,8 @@ public class PhysicalIOImplTest {
             fakeObjectClient,
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT,
-            mock(Metrics.class));
+            mock(Metrics.class),
+            Executors.newFixedThreadPool(4));
     PhysicalIOImpl physicalIOImplV2 =
         new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
 
@@ -175,7 +178,8 @@ public class PhysicalIOImplTest {
             fakeObjectClient,
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT,
-            mock(Metrics.class));
+            mock(Metrics.class),
+            Executors.newFixedThreadPool(4));
     PhysicalIOImpl physicalIOImplV2 =
         new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
 
@@ -194,7 +198,8 @@ public class PhysicalIOImplTest {
             fakeObjectClient,
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT,
-            mock(Metrics.class));
+            mock(Metrics.class),
+            Executors.newFixedThreadPool(4));
     PhysicalIOImpl physicalIOImplV2 =
         new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
     byte[] buffer = new byte[5];
@@ -233,7 +238,11 @@ public class PhysicalIOImplTest {
     metadataStore.storeObjectMetadata(s3URI, objectMetadata);
     BlobStore blobStore =
         new BlobStore(
-            client, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT, mock(Metrics.class));
+            client,
+            TestTelemetry.DEFAULT,
+            PhysicalIOConfiguration.DEFAULT,
+            mock(Metrics.class),
+            Executors.newFixedThreadPool(4));
     PhysicalIOImpl physicalIOImplV2 =
         new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
 
@@ -262,7 +271,11 @@ public class PhysicalIOImplTest {
     metadataStore.storeObjectMetadata(s3URI, objectMetadata);
     BlobStore blobStore =
         new BlobStore(
-            client, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT, mock(Metrics.class));
+            client,
+            TestTelemetry.DEFAULT,
+            PhysicalIOConfiguration.DEFAULT,
+            mock(Metrics.class),
+            Executors.newFixedThreadPool(4));
     PhysicalIOImpl physicalIOImplV2 =
         new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
 
@@ -281,7 +294,11 @@ public class PhysicalIOImplTest {
     Metrics metrics = new Metrics();
     BlobStore blobStore =
         new BlobStore(
-            fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT, metrics);
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            PhysicalIOConfiguration.DEFAULT,
+            metrics,
+            Executors.newFixedThreadPool(4));
     PhysicalIOImpl physicalIO =
         new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
 
@@ -334,7 +351,11 @@ public class PhysicalIOImplTest {
     Metrics metrics = new Metrics();
     BlobStore blobStore =
         new BlobStore(
-            fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT, metrics);
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            PhysicalIOConfiguration.DEFAULT,
+            metrics,
+            Executors.newFixedThreadPool(4));
     PhysicalIOImpl physicalIO =
         new PhysicalIOImpl(s3URI, metadataStore, blobStore, TestTelemetry.DEFAULT);
 
