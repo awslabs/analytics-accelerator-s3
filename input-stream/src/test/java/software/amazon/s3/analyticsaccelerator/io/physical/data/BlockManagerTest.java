@@ -140,8 +140,13 @@ public class BlockManagerTest {
 
   @Test
   void testGetBlockIsEmpty() throws IOException {
+
     // Given
-    BlockManager blockManager = getTestBlockManager(42);
+    PhysicalIOConfiguration config =
+        PhysicalIOConfiguration.builder().smallObjectsPrefetchingEnabled(false).build();
+
+    // Given
+    BlockManager blockManager = getTestBlockManager(mock(ObjectClient.class), 42, config);
 
     // When: nothing
 
