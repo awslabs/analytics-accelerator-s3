@@ -16,7 +16,11 @@
 package software.amazon.s3.analyticsaccelerator.io.logical.impl;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.function.IntFunction;
 import lombok.NonNull;
+import software.amazon.s3.analyticsaccelerator.common.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.TelemetryLevel;
@@ -25,11 +29,13 @@ import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
+import software.amazon.s3.analyticsaccelerator.util.VectoredReadUtils;
 
 /** The default implementation of a LogicalIO layer. Will be used for all non-parquet files. */
 public class DefaultLogicalIOImpl implements LogicalIO {
 
   private static final String OPERATION_LOGICAL_READ = "logical.read";
+  private static final String OPERATION_LOGICAL_VECTORED_READ = "logical.vectored.read";
 
   // Dependencies
   private final S3URI s3URI;
@@ -108,6 +114,24 @@ public class DefaultLogicalIOImpl implements LogicalIO {
                     StreamAttributes.logicalIORelativeTimestamp(System.nanoTime() - birthTimestamp))
                 .build(),
         () -> physicalIO.readTail(buf, off, len));
+  }
+
+  @Override
+  public void readVectored(List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate)
+      throws IOException {
+    telemetry.measureStandard(
+        () ->
+            Operation.builder()
+                .name(OPERATION_LOGICAL_VECTORED_READ)
+                .attribute(StreamAttributes.vectoredRanges(ranges))
+                .attribute(StreamAttributes.uri(s3URI))
+                .attribute(
+                    StreamAttributes.logicalIORelativeTimestamp(System.nanoTime() - birthTimestamp))
+                .build(),
+        () -> {
+          VectoredReadUtils.validateAndSortRanges(ranges, physicalIO.metadata().getContentLength());
+          physicalIO.readVectored(ranges, allocate);
+        });
   }
 
   /**
