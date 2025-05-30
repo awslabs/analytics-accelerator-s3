@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.concurrent.CompletableFuture;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -131,15 +130,11 @@ public class BlockManager implements Closeable {
    */
   private void prefetchSmallObject() {
     if (AnalyticsAcceleratorUtils.isSmallObject(configuration, metadata.getContentLength())) {
-      CompletableFuture.runAsync(
-          () -> {
-            try {
-              makeRangeAvailable(0, metadata.getContentLength(), ReadMode.SMALL_OBJECT_PREFETCH);
-            } catch (IOException e) {
-              LOG.debug(
-                  "Failed to prefetch small object for key: {}", objectKey.getS3URI().getKey(), e);
-            }
-          });
+      try {
+        makeRangeAvailable(0, metadata.getContentLength(), ReadMode.SMALL_OBJECT_PREFETCH);
+      } catch (IOException e) {
+        LOG.debug("Failed to prefetch small object for key: {}", objectKey.getS3URI().getKey(), e);
+      }
     }
   }
 

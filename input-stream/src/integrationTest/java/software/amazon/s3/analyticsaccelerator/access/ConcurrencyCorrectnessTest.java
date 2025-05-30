@@ -16,6 +16,8 @@
 package software.amazon.s3.analyticsaccelerator.access;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -108,7 +110,7 @@ public class ConcurrencyCorrectnessTest extends IntegrationTestBase {
         getS3ClientKinds(),
         S3Object.smallAndMediumObjects(),
         sequentialPatterns(),
-        getS3SeekableInputStreamConfigurations());
+        concurrencyCorrectnessConfigurationKind());
   }
 
   static Stream<Arguments> skippingReads() {
@@ -116,7 +118,7 @@ public class ConcurrencyCorrectnessTest extends IntegrationTestBase {
         getS3ClientKinds(),
         S3Object.smallAndMediumObjects(),
         skippingPatterns(),
-        getS3SeekableInputStreamConfigurations());
+        concurrencyCorrectnessConfigurationKind());
   }
 
   static Stream<Arguments> parquetReads() {
@@ -124,7 +126,7 @@ public class ConcurrencyCorrectnessTest extends IntegrationTestBase {
         getS3ClientKinds(),
         S3Object.smallAndMediumObjects(),
         parquetPatterns(),
-        getS3SeekableInputStreamConfigurations());
+        concurrencyCorrectnessConfigurationKind());
   }
 
   static Stream<Arguments> etagTests() {
@@ -132,6 +134,10 @@ public class ConcurrencyCorrectnessTest extends IntegrationTestBase {
         getS3ClientKinds(),
         S3Object.smallBinaryObjects(),
         parquetPatterns(),
-        getS3SeekableInputStreamConfigurations());
+        concurrencyCorrectnessConfigurationKind());
+  }
+
+  private static List<AALInputStreamConfigurationKind> concurrencyCorrectnessConfigurationKind() {
+    return Arrays.asList(AALInputStreamConfigurationKind.CONCURRENCY_CORRECTNESS);
   }
 }

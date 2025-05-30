@@ -16,6 +16,8 @@
 package software.amazon.s3.analyticsaccelerator.access;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -61,7 +63,7 @@ public class ReadCorrectnessTest extends IntegrationTestBase {
         getS3ClientKinds(),
         S3Object.smallAndMediumObjects(),
         sequentialPatterns(),
-        getS3SeekableInputStreamConfigurations());
+        readCorrectnessConfigurationKind());
   }
 
   static Stream<Arguments> skippingReads() {
@@ -69,7 +71,7 @@ public class ReadCorrectnessTest extends IntegrationTestBase {
         getS3ClientKinds(),
         S3Object.smallAndMediumObjects(),
         skippingPatterns(),
-        getS3SeekableInputStreamConfigurations());
+        readCorrectnessConfigurationKind());
   }
 
   static Stream<Arguments> parquetReads() {
@@ -77,6 +79,10 @@ public class ReadCorrectnessTest extends IntegrationTestBase {
         getS3ClientKinds(),
         S3Object.smallAndMediumObjects(),
         parquetPatterns(),
-        getS3SeekableInputStreamConfigurations());
+        readCorrectnessConfigurationKind());
+  }
+
+  private static List<AALInputStreamConfigurationKind> readCorrectnessConfigurationKind() {
+    return Arrays.asList(AALInputStreamConfigurationKind.READ_CORRECTNESS);
   }
 }
