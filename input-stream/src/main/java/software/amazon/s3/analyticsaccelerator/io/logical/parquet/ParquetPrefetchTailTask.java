@@ -74,6 +74,7 @@ public class ParquetPrefetchTailTask {
             long contentLength = physicalIO.metadata().getContentLength();
             List<Range> ranges =
                 ParquetUtils.getFileTailPrefetchRanges(logicalIOConfiguration, 0, contentLength);
+
             IOPlan ioPlan = new IOPlan(ranges);
             // Create a non-empty IOPlan only if we have a valid range to work with
             physicalIO.execute(ioPlan);

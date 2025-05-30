@@ -20,10 +20,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.ExecutorService;
 import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
+import software.amazon.s3.analyticsaccelerator.io.physical.Cache;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.SequentialPatternDetector;
 import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.SequentialReadProgression;
@@ -33,6 +35,7 @@ import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
+import software.amazon.s3.analyticsaccelerator.util.RangeType;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
 /** Implements a Block Manager responsible for planning and scheduling reads on a key. */
@@ -47,6 +50,8 @@ public class BlockManager implements Closeable {
   private final IOPlanner ioPlanner;
   private final PhysicalIOConfiguration configuration;
   private final RangeOptimiser rangeOptimiser;
+  private final Cache cache;
+  private final ExecutorService executorService;
   private StreamContext streamContext;
 
   private static final String OPERATION_MAKE_RANGE_AVAILABLE = "block.manager.make.range.available";
@@ -66,7 +71,7 @@ public class BlockManager implements Closeable {
       @NonNull ObjectMetadata metadata,
       @NonNull Telemetry telemetry,
       @NonNull PhysicalIOConfiguration configuration) {
-    this(objectKey, objectClient, metadata, telemetry, configuration, null);
+    this(objectKey, objectClient, metadata, telemetry, configuration, null, null, null);
   }
 
   /**
@@ -78,6 +83,7 @@ public class BlockManager implements Closeable {
    * @param metadata the metadata for the object
    * @param configuration the physicalIO configuration
    * @param streamContext contains audit headers to be attached in the request header
+   * @param cache an instance of {@link Cache} to use
    */
   public BlockManager(
       @NonNull ObjectKey objectKey,
@@ -85,12 +91,16 @@ public class BlockManager implements Closeable {
       @NonNull ObjectMetadata metadata,
       @NonNull Telemetry telemetry,
       @NonNull PhysicalIOConfiguration configuration,
+      Cache cache,
+      ExecutorService executorService,
       StreamContext streamContext) {
     this.objectKey = objectKey;
     this.objectClient = objectClient;
     this.metadata = metadata;
     this.telemetry = telemetry;
     this.configuration = configuration;
+    this.cache = cache;
+    this.executorService = executorService;
     this.blockStore = new BlockStore(objectKey, metadata);
     this.patternDetector = new SequentialPatternDetector(blockStore);
     this.sequentialReadProgression = new SequentialReadProgression(configuration);
@@ -124,7 +134,7 @@ public class BlockManager implements Closeable {
       return;
     }
 
-    makeRangeAvailable(pos, 1, readMode);
+    makeRangeAvailable(pos, 1, RangeType.BLOCK, readMode);
   }
 
   private boolean isRangeAvailable(long pos, long len) throws IOException {
@@ -152,8 +162,8 @@ public class BlockManager implements Closeable {
    * @param readMode whether this ask corresponds to a sync or async read
    * @throws IOException if an I/O error occurs
    */
-  public synchronized void makeRangeAvailable(long pos, long len, ReadMode readMode)
-      throws IOException {
+  public synchronized void makeRangeAvailable(
+      long pos, long len, RangeType rangeType, ReadMode readMode) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
 
@@ -195,7 +205,7 @@ public class BlockManager implements Closeable {
         () -> {
           // Determine the missing ranges and fetch them
           List<Range> missingRanges =
-              ioPlanner.planRead(pos, effectiveEndFinal, getLastObjectByte());
+              ioPlanner.planRead(pos, effectiveEndFinal, rangeType, getLastObjectByte());
           List<Range> splits = rangeOptimiser.splitRanges(missingRanges);
           for (Range r : splits) {
             Block block =
@@ -205,10 +215,15 @@ public class BlockManager implements Closeable {
                     telemetry,
                     r.getStart(),
                     r.getEnd(),
+                    r.getRangeType(),
                     generation,
                     readMode,
                     this.configuration.getBlockReadTimeout(),
                     this.configuration.getBlockReadRetryCount(),
+                    metadata.getContentLength(),
+                    this.configuration.isEnableTailMetadataCaching(),
+                    cache,
+                    executorService,
                     streamContext);
             blockStore.add(block);
           }

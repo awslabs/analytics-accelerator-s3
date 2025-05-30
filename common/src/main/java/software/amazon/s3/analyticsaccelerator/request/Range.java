@@ -17,6 +17,7 @@ package software.amazon.s3.analyticsaccelerator.request;
 
 import lombok.Value;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
+import software.amazon.s3.analyticsaccelerator.util.RangeType;
 
 /**
  * Object representing a byte range. This class helps us abstract away from S3 SDK constructs and
@@ -27,6 +28,7 @@ import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 public class Range {
   long start;
   long end;
+  RangeType rangeType;
 
   private static final String TO_HTTP_STRING_FORMAT = "bytes=%d-%d";
   private static final String TO_STRING_FORMAT = "%d-%d";
@@ -44,6 +46,25 @@ public class Range {
 
     this.start = start;
     this.end = end;
+    this.rangeType = RangeType.BLOCK;
+  }
+
+  /**
+   * Construct a range. At least one of the start and end of range should be present. Also provides
+   * option to specify RangeType.
+   *
+   * @param start the start of the range, possibly empty
+   * @param end the end of the range, possibly empty
+   * @param rangeType the section of the parquet file the range refers to.
+   */
+  public Range(long start, long end, RangeType rangeType) {
+    Preconditions.checkArgument(start >= 0, "`start` must not be negative");
+    Preconditions.checkArgument(end >= 0, "`end` must not be negative");
+    Preconditions.checkArgument(start <= end, "`start` must be less than equal to `end`");
+
+    this.start = start;
+    this.end = end;
+    this.rangeType = rangeType;
   }
 
   /**

@@ -17,8 +17,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import lombok.Getter;
 import lombok.NonNull;
 import org.slf4j.Logger;
@@ -27,6 +26,7 @@ import software.amazon.s3.analyticsaccelerator.S3SdkObjectClient;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
+import software.amazon.s3.analyticsaccelerator.io.physical.Cache;
 import software.amazon.s3.analyticsaccelerator.request.GetRequest;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectContent;
@@ -35,6 +35,7 @@ import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.request.Referrer;
 import software.amazon.s3.analyticsaccelerator.request.StreamContext;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
+import software.amazon.s3.analyticsaccelerator.util.RangeType;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 import software.amazon.s3.analyticsaccelerator.util.StreamUtils;
 
@@ -54,6 +55,11 @@ public class Block implements Closeable {
   private final Referrer referrer;
   private final long readTimeout;
   private final int readRetryCount;
+  private final long contentLength;
+  private final boolean enableTailMetadataCaching;
+
+  private static Cache cache;
+  private static ExecutorService executorService;
 
   @Getter private final long start;
   @Getter private final long end;
@@ -63,6 +69,8 @@ public class Block implements Closeable {
   private static final String OPERATION_BLOCK_GET_JOIN = "block.get.join";
 
   private static final Logger LOG = LoggerFactory.getLogger(Block.class);
+
+  private final CompletableFuture<Void> initialisationTask;
 
   /**
    * Constructs a Block data.
@@ -95,10 +103,15 @@ public class Block implements Closeable {
         telemetry,
         start,
         end,
+        RangeType.BLOCK,
         generation,
         readMode,
         readTimeout,
         readRetryCount,
+        0,
+        false,
+        null,
+        null,
         null);
   }
 
@@ -110,10 +123,14 @@ public class Block implements Closeable {
    * @param telemetry an instance of {@link Telemetry} to use
    * @param start start of the block
    * @param end end of the block
+   * @param rangeType the type associated with the provided range
    * @param generation generation of the block in a sequential read pattern (should be 0 by default)
    * @param readMode read mode describing whether this is a sync or async fetch
    * @param readTimeout Timeout duration (in milliseconds) for reading a block object from S3
    * @param readRetryCount Number of retries for block read failure
+   * @param contentLength Length of the parquet file
+   * @param enableTailMetadataCaching Boolean flag to enable or disable tail metadata caching
+   * @param cache an instance of {@link Cache} to use
    * @param streamContext contains audit headers to be attached in the request header
    */
   public Block(
@@ -122,10 +139,15 @@ public class Block implements Closeable {
       @NonNull Telemetry telemetry,
       long start,
       long end,
+      RangeType rangeType,
       long generation,
       @NonNull ReadMode readMode,
       long readTimeout,
       int readRetryCount,
+      long contentLength,
+      boolean enableTailMetadataCaching,
+      Cache cache,
+      ExecutorService executorService,
       StreamContext streamContext)
       throws IOException {
 
@@ -145,22 +167,88 @@ public class Block implements Closeable {
     this.generation = generation;
     this.telemetry = telemetry;
     this.objectKey = objectKey;
-    this.range = new Range(start, end);
+    this.range = new Range(start, end, rangeType);
     this.objectClient = objectClient;
     this.streamContext = streamContext;
     this.readMode = readMode;
     this.referrer = new Referrer(range.toHttpString(), readMode);
     this.readTimeout = readTimeout;
     this.readRetryCount = readRetryCount;
+    this.contentLength = contentLength;
+    this.enableTailMetadataCaching = enableTailMetadataCaching;
 
-    generateSourceAndData();
+    if (enableTailMetadataCaching && Block.cache == null && cache != null) {
+      Block.cache = cache;
+    }
+
+    if (enableTailMetadataCaching && Block.executorService == null && executorService != null) {
+      Block.executorService = executorService;
+    }
+
+    this.initialisationTask = new CompletableFuture<>();
+
+    if (executorService != null) {
+      executorService.submit(
+          () -> {
+            try {
+              generateSourceAndData();
+              initialisationTask.complete(null);
+            } catch (IOException e) {
+              initialisationTask.completeExceptionally(e);
+              throw new RuntimeException(e);
+            }
+          });
+    } else {
+      try {
+        generateSourceAndData();
+        this.initialisationTask.complete(null);
+
+      } catch (IOException e) {
+        initialisationTask.completeExceptionally(e);
+        throw e;
+      }
+    }
   }
 
   /** Method to help construct source and data */
   private void generateSourceAndData() throws IOException {
     int retries = 0;
-    while (retries < this.readRetryCount) {
+    while (retries < readRetryCount) {
       try {
+        LOG.info("Range type is: {}", range.getRangeType());
+        if (enableTailMetadataCaching && isTailMetadata(range) && cache != null) {
+          String cacheKey = generateCacheKey();
+
+          long cacheGetStartTime = System.nanoTime();
+
+          byte[] cachedData = Block.cache.get(cacheKey);
+
+          long cacheGetDuration = System.nanoTime() - cacheGetStartTime;
+          double cacheGetMsDuration = cacheGetDuration / 1_000_000.0;
+
+          if (cachedData != null) {
+            LOG.info(
+                "Cache hit for tail metadata: {}. Request took: {}ms, start = {}, end = {}. RangeType: {}",
+                cacheKey,
+                String.format("%.2f", cacheGetMsDuration),
+                range.getStart(),
+                range.getEnd(),
+                range.getRangeType());
+
+            data = CompletableFuture.completedFuture(cachedData);
+            return;
+
+          } else {
+            LOG.info(
+                "Cache miss for tail metadata: {}. Request took: {}ms, start = {}, end = {}. RangeType: {}",
+                cacheKey,
+                String.format("%.2f", cacheGetMsDuration),
+                range.getStart(),
+                range.getEnd(),
+                range.getRangeType());
+          }
+        }
+
         GetRequest getRequest =
             GetRequest.builder()
                 .s3Uri(this.objectKey.getS3URI())
@@ -186,8 +274,44 @@ public class Block implements Closeable {
             this.source.thenApply(
                 objectContent -> {
                   try {
-                    return StreamUtils.toByteArray(
-                        objectContent, this.objectKey, this.range, this.readTimeout);
+                    long s3GetStartTime = System.nanoTime();
+
+                    byte[] fetchedData =
+                        StreamUtils.toByteArray(
+                            objectContent, this.objectKey, this.range, this.readTimeout);
+
+                    long s3GetDuration = System.nanoTime() - s3GetStartTime;
+                    double s3GetMsDuration = s3GetDuration / 1_000_000.0;
+
+                    LOG.info(
+                        "S3 GET request for: {}. Request took: {}ms, start = {}, end = {}. Is cache enabled = {}. RangeType: {}",
+                        this.objectKey.getS3URI(),
+                        String.format("%.2f", s3GetMsDuration),
+                        range.getStart(),
+                        range.getEnd(),
+                        enableTailMetadataCaching,
+                        range.getRangeType());
+
+                    if (enableTailMetadataCaching && isTailMetadata(range) && Block.cache != null) {
+                      String cacheKey = generateCacheKey();
+
+                      long cacheSetStartTime = System.nanoTime();
+
+                      Block.cache.set(cacheKey, fetchedData);
+
+                      long cacheSetDuration = System.nanoTime() - cacheSetStartTime;
+                      double cacheSetMsDuration = cacheSetDuration / 1_000_000.0;
+
+                      LOG.info(
+                          "Cached tail metadata: {}. Cache set took: {}ms, start = {}, end = {}. RangeType: {}",
+                          cacheKey,
+                          String.format("%.2f", cacheSetMsDuration),
+                          range.getStart(),
+                          range.getEnd(),
+                          range.getRangeType());
+                    }
+
+                    return fetchedData;
                   } catch (IOException | TimeoutException e) {
                     throw new RuntimeException(
                         "Error while converting InputStream to byte array", e);
@@ -283,6 +407,13 @@ public class Block implements Closeable {
    * @throws IOException if an I/O error occurs after maximum retry counts
    */
   private byte[] getDataWithRetries() throws IOException {
+
+    try {
+      initialisationTask.get(this.readTimeout, TimeUnit.MILLISECONDS);
+    } catch (Exception e) {
+      throw new IOException("Block initialisation error", e);
+    }
+
     for (int i = 0; i < this.readRetryCount; i++) {
       try {
         return this.getData();
@@ -329,5 +460,28 @@ public class Block implements Closeable {
   public void close() {
     // Only the source needs to be canceled, the continuation will cancel on its own
     this.source.cancel(false);
+  }
+
+  /**
+   * Checks if the current block is a tail block.
+   *
+   * @return true if the current block is a tail block, false otherwise
+   */
+  private boolean isTailMetadata(Range range) {
+    return range.getRangeType() == RangeType.FOOTER_METADATA
+        || range.getRangeType() == RangeType.FOOTER_PAGE_INDEX;
+  }
+
+  /**
+   * Creates a cache key for the current block.
+   *
+   * @return cache key for the current block in the format "{s3Uri}#{etag}#{range}"
+   */
+  private String generateCacheKey() {
+    return objectKey.getS3URI() + "#" + objectKey.getEtag() + "#" + range;
+  }
+
+  static void resetCacheForTesting() {
+    cache = null;
   }
 }
