@@ -101,6 +101,7 @@ public class DataBlockManager implements Closeable {
               Math.min((blockIndex + 1) * configuration.getReadBufferSize(), getLastObjectByte()));
       BlockKey blockKey = new BlockKey(objectKey, range);
       DataBlock block = new DataBlock(blockKey, 0);
+      blockStore.add(block);
       blocksToFill.add(block);
     }
 
