@@ -166,7 +166,7 @@ public class ReadVectoredTest extends IntegrationTestBase {
   }
 
   @Test
-  void someRangesFail() throws IOException {
+  void testSomeRangesFail() throws IOException {
     try (S3AALClientStreamReader s3AALClientStreamReader =
         this.createS3AALClientStreamReader(
             S3ClientKind.FAULTY_S3_CLIENT, AALInputStreamConfigurationKind.NO_RETRY)) {
