@@ -212,8 +212,17 @@ public class ParquetPredictivePrefetchingTask {
             // Ranges for column data
             List<Range> columnRanges = new ArrayList<>();
 
+            LOG.info("DISPLAYING PREFETCH INFO...");
+            LOG.info(
+                "HERE IS A LIST OF BUCKETS: {}",
+                getRecentColumns(columnMappers.getOffsetIndexToColumnMap(), isDictionary)
+                    .toString());
+            LOG.info("HERE IS THE S3 URI: {}", this.s3Uri);
+            LOG.info("_____________________________-");
+
             for (String recentColumn :
                 getRecentColumns(columnMappers.getOffsetIndexToColumnMap(), isDictionary)) {
+
               if (columnMappers.getColumnNameToColumnMap().containsKey(recentColumn)) {
                 List<ColumnMetadata> columnMetadataList =
                     columnMappers.getColumnNameToColumnMap().get(recentColumn);
