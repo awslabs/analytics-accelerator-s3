@@ -23,7 +23,8 @@ import lombok.Getter;
 @Getter
 public enum S3ObjectKind {
   RANDOM_SEQUENTIAL("sequential"),
-  RANDOM_PARQUET("parquet");
+  RANDOM_PARQUET("parquet"),
+  RANDOM_SEQUENTIAL_ENCRYPTED("sequential_encrypted");
 
   private final String value;
 }

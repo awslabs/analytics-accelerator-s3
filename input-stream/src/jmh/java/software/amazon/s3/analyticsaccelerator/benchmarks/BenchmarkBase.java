@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.NonNull;
 import org.openjdk.jmh.annotations.*;
 import software.amazon.s3.analyticsaccelerator.access.*;
+import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 
 /**
  * Base class for benchmarks that iterate through the client types and stream types All derived
@@ -128,7 +129,8 @@ public abstract class BenchmarkBase extends ExecutionBase {
         this.getReadPatternKind().getStreamReadPattern(s3Object),
         // Use default configuration
         this.getDATInputStreamConfigurationKind(),
-        Optional.empty());
+        Optional.empty(),
+        OpenStreamInformation.DEFAULT);
   }
 
   /**
@@ -142,6 +144,7 @@ public abstract class BenchmarkBase extends ExecutionBase {
         this.getClientKind(),
         s3Object,
         this.getReadPatternKind().getStreamReadPattern(s3Object),
-        Optional.empty());
+        Optional.empty(),
+        OpenStreamInformation.DEFAULT);
   }
 }

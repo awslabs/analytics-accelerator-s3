@@ -61,7 +61,7 @@ public class GrayFailureTest extends IntegrationTestBase {
   static Stream<Arguments> sequentialReads() {
     return argumentsFor(
         S3ClientKind.faultyClients(),
-        S3Object.smallObjects(),
+        S3Object.smallObjects(S3ObjectKind.RANDOM_SEQUENTIAL),
         sequentialPatterns(),
         grayFailureConfigurationKind());
   }
@@ -69,7 +69,7 @@ public class GrayFailureTest extends IntegrationTestBase {
   static Stream<Arguments> skippingReads() {
     return argumentsFor(
         S3ClientKind.faultyClients(),
-        S3Object.smallObjects(),
+        S3Object.smallObjects(S3ObjectKind.RANDOM_SEQUENTIAL),
         skippingPatterns(),
         grayFailureConfigurationKind());
   }
@@ -77,7 +77,7 @@ public class GrayFailureTest extends IntegrationTestBase {
   static Stream<Arguments> parquetReads() {
     return argumentsFor(
         S3ClientKind.faultyClients(),
-        S3Object.smallObjects(),
+        S3Object.smallObjects(S3ObjectKind.RANDOM_SEQUENTIAL),
         parquetPatterns(),
         grayFailureConfigurationKind());
   }

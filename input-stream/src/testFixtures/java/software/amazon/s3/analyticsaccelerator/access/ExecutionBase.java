@@ -20,6 +20,7 @@ import java.util.Optional;
 import lombok.NonNull;
 import software.amazon.awssdk.core.checksums.Crc32CChecksum;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamConfiguration;
+import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 
 /**
  * This class is a base for performance (JMH) and integration tests and contains common
@@ -89,13 +90,15 @@ public abstract class ExecutionBase {
    * @param s3Object {@link } S3 Object to run the pattern on
    * @param streamReadPattern the read pattern
    * @param checksum checksum to update, if specified
+   * @param openStreamInformation contains the open stream information
    * @throws IOException IO error, if thrown
    */
   protected void executeReadPatternDirectly(
       S3ClientKind s3ClientKind,
       S3Object s3Object,
       StreamReadPattern streamReadPattern,
-      Optional<Crc32CChecksum> checksum)
+      Optional<Crc32CChecksum> checksum,
+      OpenStreamInformation openStreamInformation)
       throws IOException {
     // Direct Read Pattern execution shouldn't read using the faulty client but it should use a
     // trusted client.
@@ -105,7 +108,8 @@ public abstract class ExecutionBase {
             : s3ClientKind;
     try (S3AsyncClientStreamReader s3AsyncClientStreamReader =
         this.createS3AsyncClientStreamReader(s3ClientKind)) {
-      s3AsyncClientStreamReader.readPattern(s3Object, streamReadPattern, checksum);
+      s3AsyncClientStreamReader.readPattern(
+          s3Object, streamReadPattern, checksum, openStreamInformation);
     }
   }
 
@@ -117,6 +121,7 @@ public abstract class ExecutionBase {
    * @param AALInputStreamConfigurationKind DAT configuration
    * @param streamReadPattern the read pattern
    * @param checksum checksum to update, if specified
+   * @param openStreamInformation contains the open stream information
    * @throws IOException IO error, if thrown
    */
   protected void executeReadPatternOnAAL(
@@ -124,11 +129,13 @@ public abstract class ExecutionBase {
       S3Object s3Object,
       StreamReadPattern streamReadPattern,
       AALInputStreamConfigurationKind AALInputStreamConfigurationKind,
-      Optional<Crc32CChecksum> checksum)
+      Optional<Crc32CChecksum> checksum,
+      OpenStreamInformation openStreamInformation)
       throws IOException {
     try (S3AALClientStreamReader s3AALClientStreamReader =
         this.createS3AALClientStreamReader(s3ClientKind, AALInputStreamConfigurationKind)) {
-      executeReadPatternOnAAL(s3Object, s3AALClientStreamReader, streamReadPattern, checksum);
+      executeReadPatternOnAAL(
+          s3Object, s3AALClientStreamReader, streamReadPattern, checksum, openStreamInformation);
     }
   }
 
@@ -139,14 +146,17 @@ public abstract class ExecutionBase {
    * @param s3AALClientStreamReader DAT stream reader
    * @param streamReadPattern the read pattern
    * @param checksum checksum to update, if specified
+   * @param openStreamInformation contains the open stream information
    * @throws IOException IO error, if thrown
    */
   protected void executeReadPatternOnAAL(
       S3Object s3Object,
       S3AALClientStreamReader s3AALClientStreamReader,
       StreamReadPattern streamReadPattern,
-      Optional<Crc32CChecksum> checksum)
+      Optional<Crc32CChecksum> checksum,
+      OpenStreamInformation openStreamInformation)
       throws IOException {
-    s3AALClientStreamReader.readPattern(s3Object, streamReadPattern, checksum);
+    s3AALClientStreamReader.readPattern(
+        s3Object, streamReadPattern, checksum, openStreamInformation);
   }
 }

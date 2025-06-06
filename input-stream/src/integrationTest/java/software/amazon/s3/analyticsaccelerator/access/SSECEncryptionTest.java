@@ -15,32 +15,37 @@
  */
 package software.amazon.s3.analyticsaccelerator.access;
 
-import static software.amazon.s3.analyticsaccelerator.access.S3Object.smallBinaryObjects;
-
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public class AALPrefetchingIntegrationTest extends IntegrationTestBase {
+public class SSECEncryptionTest extends IntegrationTestBase {
 
   @ParameterizedTest
-  @MethodSource("prefetchingTest")
-  void testSmallObjectPrefetchedData(
+  @MethodSource("encryptedReads")
+  void testEncryptedReads(
       S3ClientKind s3ClientKind,
       S3Object s3Object,
       StreamReadPatternKind streamReadPattern,
       AALInputStreamConfigurationKind configuration)
       throws IOException {
-    testSmallObjectPrefetching(s3ClientKind, s3Object, streamReadPattern, configuration);
+    testReadPatternUsingSSECEncryption(s3ClientKind, s3Object, streamReadPattern, configuration);
   }
 
-  static Stream<Arguments> prefetchingTest() {
+  static Stream<Arguments> encryptedReads() {
+    List<S3Object> readVectoredObjects = new ArrayList<>();
+    readVectoredObjects.add(S3Object.RANDOM_SSEC_ENCRYPTED_1MB);
+
     return argumentsFor(
-        getS3ClientKinds(),
-        smallBinaryObjects(S3ObjectKind.RANDOM_SEQUENTIAL),
-        parquetPatterns(),
-        getS3SeekableInputStreamConfigurations());
+        getS3ClientKinds(), readVectoredObjects, allPatterns(), readCorrectnessConfigurationKind());
+  }
+
+  private static List<AALInputStreamConfigurationKind> readCorrectnessConfigurationKind() {
+    return Arrays.asList(AALInputStreamConfigurationKind.READ_CORRECTNESS);
   }
 }

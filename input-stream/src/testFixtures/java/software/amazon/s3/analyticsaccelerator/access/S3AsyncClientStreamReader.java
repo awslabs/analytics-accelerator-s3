@@ -24,6 +24,8 @@ import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.checksums.Crc32CChecksum;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
+import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 /** A naive stream reader based on the {@link S3AsyncClient} */
@@ -54,26 +56,40 @@ public class S3AsyncClientStreamReader extends S3StreamReaderBase {
   public void readPattern(
       @NonNull S3Object s3Object,
       @NonNull StreamReadPattern streamReadPattern,
-      @NonNull Optional<Crc32CChecksum> checksum)
+      @NonNull Optional<Crc32CChecksum> checksum,
+      @NonNull OpenStreamInformation openStreamInformation)
       throws IOException {
     S3URI s3URI = s3Object.getObjectUri(this.getBaseUri());
 
     // Replay the pattern through series of GETs
     for (StreamRead streamRead : streamReadPattern.getStreamReads()) {
+      // Build base request with common parameters
+      GetObjectRequest.Builder requestBuilder =
+          GetObjectRequest.builder()
+              .bucket(s3URI.getBucket())
+              .key(s3URI.getKey())
+              .range(
+                  String.format(
+                      "bytes=%s-%s",
+                      streamRead.getStart(), streamRead.getStart() + streamRead.getLength() - 1));
+
+      // Add encryption parameters if present
+      if (openStreamInformation.getEncryptionSecrets() != null
+          && openStreamInformation.getEncryptionSecrets().getSsecCustomerKey().isPresent()) {
+        String customerKey =
+            openStreamInformation.getEncryptionSecrets().getSsecCustomerKey().get();
+        String customerKeyMd5 =
+            openStreamInformation.getEncryptionSecrets().getSsecCustomerKeyMd5();
+        requestBuilder
+            .sseCustomerAlgorithm(ServerSideEncryption.AES256.name())
+            .sseCustomerKey(customerKey)
+            .sseCustomerKeyMD5(customerKeyMd5);
+      }
+
       // Issue a ranged GET and get InputStream
       InputStream inputStream =
           s3AsyncClient
-              .getObject(
-                  GetObjectRequest.builder()
-                      .bucket(s3URI.getBucket())
-                      .key(s3URI.getKey())
-                      .range(
-                          String.format(
-                              "bytes=%s-%s",
-                              streamRead.getStart(),
-                              streamRead.getStart() + streamRead.getLength() - 1))
-                      .build(),
-                  AsyncResponseTransformer.toBlockingInputStream())
+              .getObject(requestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream())
               .join();
       // drain  bytes
       drainStream(inputStream, s3Object, checksum, streamRead.getLength());

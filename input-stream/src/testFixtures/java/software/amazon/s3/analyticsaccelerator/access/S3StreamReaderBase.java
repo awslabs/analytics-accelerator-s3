@@ -22,6 +22,7 @@ import java.util.Optional;
 import lombok.Getter;
 import lombok.NonNull;
 import software.amazon.awssdk.core.checksums.Crc32CChecksum;
+import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 /** Base class for all readers from S3 */
@@ -46,11 +47,13 @@ public abstract class S3StreamReaderBase implements Closeable {
    * @param s3Object S3 Object to read
    * @param streamReadPattern Stream read pattern
    * @param checksum optional checksum, to update
+   * @param openStreamInformation contains the open stream information
    */
   public abstract void readPattern(
       @NonNull S3Object s3Object,
       @NonNull StreamReadPattern streamReadPattern,
-      @NonNull Optional<Crc32CChecksum> checksum)
+      @NonNull Optional<Crc32CChecksum> checksum,
+      @NonNull OpenStreamInformation openStreamInformation)
       throws IOException;
 
   /**

@@ -33,6 +33,7 @@ import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.ConfigurableTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
@@ -132,6 +133,16 @@ public class S3SdkObjectClient implements ObjectClient {
 
     builder.overrideConfiguration(requestOverrideConfigurationBuilder.build());
 
+    if (openStreamInformation.getEncryptionSecrets() != null
+        && openStreamInformation.getEncryptionSecrets().getSsecCustomerKey().isPresent()) {
+      String customerKey = openStreamInformation.getEncryptionSecrets().getSsecCustomerKey().get();
+      String customerKeyMd5 = openStreamInformation.getEncryptionSecrets().getSsecCustomerKeyMd5();
+      builder
+          .sseCustomerAlgorithm(ServerSideEncryption.AES256.name())
+          .sseCustomerKey(customerKey)
+          .sseCustomerKeyMD5(customerKeyMd5);
+    }
+
     return this.telemetry
         .measureCritical(
             () ->
@@ -174,6 +185,16 @@ public class S3SdkObjectClient implements ObjectClient {
     }
 
     builder.overrideConfiguration(requestOverrideConfigurationBuilder.build());
+
+    if (openStreamInformation.getEncryptionSecrets() != null
+        && openStreamInformation.getEncryptionSecrets().getSsecCustomerKey().isPresent()) {
+      String customerKey = openStreamInformation.getEncryptionSecrets().getSsecCustomerKey().get();
+      String customerKeyMd5 = openStreamInformation.getEncryptionSecrets().getSsecCustomerKeyMd5();
+      builder
+          .sseCustomerAlgorithm(ServerSideEncryption.AES256.name())
+          .sseCustomerKey(customerKey)
+          .sseCustomerKeyMD5(customerKeyMd5);
+    }
 
     return this.telemetry.measureCritical(
         () ->

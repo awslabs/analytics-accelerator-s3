@@ -52,7 +52,11 @@ public enum S3Object {
   CSV_20MB(
       "sequential-20mb.csv", 20 * SizeConstants.ONE_MB_IN_BYTES, S3ObjectKind.RANDOM_SEQUENTIAL),
   TXT_16MB(
-      "sequential-16mb.txt", 16 * SizeConstants.ONE_MB_IN_BYTES, S3ObjectKind.RANDOM_SEQUENTIAL);
+      "sequential-16mb.txt", 16 * SizeConstants.ONE_MB_IN_BYTES, S3ObjectKind.RANDOM_SEQUENTIAL),
+  RANDOM_SSEC_ENCRYPTED_1MB(
+      "random-encrypted-1mb.bin",
+      SizeConstants.ONE_MB_IN_BYTES,
+      S3ObjectKind.RANDOM_SEQUENTIAL_ENCRYPTED);
 
   private final String name;
   private final long size;
@@ -93,17 +97,19 @@ public enum S3Object {
   /**
    * Small objects - under 50 MB
    *
+   * @param kinds the object kind
    * @return small objects
    */
-  public static List<S3Object> smallObjects() {
+  public static List<S3Object> smallObjects(@NonNull S3ObjectKind... kinds) {
     return filter(o -> o.size < MEDIUM_SIZE_THRESHOLD);
   }
   /**
    * Returns list of small binary objects (between 8 MB and 50MB, .bin files only).
    *
+   * @param kinds the object kind
    * @return list of small binary objects
    */
-  public static List<S3Object> smallBinaryObjects() {
+  public static List<S3Object> smallBinaryObjects(@NonNull S3ObjectKind... kinds) {
     return filter(
         o ->
             o.size >= SMALL_BINARY_OBJECTS_LOWER_LIMIT
@@ -114,37 +120,47 @@ public enum S3Object {
   /**
    * Medium objects - between 50 MB and 500MB
    *
+   * @param kinds the object kind
    * @return medium objects
    */
-  public static List<S3Object> mediumObjects() {
-    return filter(o -> o.size >= MEDIUM_SIZE_THRESHOLD && o.size < LARGE_SIZE_THRESHOLD);
+  public static List<S3Object> mediumObjects(@NonNull S3ObjectKind... kinds) {
+    return filter(
+        o ->
+            o.size >= MEDIUM_SIZE_THRESHOLD
+                && o.size < LARGE_SIZE_THRESHOLD
+                && Arrays.asList(kinds).contains(o.getKind()));
   }
 
   /**
    * Small and medium objects - under 500MB
    *
+   * @param kinds the object kind
    * @return small and medium objects
    */
-  public static List<S3Object> smallAndMediumObjects() {
-    return filter(o -> o.size < LARGE_SIZE_THRESHOLD);
+  public static List<S3Object> smallAndMediumObjects(@NonNull S3ObjectKind... kinds) {
+    return filter(o -> o.size < LARGE_SIZE_THRESHOLD && Arrays.asList(kinds).contains(o.getKind()));
   }
 
   /**
    * Medium and large objects - over 50MB
    *
+   * @param kinds the object kind
    * @return medium and large objects
    */
-  public static List<S3Object> mediumAndLargeObjects() {
-    return filter(o -> o.size >= MEDIUM_SIZE_THRESHOLD);
+  public static List<S3Object> mediumAndLargeObjects(@NonNull S3ObjectKind... kinds) {
+    return filter(
+        o -> o.size >= MEDIUM_SIZE_THRESHOLD && Arrays.asList(kinds).contains(o.getKind()));
   }
 
   /**
    * Large objects - over 500MB
    *
+   * @param kinds the object kind
    * @return large objects
    */
-  public static List<S3Object> largeObjects() {
-    return filter(o -> o.size >= LARGE_SIZE_THRESHOLD);
+  public static List<S3Object> largeObjects(@NonNull S3ObjectKind... kinds) {
+    return filter(
+        o -> o.size >= LARGE_SIZE_THRESHOLD && Arrays.asList(kinds).contains(o.getKind()));
   }
 
   /**

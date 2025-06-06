@@ -18,6 +18,7 @@ package software.amazon.s3.analyticsaccelerator.util;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
+import software.amazon.s3.analyticsaccelerator.request.EncryptionSecrets;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.StreamAuditContext;
 
@@ -41,6 +42,7 @@ public class OpenStreamInformation {
   private final StreamAuditContext streamAuditContext;
   private final ObjectMetadata objectMetadata;
   private final InputPolicy inputPolicy;
+  private final EncryptionSecrets encryptionSecrets;
 
   /** Default set of settings for {@link OpenStreamInformation} */
   public static final OpenStreamInformation DEFAULT = OpenStreamInformation.builder().build();

@@ -28,6 +28,8 @@ import static software.amazon.s3.analyticsaccelerator.request.Constants.SPAN_ID;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -49,6 +51,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.s3.analyticsaccelerator.exceptions.ExceptionHandler;
 import software.amazon.s3.analyticsaccelerator.request.*;
 import software.amazon.s3.analyticsaccelerator.request.GetRequest;
@@ -515,5 +518,133 @@ public class S3SdkObjectClientTest {
 
   private static Exception[] exceptions() {
     return ExceptionHandler.getSampleExceptions();
+  }
+
+  @Test
+  void testGetObjectWithEncryption() {
+    S3AsyncClient mockS3AsyncClient = createMockClient();
+    S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
+
+    // Create encryption secrets
+    String base64Key =
+        Base64.getEncoder()
+            .encodeToString("32-bytes-long-key-for-testing-123".getBytes(StandardCharsets.UTF_8));
+    EncryptionSecrets secrets =
+        EncryptionSecrets.builder().sseCustomerKey(Optional.of(base64Key)).build();
+
+    // Create OpenStreamInformation with encryption
+    OpenStreamInformation openStreamInformation =
+        OpenStreamInformation.builder().encryptionSecrets(secrets).build();
+
+    GetRequest getRequest =
+        GetRequest.builder()
+            .s3Uri(S3URI.of("bucket", "key"))
+            .range(new Range(0, 20))
+            .etag(ETAG)
+            .referrer(new Referrer("bytes=0-20", ReadMode.SYNC))
+            .build();
+
+    client.getObject(getRequest, openStreamInformation);
+
+    // Verify the encryption parameters
+    ArgumentCaptor<GetObjectRequest> requestCaptor =
+        ArgumentCaptor.forClass(GetObjectRequest.class);
+    verify(mockS3AsyncClient)
+        .getObject(
+            requestCaptor.capture(),
+            ArgumentMatchers
+                .<AsyncResponseTransformer<
+                        GetObjectResponse, ResponseInputStream<GetObjectResponse>>>
+                    any());
+
+    GetObjectRequest capturedRequest = requestCaptor.getValue();
+    assertEquals(ServerSideEncryption.AES256.name(), capturedRequest.sseCustomerAlgorithm());
+    assertEquals(base64Key, capturedRequest.sseCustomerKey());
+    assertNotNull(capturedRequest.sseCustomerKeyMD5());
+  }
+
+  @Test
+  void testHeadObjectWithEncryption() {
+    S3AsyncClient mockS3AsyncClient = createMockClient();
+    S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
+
+    // Create encryption secrets
+    String base64Key =
+        Base64.getEncoder()
+            .encodeToString("32-bytes-long-key-for-testing-123".getBytes(StandardCharsets.UTF_8));
+    EncryptionSecrets secrets =
+        EncryptionSecrets.builder().sseCustomerKey(Optional.of(base64Key)).build();
+
+    // Create OpenStreamInformation with encryption
+    OpenStreamInformation openStreamInformation =
+        OpenStreamInformation.builder().encryptionSecrets(secrets).build();
+
+    HeadRequest headRequest = HeadRequest.builder().s3Uri(S3URI.of("bucket", "key")).build();
+
+    client.headObject(headRequest, openStreamInformation);
+
+    // Verify the encryption parameters
+    ArgumentCaptor<HeadObjectRequest> requestCaptor =
+        ArgumentCaptor.forClass(HeadObjectRequest.class);
+    verify(mockS3AsyncClient).headObject(requestCaptor.capture());
+
+    HeadObjectRequest capturedRequest = requestCaptor.getValue();
+    assertEquals(ServerSideEncryption.AES256.name(), capturedRequest.sseCustomerAlgorithm());
+    assertEquals(base64Key, capturedRequest.sseCustomerKey());
+    assertNotNull(capturedRequest.sseCustomerKeyMD5());
+  }
+
+  @Test
+  void testGetObjectWithoutEncryption() {
+    S3AsyncClient mockS3AsyncClient = createMockClient();
+    S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
+
+    OpenStreamInformation openStreamInformation = OpenStreamInformation.builder().build();
+
+    GetRequest getRequest =
+        GetRequest.builder()
+            .s3Uri(S3URI.of("bucket", "key"))
+            .range(new Range(0, 20))
+            .etag(ETAG)
+            .referrer(new Referrer("bytes=0-20", ReadMode.SYNC))
+            .build();
+
+    client.getObject(getRequest, openStreamInformation);
+
+    ArgumentCaptor<GetObjectRequest> requestCaptor =
+        ArgumentCaptor.forClass(GetObjectRequest.class);
+    verify(mockS3AsyncClient)
+        .getObject(
+            requestCaptor.capture(),
+            ArgumentMatchers
+                .<AsyncResponseTransformer<
+                        GetObjectResponse, ResponseInputStream<GetObjectResponse>>>
+                    any());
+
+    GetObjectRequest capturedRequest = requestCaptor.getValue();
+    assertNull(capturedRequest.sseCustomerAlgorithm());
+    assertNull(capturedRequest.sseCustomerKey());
+    assertNull(capturedRequest.sseCustomerKeyMD5());
+  }
+
+  @Test
+  void testHeadObjectWithoutEncryption() {
+    S3AsyncClient mockS3AsyncClient = createMockClient();
+    S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
+
+    OpenStreamInformation openStreamInformation = OpenStreamInformation.builder().build();
+
+    HeadRequest headRequest = HeadRequest.builder().s3Uri(S3URI.of("bucket", "key")).build();
+
+    client.headObject(headRequest, openStreamInformation);
+
+    ArgumentCaptor<HeadObjectRequest> requestCaptor =
+        ArgumentCaptor.forClass(HeadObjectRequest.class);
+    verify(mockS3AsyncClient).headObject(requestCaptor.capture());
+
+    HeadObjectRequest capturedRequest = requestCaptor.getValue();
+    assertNull(capturedRequest.sseCustomerAlgorithm());
+    assertNull(capturedRequest.sseCustomerKey());
+    assertNull(capturedRequest.sseCustomerKeyMD5());
   }
 }

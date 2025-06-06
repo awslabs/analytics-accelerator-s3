@@ -25,6 +25,7 @@ import software.amazon.s3.analyticsaccelerator.S3SdkObjectClient;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamConfiguration;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
+import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 /** Client stream reader based on DAT */
@@ -55,11 +56,14 @@ public class S3AALClientStreamReader extends S3StreamReaderBase {
    * Creates the read stream for a given object
    *
    * @param s3Object {@link S3Object} to create the stream for
+   * @param openStreamInformation contains the open stream information
    * @return read stream
    */
-  public S3SeekableInputStream createReadStream(@NonNull S3Object s3Object) throws IOException {
+  public S3SeekableInputStream createReadStream(
+      @NonNull S3Object s3Object, @NonNull OpenStreamInformation openStreamInformation)
+      throws IOException {
     S3URI s3URI = s3Object.getObjectUri(this.getBaseUri());
-    return this.getS3SeekableInputStreamFactory().createStream(s3URI);
+    return this.getS3SeekableInputStreamFactory().createStream(s3URI, openStreamInformation);
   }
 
   /**
@@ -68,14 +72,17 @@ public class S3AALClientStreamReader extends S3StreamReaderBase {
    * @param s3Object S3 Object to read
    * @param streamReadPattern Stream read pattern
    * @param checksum optional checksum, to update
+   * @param openStreamInformation contains the open stream information
    */
   @Override
   public void readPattern(
       @NonNull S3Object s3Object,
       @NonNull StreamReadPattern streamReadPattern,
-      @NonNull Optional<Crc32CChecksum> checksum)
+      @NonNull Optional<Crc32CChecksum> checksum,
+      @NonNull OpenStreamInformation openStreamInformation)
       throws IOException {
-    try (S3SeekableInputStream inputStream = this.createReadStream(s3Object)) {
+    try (S3SeekableInputStream inputStream =
+        this.createReadStream(s3Object, openStreamInformation)) {
       readPattern(s3Object, inputStream, streamReadPattern, checksum);
     }
   }
