@@ -61,7 +61,14 @@ public class DataBlockStore implements Closeable {
     return getBlockByIndex(getPositionIndex(pos));
   }
 
-  private Optional<DataBlock> getBlockByIndex(int index) {
+  /**
+   * Retrieves the {@link DataBlock} at the specified index from the block store.
+   *
+   * @param index the index of the block to retrieve
+   * @return an {@link Optional} containing the {@link DataBlock} if present; otherwise, an empty
+   *     {@link Optional}
+   */
+  public Optional<DataBlock> getBlockByIndex(int index) {
     return Optional.ofNullable(blocks.get(index));
   }
 
@@ -117,5 +124,14 @@ public class DataBlockStore implements Closeable {
       block.close();
     }
     blocks.clear();
+  }
+
+  /**
+   * Returns true if blockstore is empty
+   *
+   * @return true if blockstore is empty
+   */
+  public boolean isEmpty() {
+    return this.blocks.isEmpty();
   }
 }
