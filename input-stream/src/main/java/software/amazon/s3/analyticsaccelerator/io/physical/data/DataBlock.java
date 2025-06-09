@@ -24,23 +24,47 @@ import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 
-/** Block object stores the data of a stream */
+/**
+ * Represents a block of data from an object stream, identified by a {@link BlockKey} and a
+ * generation number. The block's data is set asynchronously and becomes accessible only after it
+ * has been marked ready.
+ */
 public class DataBlock implements Closeable {
   /**
-   * The data of the block, set after construction via {@link #setData(byte[])}. Accessed only after
-   * ensuring readiness via {@link #awaitData()}.
+   * The underlying byte array containing this block's data. It is set asynchronously via {@link
+   * #setData(byte[])} and should only be accessed through read methods after {@link #awaitData()}
+   * confirms readiness.
+   *
+   * <p>This field is marked {@code @Nullable} because the data is not initialized at construction
+   * time, which would otherwise cause static code analysis to fail.
    */
   @Nullable private byte[] data;
 
   @Getter private final BlockKey blockKey;
   @Getter private final long generation;
+  /**
+   * A synchronization aid that allows threads to wait until the block's data is available.
+   *
+   * <p>This latch is initialized with a count of 1 and is used to coordinate access to the {@code
+   * data} field. When a {@link DataBlock} is created, its {@code data} is not immediately
+   * available—it must be set asynchronously via {@link #setData(byte[])}. Until that happens, any
+   * thread attempting to read from this block will call {@link #awaitData()}, which internally
+   * waits on this latch.
+   *
+   * <p>Once {@code setData(byte[])} is invoked, it sets the internal data and decrements the latch,
+   * unblocking all threads waiting for the data to become available. This ensures safe and
+   * race-free access to the data by multiple readers, without using explicit locks.
+   *
+   * <p>The latch is effectively used as a one-time gate: it transitions from closed to open exactly
+   * once, after which all future readers proceed without blocking.
+   */
   private final CountDownLatch dataReadyLatch = new CountDownLatch(1);
 
   /**
-   * Constructs a DataBlock object
+   * Constructs a {@link DataBlock} object
    *
-   * @param blockKey the objectKey and range of the object
-   * @param generation generation of the block in a sequential read pattern
+   * @param blockKey the key identifying the object and byte range
+   * @param generation the generation number of this block in a sequential read pattern
    */
   public DataBlock(@NonNull BlockKey blockKey, long generation) {
     long start = blockKey.getRange().getStart();
@@ -55,11 +79,11 @@ public class DataBlock implements Closeable {
   }
 
   /**
-   * Reads a byte from the underlying object
+   * Reads a single byte at the specified absolute position in the object.
    *
-   * @param pos The position to read
-   * @return an unsigned int representing the byte that was read
-   * @throws IOException if an I/O error occurs
+   * @param pos the absolute position within the object
+   * @return the unsigned byte value at the given position, as an int in [0, 255]
+   * @throws IOException if the data is not ready or the position is invalid
    */
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
@@ -69,7 +93,8 @@ public class DataBlock implements Closeable {
   }
 
   /**
-   * Reads data into the provided buffer
+   * Reads up to {@code len} bytes from the block starting at the given object position and writes
+   * them into the provided buffer starting at {@code off}.
    *
    * @param buf buffer to read data into
    * @param off start position in buffer at which data is written
@@ -96,26 +121,32 @@ public class DataBlock implements Closeable {
   }
 
   /**
-   * Determines the offset in the Block corresponding to a position in an object.
+   * Converts an absolute object position to an offset within this block's data.
    *
-   * @param pos the position of a byte in the object
-   * @return the offset in the byte buffer underlying this Block
+   * @param pos the absolute position in the object
+   * @return the relative offset within this block's byte array
    */
   private int posToOffset(long pos) {
     return (int) (pos - this.blockKey.getRange().getStart());
   }
 
   /**
-   * Method to set data and reduce the dataReadyLatch to signal that data is ready
+   * Sets the data for this block and signals that the data is ready for reading. This method should
+   * be called exactly once per block.
    *
-   * @param data data of the block
+   * @param data the byte array representing the block's data
    */
   public void setData(final byte[] data) {
     this.data = data;
     dataReadyLatch.countDown();
   }
 
-  /** Method to wait until data is fully loaded */
+  /**
+   * Waits for the block's data to become available. This method blocks until {@link
+   * #setData(byte[])} is called.
+   *
+   * @throws IOException if the thread is interrupted or data is not set
+   */
   private void awaitData() throws IOException {
     try {
       dataReadyLatch.await();
@@ -126,7 +157,7 @@ public class DataBlock implements Closeable {
     if (data == null) throw new IOException("Failed to read data");
   }
 
-  /** Closes the {@link DataBlock} and frees up all resources it holds */
+  /** Releases the resources held by this block by clearing the internal data buffer. */
   @Override
   public void close() throws IOException {
     this.data = null;

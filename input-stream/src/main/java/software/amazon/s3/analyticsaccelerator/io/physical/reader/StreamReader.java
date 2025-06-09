@@ -26,6 +26,7 @@ import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.DataBlock;
 import software.amazon.s3.analyticsaccelerator.request.*;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
+import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 
 /**
  * {@code StreamReader} is responsible for asynchronously reading a range of bytes from an object in
@@ -38,7 +39,7 @@ public class StreamReader implements Closeable {
   private final ObjectClient objectClient;
   private final ObjectKey objectKey;
   private final ExecutorService threadPool;
-  private final StreamContext streamContext;
+  private final OpenStreamInformation openStreamInformation;
 
   /**
    * Constructs a {@code StreamReader} instance for reading objects from S3.
@@ -46,17 +47,17 @@ public class StreamReader implements Closeable {
    * @param objectClient the client used to fetch S3 object content
    * @param objectKey the key identifying the S3 object and its ETag
    * @param threadPool an {@link ExecutorService} used for async I/O operations
-   * @param streamContext the context containing metrics, logging, or monitoring information
+   * @param openStreamInformation contains stream information
    */
   public StreamReader(
       @NonNull ObjectClient objectClient,
       @NonNull ObjectKey objectKey,
       @NonNull ExecutorService threadPool,
-      StreamContext streamContext) {
+      @NonNull OpenStreamInformation openStreamInformation) {
     this.objectClient = objectClient;
     this.objectKey = objectKey;
     this.threadPool = threadPool;
-    this.streamContext = streamContext;
+    this.openStreamInformation = openStreamInformation;
   }
 
   /**
@@ -91,7 +92,8 @@ public class StreamReader implements Closeable {
                   .referrer(new Referrer(requestRange.toHttpString(), readMode))
                   .build();
 
-          ObjectContent objectContent = objectClient.getObject(getRequest, streamContext).join();
+          ObjectContent objectContent =
+              objectClient.getObject(getRequest, openStreamInformation).join();
 
           try (InputStream inputStream = objectContent.getStream()) {
             long currentOffset = rangeStart;

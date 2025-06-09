@@ -30,6 +30,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.reader.StreamReader;
 import software.amazon.s3.analyticsaccelerator.request.*;
 import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
+import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 
 /** Implements a Block Manager responsible for planning and scheduling reads on a key. */
 public class DataBlockManager implements Closeable {
@@ -67,6 +68,7 @@ public class DataBlockManager implements Closeable {
    * @param configuration configuration for physical IO operations (e.g., read buffer size)
    * @param aggregatingMetrics the metrics aggregator for performance or usage monitoring
    * @param indexCache cache for blob index metadata (if applicable)
+   * @param openStreamInformation contains stream information
    * @param threadPool Thread pool
    */
   public DataBlockManager(
@@ -77,49 +79,16 @@ public class DataBlockManager implements Closeable {
       @NonNull PhysicalIOConfiguration configuration,
       @NonNull Metrics aggregatingMetrics,
       @NonNull BlobStoreIndexCache indexCache,
+      @NonNull OpenStreamInformation openStreamInformation,
       @NonNull ExecutorService threadPool) {
-    this(
-        objectKey,
-        objectClient,
-        metadata,
-        telemetry,
-        configuration,
-        aggregatingMetrics,
-        indexCache,
-        threadPool,
-        null);
-  }
-
-  /**
-   * Constructs a new BlockManager.
-   *
-   * @param objectKey the key representing the S3 object, including its URI and ETag
-   * @param objectClient the client used to fetch object content from S3
-   * @param metadata metadata associated with the S3 object, including content length
-   * @param telemetry the telemetry interface used for logging or instrumentation
-   * @param configuration configuration for physical IO operations (e.g., read buffer size)
-   * @param aggregatingMetrics the metrics aggregator for performance or usage monitoring
-   * @param indexCache cache for blob index metadata (if applicable)
-   * @param threadPool Thread pool
-   * @param streamContext context for stream-based reads, e.g., buffering or retry behavior
-   */
-  public DataBlockManager(
-      @NonNull ObjectKey objectKey,
-      @NonNull ObjectClient objectClient,
-      @NonNull ObjectMetadata metadata,
-      @NonNull Telemetry telemetry,
-      @NonNull PhysicalIOConfiguration configuration,
-      @NonNull Metrics aggregatingMetrics,
-      @NonNull BlobStoreIndexCache indexCache,
-      @NonNull ExecutorService threadPool,
-      StreamContext streamContext) {
     this.objectKey = objectKey;
     this.metadata = metadata;
     this.telemetry = telemetry;
     this.configuration = configuration;
     this.aggregatingMetrics = aggregatingMetrics;
     this.indexCache = indexCache;
-    this.streamReader = new StreamReader(objectClient, objectKey, threadPool, streamContext);
+    this.streamReader =
+        new StreamReader(objectClient, objectKey, threadPool, openStreamInformation);
     this.blockStore = new DataBlockStore(configuration);
   }
 
