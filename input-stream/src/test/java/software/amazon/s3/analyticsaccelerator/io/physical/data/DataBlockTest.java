@@ -16,9 +16,11 @@
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
+import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
@@ -36,7 +38,8 @@ public class DataBlockTest {
     Range range = new Range(0, 10);
     BlockKey blockKey = new BlockKey(TEST_OBJECT_KEY, range);
 
-    DataBlock block = new DataBlock(blockKey, 2);
+    DataBlock block =
+        new DataBlock(blockKey, 2, mock(BlobStoreIndexCache.class), mock(Metrics.class));
 
     assertEquals(block.getBlockKey(), blockKey);
     assertEquals(block.getGeneration(), 2);
@@ -47,6 +50,8 @@ public class DataBlockTest {
     Range range = new Range(0, 10);
     BlockKey blockKey = new BlockKey(TEST_OBJECT_KEY, range);
 
-    assertThrows(IllegalArgumentException.class, () -> new DataBlock(blockKey, -1));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new DataBlock(blockKey, -1, mock(BlobStoreIndexCache.class), mock(Metrics.class)));
   }
 }

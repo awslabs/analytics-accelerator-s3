@@ -43,19 +43,9 @@ public class DataBlockManager implements Closeable {
   private final Telemetry telemetry;
 
   private final PhysicalIOConfiguration configuration;
-
-  @SuppressFBWarnings(
-      value = "URF_UNREAD_FIELD",
-      justification = "Field is injected and may be used in the future")
   private final Metrics aggregatingMetrics;
-
-  @SuppressFBWarnings(
-      value = "URF_UNREAD_FIELD",
-      justification = "Field is injected and may be used in the future")
   private final BlobStoreIndexCache indexCache;
-
   private final StreamReader streamReader;
-
   private final DataBlockStore blockStore;
 
   /**
@@ -89,7 +79,7 @@ public class DataBlockManager implements Closeable {
     this.indexCache = indexCache;
     this.streamReader =
         new StreamReader(objectClient, objectKey, threadPool, openStreamInformation);
-    this.blockStore = new DataBlockStore(configuration);
+    this.blockStore = new DataBlockStore(indexCache, aggregatingMetrics, configuration);
   }
 
   /**
@@ -100,9 +90,6 @@ public class DataBlockManager implements Closeable {
    */
   public synchronized void makePositionAvailable(long pos, ReadMode readMode) {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
-
-    if (getBlock(pos).isPresent()) return;
-
     makeRangeAvailable(pos, 1, readMode);
   }
 
@@ -134,7 +121,7 @@ public class DataBlockManager implements Closeable {
               blockIndex * configuration.getReadBufferSize(),
               Math.min((blockIndex + 1) * configuration.getReadBufferSize(), getLastObjectByte()));
       BlockKey blockKey = new BlockKey(objectKey, range);
-      DataBlock block = new DataBlock(blockKey, 0);
+      DataBlock block = new DataBlock(blockKey, 0, this.indexCache, this.aggregatingMetrics);
       blockStore.add(block);
       blocksToFill.add(block);
     }
@@ -191,7 +178,9 @@ public class DataBlockManager implements Closeable {
   }
 
   /** cleans data from memory */
-  public void cleanUp() {}
+  public void cleanUp() {
+    this.blockStore.cleanUp();
+  }
 
   /** Closes the {@link DataBlockManager} and frees up all resources it holds */
   @Override

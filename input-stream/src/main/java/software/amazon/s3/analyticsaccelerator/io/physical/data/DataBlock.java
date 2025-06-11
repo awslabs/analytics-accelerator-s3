@@ -21,8 +21,10 @@ import java.util.concurrent.CountDownLatch;
 import javax.annotation.Nullable;
 import lombok.Getter;
 import lombok.NonNull;
+import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.util.BlockKey;
+import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 
 /**
  * Represents a block of data from an object stream, identified by a {@link BlockKey} and a
@@ -42,6 +44,9 @@ public class DataBlock implements Closeable {
 
   @Getter private final BlockKey blockKey;
   @Getter private final long generation;
+
+  private final BlobStoreIndexCache indexCache;
+  private final Metrics aggregatingMetrics;
   /**
    * A synchronization aid that allows threads to wait until the block's data is available.
    *
@@ -65,8 +70,14 @@ public class DataBlock implements Closeable {
    *
    * @param blockKey the key identifying the object and byte range
    * @param generation the generation number of this block in a sequential read pattern
+   * @param indexCache blobstore index cache
+   * @param aggregatingMetrics blobstore metrics
    */
-  public DataBlock(@NonNull BlockKey blockKey, long generation) {
+  public DataBlock(
+      @NonNull BlockKey blockKey,
+      long generation,
+      @NonNull BlobStoreIndexCache indexCache,
+      @NonNull Metrics aggregatingMetrics) {
     long start = blockKey.getRange().getStart();
     long end = blockKey.getRange().getEnd();
     Preconditions.checkArgument(
@@ -76,6 +87,8 @@ public class DataBlock implements Closeable {
 
     this.blockKey = blockKey;
     this.generation = generation;
+    this.indexCache = indexCache;
+    this.aggregatingMetrics = aggregatingMetrics;
   }
 
   /**
@@ -88,6 +101,7 @@ public class DataBlock implements Closeable {
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     awaitData();
+    indexCache.recordAccess(this.blockKey);
     int contentOffset = posToOffset(pos);
     return Byte.toUnsignedInt(this.data[contentOffset]);
   }
@@ -111,6 +125,7 @@ public class DataBlock implements Closeable {
 
     awaitData();
 
+    indexCache.recordAccess(this.blockKey);
     int contentOffset = posToOffset(pos);
     int available = this.data.length - contentOffset;
     int bytesToCopy = Math.min(len, available);
@@ -118,6 +133,15 @@ public class DataBlock implements Closeable {
     if (bytesToCopy >= 0) System.arraycopy(this.data, contentOffset, buf, off, bytesToCopy);
 
     return bytesToCopy;
+  }
+
+  /**
+   * Checks if data of the block is ready
+   *
+   * @return true if data is ready, false otherwise
+   */
+  public boolean isDataReady() {
+    return dataReadyLatch.getCount() == 0;
   }
 
   /**
@@ -138,6 +162,8 @@ public class DataBlock implements Closeable {
    */
   public void setData(final byte[] data) {
     this.data = data;
+    this.aggregatingMetrics.add(MetricKey.MEMORY_USAGE, data.length);
+    this.indexCache.put(this.blockKey, this.blockKey.getRange().getLength());
     dataReadyLatch.countDown();
   }
 
