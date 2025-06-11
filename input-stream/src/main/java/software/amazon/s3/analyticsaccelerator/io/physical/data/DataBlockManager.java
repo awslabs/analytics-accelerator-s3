@@ -114,14 +114,11 @@ public class DataBlockManager implements Closeable {
     // Return if all blocks are in store
     if (missingBlockIndexes.isEmpty()) return;
 
+    long generation = 0;
     List<DataBlock> blocksToFill = new ArrayList<>();
     for (int blockIndex : missingBlockIndexes) {
-      final Range range =
-          new Range(
-              blockIndex * configuration.getReadBufferSize(),
-              Math.min((blockIndex + 1) * configuration.getReadBufferSize(), getLastObjectByte()));
-      BlockKey blockKey = new BlockKey(objectKey, range);
-      DataBlock block = new DataBlock(blockKey, 0, this.indexCache, this.aggregatingMetrics);
+      BlockKey blockKey = new BlockKey(objectKey, getBlockIndexRange(blockIndex));
+      DataBlock block = new DataBlock(blockKey, generation, this.indexCache, this.aggregatingMetrics);
       blockStore.add(block);
       blocksToFill.add(block);
     }
@@ -155,6 +152,27 @@ public class DataBlockManager implements Closeable {
 
   private long getLastObjectByte() {
     return this.metadata.getContentLength() - 1;
+  }
+
+  /**
+   * Calculates the {@link Range} for a given block index within the S3 object.
+   *
+   * <p>The start of the range is calculated as {@code blockIndex * readBufferSize}.
+   * The end of the range is the smaller of:
+   * <ul>
+   *   <li>The last byte of the block: {@code ((blockIndex + 1) * readBufferSize) - 1}</li>
+   *   <li>The last byte of the S3 object: {@code getLastObjectByte()}</li>
+   * </ul>
+   *
+   * <p>This ensures that the returned range does not exceed the actual size of the object.
+   *
+   * @param blockIndex the index of the block for which the byte range is being calculated
+   * @return a {@link Range} representing the byte range [start, end] for the specified block
+   */
+  private Range getBlockIndexRange(int blockIndex) {
+    return new Range(
+        blockIndex * configuration.getReadBufferSize(),
+        Math.min(((blockIndex + 1) * configuration.getReadBufferSize()) - 1, getLastObjectByte()));
   }
 
   /**
