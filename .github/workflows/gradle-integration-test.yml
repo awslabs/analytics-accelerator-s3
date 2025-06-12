@@ -26,7 +26,7 @@ jobs:
   build:
     name: Integration Tests
     runs-on: codebuild-s3-analytics-accelerator-eu-west-1-${{ github.run_id }}-${{ github.run_attempt }}
-    environment: integration-tests
+    environment: ${{ github.event_name == 'pull_request_target' && 'integration-tests' || '' }}
     permissions:
       contents: read
       id-token: write
