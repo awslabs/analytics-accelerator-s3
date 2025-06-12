@@ -216,37 +216,27 @@ public class Block implements Closeable {
     while (retries < readRetryCount) {
       try {
         LOG.info("Range type is: {}", range.getRangeType());
-        if (enableTailMetadataCaching && isTailMetadata(range) && cache != null) {
-          String cacheKey = generateCacheKey();
 
-          long cacheGetStartTime = System.nanoTime();
+        String cacheKey = generateCacheKey();
 
-          byte[] cachedData = Block.cache.get(cacheKey);
+        long cacheGetStartTime = System.nanoTime();
 
-          long cacheGetDuration = System.nanoTime() - cacheGetStartTime;
-          double cacheGetMsDuration = cacheGetDuration / 1_000_000.0;
+        byte[] cachedData = Block.cache.get(cacheKey);
 
-          if (cachedData != null) {
-            LOG.info(
-                "Cache hit for tail metadata: {}. Request took: {}ms, start = {}, end = {}. RangeType: {}",
-                cacheKey,
-                String.format("%.2f", cacheGetMsDuration),
-                range.getStart(),
-                range.getEnd(),
-                range.getRangeType());
+        long cacheGetDuration = System.nanoTime() - cacheGetStartTime;
+        double cacheGetMsDuration = cacheGetDuration / 1_000_000.0;
 
-            data = CompletableFuture.completedFuture(cachedData);
-            return;
+        if (cachedData != null) {
+          LOG.info(
+              "Cache hit for tail metadata: {}. Request took: {}ms, start = {}, end = {}. RangeType: {}",
+              cacheKey,
+              String.format("%.2f", cacheGetMsDuration),
+              range.getStart(),
+              range.getEnd(),
+              range.getRangeType());
 
-          } else {
-            LOG.info(
-                "Cache miss for tail metadata: {}. Request took: {}ms, start = {}, end = {}. RangeType: {}",
-                cacheKey,
-                String.format("%.2f", cacheGetMsDuration),
-                range.getStart(),
-                range.getEnd(),
-                range.getRangeType());
-          }
+          data = CompletableFuture.completedFuture(cachedData);
+          return;
         }
 
         GetRequest getRequest =
@@ -293,8 +283,6 @@ public class Block implements Closeable {
                         range.getRangeType());
 
                     if (enableTailMetadataCaching && isTailMetadata(range) && Block.cache != null) {
-                      String cacheKey = generateCacheKey();
-
                       long cacheSetStartTime = System.nanoTime();
 
                       Block.cache.set(cacheKey, fetchedData);

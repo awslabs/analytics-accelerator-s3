@@ -221,7 +221,7 @@ public class BlockManager implements Closeable {
                     this.configuration.getBlockReadTimeout(),
                     this.configuration.getBlockReadRetryCount(),
                     metadata.getContentLength(),
-                    this.configuration.isEnableTailMetadataCaching(),
+                    this.configuration.isTailMetadataCachingEnabled(),
                     cache,
                     executorService,
                     streamContext);

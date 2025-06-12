@@ -1,0 +1,16 @@
+{
+  "prefetching": {
+    "concurrency_limit": 10
+  },
+
+  "cache": {
+    "time_to_live": 1200,
+    "elasticache_endpoint": "www.changeme.com",
+    "elasticache_port": 6379
+  },
+
+  "s3": {
+    "region": "us-east-1"
+
+  }
+}
