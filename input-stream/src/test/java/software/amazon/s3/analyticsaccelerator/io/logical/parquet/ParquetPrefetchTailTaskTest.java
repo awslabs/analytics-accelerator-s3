@@ -15,8 +15,7 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.logical.parquet;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doThrow;
@@ -34,6 +33,7 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
@@ -41,6 +41,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 @SuppressFBWarnings(
@@ -101,9 +102,14 @@ public class ParquetPrefetchTailTaskTest {
               TEST_URI, Telemetry.NOOP, LogicalIOConfiguration.DEFAULT, mockedPhysicalIO);
       parquetPrefetchTailTask.prefetchTail();
 
-      verify(mockedPhysicalIO).execute(any(IOPlan.class));
+      verify(mockedPhysicalIO).execute(any(IOPlan.class), any(ReadMode.class));
+      ArgumentCaptor<ReadMode> readModeCaptor = ArgumentCaptor.forClass(ReadMode.class);
       verify(mockedPhysicalIO)
-          .execute(argThat(new IOPlanMatcher(contentLengthToRangeList.getValue())));
+          .execute(
+              argThat(new IOPlanMatcher(contentLengthToRangeList.getValue())),
+              readModeCaptor.capture());
+
+      assertEquals(readModeCaptor.getValue(), ReadMode.PREFETCH_TAIL);
     }
   }
 
@@ -119,7 +125,9 @@ public class ParquetPrefetchTailTaskTest {
     // When: task executes but PhysicalIO throws
     ObjectMetadata metadata = ObjectMetadata.builder().contentLength(600).etag("random").build();
     when(mockedPhysicalIO.metadata()).thenReturn(metadata);
-    doThrow(new IOException("Error in prefetch")).when(mockedPhysicalIO).execute(any(IOPlan.class));
+    doThrow(new IOException("Error in prefetch"))
+        .when(mockedPhysicalIO)
+        .execute(any(IOPlan.class), any(ReadMode.class));
 
     // Then: exception is re-mapped to CompletionException
     assertThrows(CompletionException.class, () -> parquetPrefetchTailTask.prefetchTail());

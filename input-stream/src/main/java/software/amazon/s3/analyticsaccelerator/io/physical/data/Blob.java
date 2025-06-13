@@ -155,9 +155,10 @@ public class Blob implements Closeable {
    * Execute an IOPlan.
    *
    * @param plan the IOPlan to execute
+   * @param readMode the readMode for which this IoPlan is being executed
    * @return the status of execution
    */
-  public IOPlanExecution execute(IOPlan plan) {
+  public IOPlanExecution execute(IOPlan plan, ReadMode readMode) throws IOException {
     return telemetry.measureStandard(
         () ->
             Operation.builder()
@@ -169,8 +170,7 @@ public class Blob implements Closeable {
         () -> {
           try {
             for (Range range : plan.getPrefetchRanges()) {
-              this.blockManager.makeRangeAvailable(
-                  range.getStart(), range.getLength(), ReadMode.ASYNC);
+              this.blockManager.makeRangeAvailable(range.getStart(), range.getLength(), readMode);
             }
 
             return IOPlanExecution.builder().state(IOPlanState.SUBMITTED).build();

@@ -57,7 +57,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   private final BlobStore objectBlobStore;
   private final Telemetry telemetry;
   private final ObjectFormatSelector objectFormatSelector;
-  private final Metrics metrics;
+  @Getter private final Metrics metrics;
   private final ExecutorService threadPool;
 
   private static final Logger LOG = LoggerFactory.getLogger(S3SeekableInputStreamFactory.class);

@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
@@ -493,22 +495,63 @@ public class BlockManagerTest {
         closeLatch.await(5, TimeUnit.SECONDS), "Close operation should complete within timeout");
   }
 
-  @Test
-  @DisplayName("Test makeRangeAvailable with async read mode")
-  void testMakeRangeAvailableAsync() throws IOException {
+  @ParameterizedTest
+  @MethodSource("readModes")
+  @DisplayName("Test makeRangeAvailable with async read modes")
+  void testMakeRangeAvailableAsync(ReadMode readMode) throws IOException {
     // Given
     ObjectClient objectClient = mock(ObjectClient.class);
-    BlockManager blockManager = getTestBlockManager(objectClient, 1024);
+    BlockManager blockManager = getTestBlockManager(objectClient, 100 * ONE_MB);
 
     // When
-    blockManager.makeRangeAvailable(0, 100, ReadMode.ASYNC);
+    blockManager.makeRangeAvailable(0, 5 * ONE_MB, readMode);
+    blockManager.makeRangeAvailable(5 * ONE_MB, 3 * ONE_MB, readMode);
+    blockManager.makeRangeAvailable(8 * ONE_MB, 5 * ONE_MB, readMode);
 
     // Then
     ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
-    verify(objectClient).getObject(requestCaptor.capture(), any());
+    verify(objectClient, times(3)).getObject(requestCaptor.capture(), any());
 
-    // Verify that async mode doesn't trigger read ahead
-    assertEquals(1024, requestCaptor.getValue().getRange().getLength());
+    List<GetRequest> getRequestList = requestCaptor.getAllValues();
+
+    // Verify that prefetch modes don't trigger sequential prefetching
+    assertEquals(getRequestList.get(0).getRange().getLength(), 5 * ONE_MB);
+    assertEquals(getRequestList.get(1).getRange().getLength(), 3 * ONE_MB);
+    assertEquals(getRequestList.get(2).getRange().getLength(), 5 * ONE_MB);
+  }
+
+  @Test
+  @DisplayName("Test makeRangeAvailable with sync read mode")
+  void testMakeRangeAvailableSync() throws IOException {
+    // Given
+    ObjectClient objectClient = mock(ObjectClient.class);
+    BlockManager blockManager = getTestBlockManager(objectClient, 100 * ONE_MB);
+
+    // When
+    blockManager.makeRangeAvailable(0, 5 * ONE_MB, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(5 * ONE_MB, 3 * ONE_MB, ReadMode.SYNC);
+
+    // Then
+    ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
+    verify(objectClient, times(2)).getObject(requestCaptor.capture(), any());
+
+    List<GetRequest> getRequestList = requestCaptor.getAllValues();
+
+    // Verify that with the SYNC mode, sequential prefetching kicks in
+    assertEquals(getRequestList.get(0).getRange().getLength(), 5 * ONE_MB);
+    // Second request gets extended by 4MB to 9MB.
+    assertEquals(getRequestList.get(1).getRange().getLength(), 4 * ONE_MB + 1);
+  }
+
+  private static List<ReadMode> readModes() {
+    List<ReadMode> readModes = new ArrayList<>();
+    readModes.add(ReadMode.READ_VECTORED);
+    readModes.add(ReadMode.COLUMN_PREFETCH);
+    readModes.add(ReadMode.DICTIONARY_PREFETCH);
+    readModes.add(ReadMode.PREFETCH_TAIL);
+    readModes.add(ReadMode.REMAINING_COLUMN_PREFETCH);
+
+    return readModes;
   }
 
   @Test

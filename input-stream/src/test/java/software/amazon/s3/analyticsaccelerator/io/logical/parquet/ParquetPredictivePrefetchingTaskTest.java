@@ -45,6 +45,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanState;
 import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
@@ -182,13 +183,15 @@ public class ParquetPredictivePrefetchingTaskTest {
     // Then: physical IO gets the correct plan. Only recent columns from the current row
     // group are prefetched.
     ArgumentCaptor<IOPlan> ioPlanArgumentCaptor = ArgumentCaptor.forClass(IOPlan.class);
-    verify(physicalIO, times(2)).execute(ioPlanArgumentCaptor.capture());
+    ArgumentCaptor<ReadMode> readModeCaptor = ArgumentCaptor.forClass(ReadMode.class);
+    verify(physicalIO, times(2)).execute(ioPlanArgumentCaptor.capture(), readModeCaptor.capture());
 
     IOPlan ioPlan = ioPlanArgumentCaptor.getValue();
     List<Range> expectedRanges = new ArrayList<>();
 
     expectedRanges.add(new Range(100, 599));
     assertTrue(ioPlan.getPrefetchRanges().containsAll(expectedRanges));
+    assertEquals(readModeCaptor.getValue(), ReadMode.COLUMN_PREFETCH);
   }
 
   @Test
@@ -235,13 +238,18 @@ public class ParquetPredictivePrefetchingTaskTest {
     // Then: physical IO gets the correct plan. Only recent columns from the current row
     // group are prefetched.
     ArgumentCaptor<IOPlan> ioPlanArgumentCaptor = ArgumentCaptor.forClass(IOPlan.class);
-    verify(physicalIO, times(2)).execute(ioPlanArgumentCaptor.capture());
+    ArgumentCaptor<ReadMode> readModeCaptor = ArgumentCaptor.forClass(ReadMode.class);
+    verify(physicalIO, times(2)).execute(ioPlanArgumentCaptor.capture(), readModeCaptor.capture());
 
     IOPlan ioPlan = ioPlanArgumentCaptor.getAllValues().get(0);
     List<Range> expectedRanges = new ArrayList<>();
 
+    List<ReadMode> readModes = readModeCaptor.getAllValues();
+
     expectedRanges.add(new Range(100, 199));
     assertTrue(ioPlan.getPrefetchRanges().containsAll(expectedRanges));
+    assertEquals(readModes.get(0), ReadMode.DICTIONARY_PREFETCH);
+    assertEquals(readModes.get(1), ReadMode.COLUMN_PREFETCH);
   }
 
   @Test
@@ -414,7 +422,8 @@ public class ParquetPredictivePrefetchingTaskTest {
 
     // Then: physical IO gets the correct plan
     ArgumentCaptor<IOPlan> ioPlanArgumentCaptor = ArgumentCaptor.forClass(IOPlan.class);
-    verify(physicalIO, times(2)).execute(ioPlanArgumentCaptor.capture());
+    ArgumentCaptor<ReadMode> readModeCaptor = ArgumentCaptor.forClass(ReadMode.class);
+    verify(physicalIO, times(2)).execute(ioPlanArgumentCaptor.capture(), readModeCaptor.capture());
 
     IOPlan ioPlan = ioPlanArgumentCaptor.getValue();
     List<Range> expectedRanges = new ArrayList<>();
@@ -423,6 +432,7 @@ public class ParquetPredictivePrefetchingTaskTest {
     expectedRanges.add(new Range(100, 1099));
     expectedRanges.add(new Range(1300, 1799));
     assertTrue(ioPlan.getPrefetchRanges().containsAll(expectedRanges));
+    assertEquals(readModeCaptor.getValue(), ReadMode.COLUMN_PREFETCH);
   }
 
   @Test
@@ -438,7 +448,9 @@ public class ParquetPredictivePrefetchingTaskTest {
             new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT));
 
     // When: the underlying PhysicalIO always throws
-    doThrow(new IOException("Error in prefetch")).when(physicalIO).execute(any(IOPlan.class));
+    doThrow(new IOException("Error in prefetch"))
+        .when(physicalIO)
+        .execute(any(IOPlan.class), any(ReadMode.class));
 
     assertEquals(
         IOPlanExecution.builder().state(IOPlanState.SKIPPED).build(),

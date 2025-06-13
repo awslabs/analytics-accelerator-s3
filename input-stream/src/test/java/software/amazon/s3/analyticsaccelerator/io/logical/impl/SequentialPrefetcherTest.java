@@ -33,6 +33,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 @SuppressFBWarnings(
@@ -77,7 +78,8 @@ public class SequentialPrefetcherTest {
     ObjectMetadata metadata = mock(ObjectMetadata.class);
     when(metadata.getContentLength()).thenReturn(10000L);
     when(physicalIO.metadata()).thenReturn(metadata);
-    when(physicalIO.execute(any(IOPlan.class))).thenReturn(mock(IOPlanExecution.class));
+    when(physicalIO.execute(any(IOPlan.class), any(ReadMode.class)))
+        .thenReturn(mock(IOPlanExecution.class));
 
     SequentialPrefetcher prefetcher =
         new SequentialPrefetcher(TEST_URI, physicalIO, TestTelemetry.DEFAULT, config);
@@ -85,7 +87,8 @@ public class SequentialPrefetcherTest {
     prefetcher.prefetch(0);
 
     ArgumentCaptor<IOPlan> ioPlanCaptor = ArgumentCaptor.forClass(IOPlan.class);
-    verify(physicalIO).execute(ioPlanCaptor.capture());
+    ArgumentCaptor<ReadMode> readModeCaptor = ArgumentCaptor.forClass(ReadMode.class);
+    verify(physicalIO).execute(ioPlanCaptor.capture(), readModeCaptor.capture());
 
     IOPlan capturedPlan = ioPlanCaptor.getValue();
     List<Range> ranges = capturedPlan.getPrefetchRanges();
@@ -94,6 +97,7 @@ public class SequentialPrefetcherTest {
     Range range = ranges.get(0);
     assertEquals(0, range.getStart());
     assertEquals(4095, range.getEnd());
+    assertEquals(readModeCaptor.getValue(), ReadMode.SEQUENTIAL_FILE_PREFETCH);
   }
 
   @Test
@@ -104,7 +108,8 @@ public class SequentialPrefetcherTest {
     ObjectMetadata metadata = mock(ObjectMetadata.class);
     when(metadata.getContentLength()).thenReturn(3000L);
     when(physicalIO.metadata()).thenReturn(metadata);
-    when(physicalIO.execute(any(IOPlan.class))).thenReturn(mock(IOPlanExecution.class));
+    when(physicalIO.execute(any(IOPlan.class), any(ReadMode.class)))
+        .thenReturn(mock(IOPlanExecution.class));
 
     SequentialPrefetcher prefetcher =
         new SequentialPrefetcher(TEST_URI, physicalIO, TestTelemetry.DEFAULT, config);
@@ -112,7 +117,8 @@ public class SequentialPrefetcherTest {
     prefetcher.prefetch(2000);
 
     ArgumentCaptor<IOPlan> ioPlanCaptor = ArgumentCaptor.forClass(IOPlan.class);
-    verify(physicalIO).execute(ioPlanCaptor.capture());
+    ArgumentCaptor<ReadMode> readModeCaptor = ArgumentCaptor.forClass(ReadMode.class);
+    verify(physicalIO).execute(ioPlanCaptor.capture(), readModeCaptor.capture());
 
     IOPlan capturedPlan = ioPlanCaptor.getValue();
     List<Range> ranges = capturedPlan.getPrefetchRanges();
@@ -121,6 +127,7 @@ public class SequentialPrefetcherTest {
     Range range = ranges.get(0);
     assertEquals(2000, range.getStart());
     assertEquals(2999, range.getEnd());
+    assertEquals(readModeCaptor.getValue(), ReadMode.SEQUENTIAL_FILE_PREFETCH);
   }
 
   @Test
@@ -130,7 +137,7 @@ public class SequentialPrefetcherTest {
     ObjectMetadata metadata = mock(ObjectMetadata.class);
     when(metadata.getContentLength()).thenReturn(10000L);
     when(physicalIO.metadata()).thenReturn(metadata);
-    when(physicalIO.execute(any(IOPlan.class)))
+    when(physicalIO.execute(any(IOPlan.class), any(ReadMode.class)))
         .thenThrow(new IOException("Simulated IO exception"));
 
     SequentialPrefetcher prefetcher =
@@ -140,6 +147,6 @@ public class SequentialPrefetcherTest {
     prefetcher.prefetch(0);
 
     // Verify that execute was called despite the exception
-    verify(physicalIO).execute(any(IOPlan.class));
+    verify(physicalIO).execute(any(IOPlan.class), any(ReadMode.class));
   }
 }

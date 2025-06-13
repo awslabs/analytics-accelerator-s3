@@ -23,6 +23,7 @@ import software.amazon.s3.analyticsaccelerator.RandomAccessReadable;
 import software.amazon.s3.analyticsaccelerator.common.ObjectRange;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 
 /** An interface defining how a logical IO layer gets hooked into Physical IO. */
 public interface PhysicalIO extends RandomAccessReadable {
@@ -31,9 +32,10 @@ public interface PhysicalIO extends RandomAccessReadable {
    * Async method capable of executing a logical IO plan.
    *
    * @param ioPlan the plan to execute asynchronously
+   * @param readMode the read mode for which this IoPlan is being executed
    * @return an IOPlanExecution object tracking the execution of the submitted plan
    */
-  IOPlanExecution execute(IOPlan ioPlan) throws IOException;
+  IOPlanExecution execute(IOPlan ioPlan, ReadMode readMode) throws IOException;
 
   /**
    * Fetches the list of provided ranges in parallel. Byte buffers are created using the allocate

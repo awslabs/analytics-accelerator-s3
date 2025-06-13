@@ -26,6 +26,7 @@ import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
@@ -76,7 +77,7 @@ public class ParquetPrefetchTailTask {
                 ParquetUtils.getFileTailPrefetchRanges(logicalIOConfiguration, 0, contentLength);
             IOPlan ioPlan = new IOPlan(ranges);
             // Create a non-empty IOPlan only if we have a valid range to work with
-            physicalIO.execute(ioPlan);
+            physicalIO.execute(ioPlan, ReadMode.PREFETCH_TAIL);
             return ioPlan.getPrefetchRanges();
           } catch (Exception e) {
             LOG.debug(

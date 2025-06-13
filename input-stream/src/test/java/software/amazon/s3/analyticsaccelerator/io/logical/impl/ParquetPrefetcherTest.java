@@ -45,6 +45,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanState;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
@@ -520,7 +521,8 @@ public class ParquetPrefetcherTest {
         .thenReturn(new FileTail(ByteBuffer.wrap(new byte[5]), 5));
     when(parquetMetadataParsingTask.storeColumnMappers(any(FileTail.class)))
         .thenThrow(new CompletionException("Error", new IOException()));
-    when(physicalIO.execute(any(IOPlan.class))).thenReturn(skippedIoPlanExecution);
+    when(physicalIO.execute(any(IOPlan.class), any(ReadMode.class)))
+        .thenReturn(skippedIoPlanExecution);
 
     assertEquals(parquetPrefetcher.prefetchFooterAndBuildMetadata().join(), skippedIoPlanExecution);
   }
