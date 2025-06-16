@@ -63,6 +63,22 @@ public class RangeOptimiser {
       nextRangeStart = rangeEnd + 1;
     }
 
+    // Combine the last two ranges if the last range is too small
+    if (generatedRanges.size() >= 2) {
+      Range lastRange = generatedRanges.get(generatedRanges.size() - 1);
+      Range secondLastRange = generatedRanges.get(generatedRanges.size() - 2);
+
+      // If the last range is smaller than half the part size, combine it with the previous range
+      if (lastRange.getLength() < configuration.getPartSizeBytes() / 2) {
+        // Remove the last two ranges
+        generatedRanges.remove(generatedRanges.size() - 1);
+        generatedRanges.remove(generatedRanges.size() - 1);
+
+        // Add a new combined range
+        generatedRanges.add(new Range(secondLastRange.getStart(), lastRange.getEnd()));
+      }
+    }
+
     return generatedRanges;
   }
 }

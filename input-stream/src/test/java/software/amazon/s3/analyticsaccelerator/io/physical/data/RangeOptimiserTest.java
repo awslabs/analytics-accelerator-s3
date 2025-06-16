@@ -59,4 +59,69 @@ public class RangeOptimiserTest {
     expected.add(new Range(8 * ONE_MB, 16 * ONE_MB - 1));
     assertEquals(expected, splitRanges);
   }
+
+  @Test
+  public void test__splitRanges__combinesSmallRangesAtEnd() {
+    // Given: a custom configuration with smaller part size to test combining small ranges
+    PhysicalIOConfiguration config =
+        PhysicalIOConfiguration.builder()
+            .partSizeBytes(8 * ONE_MB)
+            .maxRangeSizeBytes(16 * ONE_MB)
+            .build();
+    RangeOptimiser rangeOptimiser = new RangeOptimiser(config);
+
+    // Create a range that will split into 3 parts, with the last part being small
+    List<Range> ranges = new LinkedList<>();
+    ranges.add(new Range(0, 19 * ONE_MB - 1)); // 19MB range
+
+    // When: splitRanges is called
+    List<Range> splitRanges = rangeOptimiser.splitRanges(ranges);
+
+    // Then: The range should be split into 2 parts, with the last 2 parts combined
+    // First part: 0 to 8MB-1
+    // Second part: 8MB to 19MB-1 (combined the original 8MB-16MB-1 and 16MB-19MB-1)
+    List<Range> expected = new LinkedList<>();
+    expected.add(new Range(0, 8 * ONE_MB - 1));
+    expected.add(new Range(8 * ONE_MB, 19 * ONE_MB - 1));
+
+    assertEquals(expected, splitRanges);
+  }
+
+  @Test
+  public void test__splitRanges__exactlyMatchingScenario() {
+    // Given: a custom configuration to match the specific scenario in the bug report
+    PhysicalIOConfiguration config =
+        PhysicalIOConfiguration.builder()
+            .partSizeBytes(16 * ONE_MB)
+            .maxRangeSizeBytes(32 * ONE_MB)
+            .build();
+    RangeOptimiser rangeOptimiser = new RangeOptimiser(config);
+
+    // Create a range that will split into parts like [16, 32] and [33, 35]
+    List<Range> ranges = new LinkedList<>();
+    ranges.add(new Range(16, 35)); // Range from 16 to 35
+
+    // When: splitRanges is called
+    List<Range> splitRanges = rangeOptimiser.splitRanges(ranges);
+
+    // Then: The range should not be split since it's smaller than maxRangeSizeBytes
+    List<Range> expected = new LinkedList<>();
+    expected.add(new Range(16, 35));
+
+    assertEquals(expected, splitRanges);
+
+    // Now test with a larger range that would create the problematic split
+    ranges.clear();
+    ranges.add(new Range(0, 35 * ONE_MB)); // Large range that will be split
+
+    // When: splitRanges is called
+    splitRanges = rangeOptimiser.splitRanges(ranges);
+
+    // Then: The last part should be combined with the previous part if it's small
+    assertEquals(2, splitRanges.size()); // Should have 2 parts, not 3
+    assertEquals(0, splitRanges.get(0).getStart());
+    assertEquals(16 * ONE_MB - 1, splitRanges.get(0).getEnd());
+    assertEquals(16 * ONE_MB, splitRanges.get(1).getStart());
+    assertEquals(35 * ONE_MB, splitRanges.get(1).getEnd());
+  }
 }
