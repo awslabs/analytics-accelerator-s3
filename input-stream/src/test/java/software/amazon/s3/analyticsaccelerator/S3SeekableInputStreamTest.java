@@ -199,6 +199,19 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
   }
 
   @Test
+  void testNullRangeList() throws IOException {
+    try (S3SeekableInputStream stream = getTestStream()) {
+      assertThrows(
+          NullPointerException.class,
+          () -> stream.readVectored(null, ByteBuffer::allocate, (buffer) -> {}));
+
+      assertThrows(
+          NullPointerException.class,
+          () -> stream.readVectored(new ArrayList<>(), null, (buffer) -> {}));
+    }
+  }
+
+  @Test
   void testReadWithBuffer() throws IOException {
     try (S3SeekableInputStream stream = getTestStream()) {
 

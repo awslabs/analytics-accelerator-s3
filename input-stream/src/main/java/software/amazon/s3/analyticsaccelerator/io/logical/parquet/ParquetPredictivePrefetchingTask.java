@@ -34,6 +34,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanState;
 import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
@@ -255,13 +256,13 @@ public class ParquetPredictivePrefetchingTask {
 
             IOPlan dictionaryIoPlan =
                 (dictionaryRanges.isEmpty()) ? IOPlan.EMPTY_PLAN : new IOPlan(dictionaryRanges);
-            physicalIO.execute(dictionaryIoPlan);
+            physicalIO.execute(dictionaryIoPlan, ReadMode.DICTIONARY_PREFETCH);
 
             IOPlan columnIoPlan =
                 (columnRanges.isEmpty())
                     ? IOPlan.EMPTY_PLAN
                     : new IOPlan(ParquetUtils.mergeRanges(columnRanges));
-            return physicalIO.execute(columnIoPlan);
+            return physicalIO.execute(columnIoPlan, ReadMode.COLUMN_PREFETCH);
           } catch (Throwable t) {
             LOG.debug("Unable to prefetch columns for {}.", this.s3Uri.getKey(), t);
             return IOPlanExecution.builder().state(IOPlanState.SKIPPED).build();

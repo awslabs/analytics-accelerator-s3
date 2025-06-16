@@ -29,7 +29,8 @@ public enum AALInputStreamConfigurationKind {
   DEFAULT("DEFAULT", S3SeekableInputStreamConfiguration.DEFAULT),
   GRAY_FAILURE("GRAY_FAILURE", grayFailureConfiguration()),
   READ_CORRECTNESS("READ_CORRECTNESS", readCorrectnessConfiguration()),
-  CONCURRENCY_CORRECTNESS("CONCURRENCY_CORRECTNESS", concurrencyCorrectnessConfiguration());
+  CONCURRENCY_CORRECTNESS("CONCURRENCY_CORRECTNESS", concurrencyCorrectnessConfiguration()),
+  NO_RETRY("NO_RETRY", noRetryConfiguration());
 
   private final String name;
   private final S3SeekableInputStreamConfiguration value;
@@ -42,6 +43,16 @@ public enum AALInputStreamConfigurationKind {
     customConfiguration.put(configurationPrefix + ".physicalio.memory.cleanup.frequency", "1");
     customConfiguration.put(
         configurationPrefix + ".physicalio.max.memory.limit", getMemoryCapacity());
+    ConnectorConfiguration config =
+        new ConnectorConfiguration(customConfiguration, configurationPrefix);
+    return S3SeekableInputStreamConfiguration.fromConfiguration(config);
+  }
+
+  private static S3SeekableInputStreamConfiguration noRetryConfiguration() {
+    String configurationPrefix = "noRetry";
+    Map<String, String> customConfiguration = new HashMap<>();
+    customConfiguration.put(configurationPrefix + ".physicalio.blockreadtimeout", "2000");
+    customConfiguration.put(configurationPrefix + ".physicalio.blockreadretrycount", "1");
     ConnectorConfiguration config =
         new ConnectorConfiguration(customConfiguration, configurationPrefix);
     return S3SeekableInputStreamConfiguration.fromConfiguration(config);

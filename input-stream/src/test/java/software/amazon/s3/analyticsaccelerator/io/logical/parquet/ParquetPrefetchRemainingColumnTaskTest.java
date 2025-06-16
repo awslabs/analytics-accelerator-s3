@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
@@ -42,6 +43,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanState;
 import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 @SuppressFBWarnings(
@@ -121,8 +123,12 @@ public class ParquetPrefetchRemainingColumnTaskTest {
             TEST_URI, TestTelemetry.DEFAULT, mockedPhysicalIO, mockedParquetColumnPrefetchStore);
     parquetPrefetchRemainingColumnTask.prefetchRemainingColumnChunk(200, 5 * ONE_MB);
 
-    verify(mockedPhysicalIO).execute(any(IOPlan.class));
-    verify(mockedPhysicalIO).execute(argThat(new IOPlanMatcher(expectedRanges)));
+    verify(mockedPhysicalIO).execute(any(IOPlan.class), any(ReadMode.class));
+    ArgumentCaptor<ReadMode> readModeCaptor = ArgumentCaptor.forClass(ReadMode.class);
+
+    verify(mockedPhysicalIO)
+        .execute(argThat(new IOPlanMatcher(expectedRanges)), readModeCaptor.capture());
+    assertEquals(readModeCaptor.getValue(), ReadMode.REMAINING_COLUMN_PREFETCH);
   }
 
   @Test
@@ -143,7 +149,9 @@ public class ParquetPrefetchRemainingColumnTaskTest {
         new ParquetPrefetchRemainingColumnTask(
             TEST_URI, TestTelemetry.DEFAULT, mockedPhysicalIO, mockedParquetColumnPrefetchStore);
 
-    doThrow(new IOException("Error in prefetch")).when(mockedPhysicalIO).execute(any(IOPlan.class));
+    doThrow(new IOException("Error in prefetch"))
+        .when(mockedPhysicalIO)
+        .execute(any(IOPlan.class), any(ReadMode.class));
 
     assertEquals(
         IOPlanExecution.builder().state(IOPlanState.SKIPPED).build(),

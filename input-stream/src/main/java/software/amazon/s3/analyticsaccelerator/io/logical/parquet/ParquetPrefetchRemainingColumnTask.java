@@ -27,6 +27,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanState;
 import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
@@ -105,7 +106,7 @@ public class ParquetPrefetchRemainingColumnTask {
       long startRange = position + len;
       long endRange = startRange + (columnMetadata.getCompressedSize() - len);
       IOPlan ioPlan = new IOPlan(new Range(startRange, endRange));
-      return physicalIO.execute(ioPlan);
+      return physicalIO.execute(ioPlan, ReadMode.REMAINING_COLUMN_PREFETCH);
     }
 
     return IOPlanExecution.builder().state(IOPlanState.SKIPPED).build();

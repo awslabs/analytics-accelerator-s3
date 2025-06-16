@@ -178,12 +178,8 @@ public class BlockManager implements Closeable {
     // effectiveEnd of the requested range
     long effectiveEnd = pos + Math.max(len, configuration.getReadAheadBytes()) - 1;
 
-    // Check sequential prefetching. If read mode is ASYNC, that is the request is from the parquet
-    // prefetch path, then do not extend the request.
-    // TODO: Improve readModes, as tracked in
-    // https://github.com/awslabs/analytics-accelerator-s3/issues/195
     final long generation;
-    if (readMode != ReadMode.ASYNC && patternDetector.isSequentialRead(pos)) {
+    if (shouldExtendRequest(readMode) && patternDetector.isSequentialRead(pos)) {
       generation = patternDetector.getGeneration(pos);
       effectiveEnd =
           Math.max(
@@ -227,6 +223,27 @@ public class BlockManager implements Closeable {
             blockStore.add(blockKey, block);
           }
         });
+  }
+
+  /**
+   * This method returns true if sequential prefetching should be applied to this readMode
+   *
+   * @param readMode read mode of the current read
+   * @return true if sequential prefetching should be applied
+   */
+  private boolean shouldExtendRequest(ReadMode readMode) {
+    // Do not apply sequential prefetching when the read is coming from parquet prefetcher or the
+    // readVectored(),
+    // in this case we know exactly the ranges we want, and don't want to extend them further.
+    if (readMode == ReadMode.READ_VECTORED
+        || readMode == ReadMode.REMAINING_COLUMN_PREFETCH
+        || readMode == ReadMode.COLUMN_PREFETCH
+        || readMode == ReadMode.DICTIONARY_PREFETCH
+        || readMode == ReadMode.PREFETCH_TAIL) {
+      return false;
+    }
+
+    return true;
   }
 
   /** cleans data from memory */

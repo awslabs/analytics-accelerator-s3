@@ -24,6 +24,7 @@ import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
@@ -85,7 +86,7 @@ public class SequentialPrefetcher {
                   .build(),
           () -> {
             IOPlan prefetchPlan = new IOPlan(new Range(position, endPosition - 1));
-            return physicalIO.execute(prefetchPlan);
+            return physicalIO.execute(prefetchPlan, ReadMode.SEQUENTIAL_FILE_PREFETCH);
           });
     } catch (Exception e) {
       // Log the exception at debug level and swallow it

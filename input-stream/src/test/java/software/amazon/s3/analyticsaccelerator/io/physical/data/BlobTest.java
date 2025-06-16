@@ -145,12 +145,12 @@ public class BlobTest {
     IOPlan ioPlan = new IOPlan(ranges);
 
     // When: the IOPlan is executed
-    IOPlanExecution execution = blob.execute(ioPlan);
+    IOPlanExecution execution = blob.execute(ioPlan, ReadMode.COLUMN_PREFETCH);
 
     // Then: correct ranges are submitted
     assertEquals(SUBMITTED, execution.getState());
-    verify(blockManager).makeRangeAvailable(0, 101, ReadMode.ASYNC);
-    verify(blockManager).makeRangeAvailable(999, 2, ReadMode.ASYNC);
+    verify(blockManager).makeRangeAvailable(0, 101, ReadMode.COLUMN_PREFETCH);
+    verify(blockManager).makeRangeAvailable(999, 2, ReadMode.COLUMN_PREFETCH);
   }
 
   @Test
@@ -254,7 +254,7 @@ public class BlobTest {
     IOPlan ioPlan = new IOPlan(ranges);
 
     // When: executing plan that will fail
-    IOPlanExecution execution = blob.execute(ioPlan);
+    IOPlanExecution execution = blob.execute(ioPlan, ReadMode.COLUMN_PREFETCH);
 
     // Then: execution state is FAILED
     assertEquals(IOPlanState.FAILED, execution.getState());

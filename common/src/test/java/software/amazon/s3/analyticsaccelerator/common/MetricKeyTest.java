@@ -27,14 +27,18 @@ public class MetricKeyTest {
     assertEquals("MemoryUsage", MetricKey.MEMORY_USAGE.getName());
     assertEquals("CacheHit", MetricKey.CACHE_HIT.getName());
     assertEquals("CacheMiss", MetricKey.CACHE_MISS.getName());
+    assertEquals("GetRequestCount", MetricKey.GET_REQUEST_COUNT.getName());
+    assertEquals("HeadRequestCount", MetricKey.HEAD_REQUEST_COUNT.getName());
   }
 
   @Test
   public void testEnumValues() {
     MetricKey[] values = MetricKey.values();
-    assertEquals(3, values.length);
+    assertEquals(5, values.length);
     assertEquals(MetricKey.MEMORY_USAGE, values[0]);
     assertEquals(MetricKey.CACHE_HIT, values[1]);
     assertEquals(MetricKey.CACHE_MISS, values[2]);
+    assertEquals(MetricKey.GET_REQUEST_COUNT, values[3]);
+    assertEquals(MetricKey.HEAD_REQUEST_COUNT, values[4]);
   }
 }

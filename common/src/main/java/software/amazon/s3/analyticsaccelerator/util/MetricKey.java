@@ -35,7 +35,13 @@ public enum MetricKey {
   /**
    * Tracks the number of cache misses. Incremented when requested block is not found in the cache
    */
-  CACHE_MISS("CacheMiss");
+  CACHE_MISS("CacheMiss"),
+
+  /** Counts number of GET requests made. */
+  GET_REQUEST_COUNT("GetRequestCount"),
+
+  /** Counts number of HEAD requests made. */
+  HEAD_REQUEST_COUNT("HeadRequestCount");
 
   /** The string name representation of the metric. */
   private final String name;
