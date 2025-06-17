@@ -344,4 +344,6 @@ public interface Telemetry extends Closeable {
           new NoOpTelemetryReporter(),
           Optional.empty(),
           TelemetryLevel.CRITICAL);
+
+  public static Telemetry DEFAULT = new ConfigurableTelemetry(TelemetryConfiguration.DEFAULT);
 }

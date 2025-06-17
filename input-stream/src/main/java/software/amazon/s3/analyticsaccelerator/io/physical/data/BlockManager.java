@@ -213,17 +213,17 @@ public class BlockManager implements Closeable {
           for (Range r : splits) {
             BlockKey blockKey = new BlockKey(objectKey, r);
             Block block =
-                new Block(
-                    blockKey,
-                    objectClient,
-                    telemetry,
-                    generation,
-                    readMode,
-                    this.configuration.getBlockReadTimeout(),
-                    this.configuration.getBlockReadRetryCount(),
-                    aggregatingMetrics,
-                    indexCache,
-                    openStreamInformation);
+                Block.builder()
+                    .blockKey(blockKey)
+                    .objectClient(objectClient)
+                    .telemetry(telemetry)
+                    .generation(generation)
+                    .readMode(readMode)
+                    .configuration(configuration)
+                    .aggregatingMetrics(aggregatingMetrics)
+                    .indexCache(indexCache)
+                    .openStreamInformation(openStreamInformation)
+                    .build();
             blockStore.add(blockKey, block);
           }
         });

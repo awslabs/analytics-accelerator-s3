@@ -24,7 +24,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.request.Range;
@@ -95,19 +94,16 @@ public class IOPlannerTest {
     FakeObjectClient fakeObjectClient =
         new FakeObjectClient(new String(content, StandardCharsets.UTF_8));
     BlockKey blockKey = new BlockKey(objectKey, new Range(100, 200));
-    blockStore.add(
-        blockKey,
-        new Block(
-            blockKey,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            120_000,
-            20,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT));
+    Block block =
+        Block.builder()
+            .blockKey(blockKey)
+            .objectClient(fakeObjectClient)
+            .readMode(ReadMode.SYNC)
+            .aggregatingMetrics(mock(Metrics.class))
+            .indexCache(mock(BlobStoreIndexCache.class))
+            .openStreamInformation(OpenStreamInformation.DEFAULT)
+            .build();
+    blockStore.add(blockKey, block);
     IOPlanner ioPlanner = new IOPlanner(blockStore);
 
     // When: a read plan is requested for a range (0, 400)
