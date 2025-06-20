@@ -73,6 +73,7 @@ dependencies {
     implementation(libs.parquet.format)
     implementation(libs.slf4j.api)
     implementation("io.valkey:valkey-java:5.3.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     jmhImplementation(libs.s3)
     jmhImplementation(libs.s3.transfer.manager)
