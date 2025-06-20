@@ -131,4 +131,15 @@ public class DefaultLogicalIOImplTest {
     logicalIO.readVectored(ranges, allocate);
     verify(physicalIO).readVectored(ranges, allocate);
   }
+
+  @Test
+  void testReadFully() throws IOException {
+    PhysicalIO physicalIO = mock(PhysicalIO.class);
+    when(physicalIO.metadata())
+        .thenReturn(ObjectMetadata.builder().contentLength(123).etag("random").build());
+    DefaultLogicalIOImpl logicalIO = new DefaultLogicalIOImpl(TEST_URI, physicalIO, Telemetry.NOOP);
+    byte[] buffer = new byte[5];
+    logicalIO.readFully(2, buffer, 0, 5);
+    verify(physicalIO).readFully(2, buffer, 0, 5);
+  }
 }

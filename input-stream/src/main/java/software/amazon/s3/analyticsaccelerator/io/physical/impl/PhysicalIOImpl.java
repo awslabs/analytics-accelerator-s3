@@ -16,6 +16,7 @@
 package software.amazon.s3.analyticsaccelerator.io.physical.impl;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -262,6 +263,55 @@ public class PhysicalIOImpl implements PhysicalIO {
               objectRange.getByteBuffer().completeExceptionally(e);
             }
           });
+    }
+  }
+
+  /**
+   * Fill the provided buffer with the contents of the input source starting at {@code position} for
+   * the given {@code offset} and {@code length}.
+   *
+   * @param position start position of the read
+   * @param buffer target buffer to copy data
+   * @param offset offset in the buffer to copy the data
+   * @param length size of the read
+   * @throws IOException if an I/O error occurs
+   */
+  @Override
+  public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+    Preconditions.checkArgument(0 <= position, "`position` must not be negative");
+    Preconditions.checkArgument(
+        position < contentLength(), "`position` must be less than content length");
+    Preconditions.checkArgument(0 <= offset, "`offset` must not be negative");
+    Preconditions.checkArgument(0 <= length, "`length` must not be negative");
+    Preconditions.checkArgument(
+        offset < buffer.length, "`offset` must be less than size of buffer");
+
+    try {
+      this.telemetry.measureVerbose(
+          () ->
+              Operation.builder()
+                  .name(OPERATION_READ)
+                  .attribute(StreamAttributes.uri(this.objectKey.getS3URI()))
+                  .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
+                  .attribute(StreamAttributes.range(position, position + length - 1))
+                  .attribute(
+                      StreamAttributes.physicalIORelativeTimestamp(
+                          System.nanoTime() - physicalIOBirth))
+                  .build(),
+          () -> {
+            int bytesRead =
+                blobStore
+                    .get(objectKey, this.metadata, openStreamInformation)
+                    .read(buffer, offset, length, position);
+
+            if (bytesRead < length) {
+              throw new EOFException(
+                  "Reached the end of stream with " + (length - bytesRead) + " bytes left to read");
+            }
+          });
+    } catch (Exception e) {
+      handleOperationExceptions(e);
+      throw e;
     }
   }
 

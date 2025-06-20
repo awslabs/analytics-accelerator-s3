@@ -135,6 +135,31 @@ public class DefaultLogicalIOImpl implements LogicalIO {
   }
 
   /**
+   * Fill the provided buffer with the contents of the input source starting at {@code position} for
+   * the given {@code offset} and {@code length}.
+   *
+   * @param position start position of the read
+   * @param buffer target buffer to copy data
+   * @param offset offset in the buffer to copy the data
+   * @param length size of the read
+   * @throws IOException if an I/O error occurs
+   */
+  @Override
+  public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+    telemetry.measureVerbose(
+        () ->
+            Operation.builder()
+                .name(OPERATION_LOGICAL_READ)
+                .attribute(StreamAttributes.logicalReadPosition(position))
+                .attribute(StreamAttributes.logicalReadLength(length))
+                .attribute(StreamAttributes.uri(s3URI))
+                .attribute(
+                    StreamAttributes.logicalIORelativeTimestamp(System.nanoTime() - birthTimestamp))
+                .build(),
+        () -> physicalIO.readFully(position, buffer, offset, length));
+  }
+
+  /**
    * Returns object metadata.
    *
    * @return object metadata

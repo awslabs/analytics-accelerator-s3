@@ -132,6 +132,11 @@ public class InMemoryS3SeekableInputStream extends SeekableInputStream {
   }
 
   @Override
+  public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+    this.delegate.readFully(position, buffer, offset, length);
+  }
+
+  @Override
   public int read() throws IOException {
     return this.delegate.read();
   }
