@@ -18,6 +18,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import lombok.Getter;
 import lombok.NonNull;
@@ -47,6 +48,7 @@ public class DataBlock implements Closeable {
 
   private final BlobStoreIndexCache indexCache;
   private final Metrics aggregatingMetrics;
+  private final long readTimeout;
   /**
    * A synchronization aid that allows threads to wait until the block's data is available.
    *
@@ -72,12 +74,14 @@ public class DataBlock implements Closeable {
    * @param generation the generation number of this block in a sequential read pattern
    * @param indexCache blobstore index cache
    * @param aggregatingMetrics blobstore metrics
+   * @param readTimeout read timeout in milliseconds
    */
   public DataBlock(
       @NonNull BlockKey blockKey,
       long generation,
       @NonNull BlobStoreIndexCache indexCache,
-      @NonNull Metrics aggregatingMetrics) {
+      @NonNull Metrics aggregatingMetrics,
+      long readTimeout) {
     long start = blockKey.getRange().getStart();
     long end = blockKey.getRange().getEnd();
     Preconditions.checkArgument(
@@ -89,6 +93,7 @@ public class DataBlock implements Closeable {
     this.generation = generation;
     this.indexCache = indexCache;
     this.aggregatingMetrics = aggregatingMetrics;
+    this.readTimeout = readTimeout;
   }
 
   /**
@@ -175,9 +180,12 @@ public class DataBlock implements Closeable {
    */
   private void awaitData() throws IOException {
     try {
-      dataReadyLatch.await();
+      if (!dataReadyLatch.await(readTimeout, TimeUnit.MILLISECONDS)) {
+        // TODO Reorganise exceptions
+        throw new IOException("Failed to read data", new IOException("Failed to read data"));
+      }
     } catch (InterruptedException e) {
-      throw new IOException("Failed to read data", e);
+      throw new IOException("Failed to read data", new IOException("Failed to read data"));
     }
 
     if (data == null) throw new IOException("Failed to read data");

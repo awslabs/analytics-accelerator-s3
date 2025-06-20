@@ -17,6 +17,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -80,9 +81,10 @@ public class DataBlockManager implements Closeable {
     this.configuration = configuration;
     this.aggregatingMetrics = aggregatingMetrics;
     this.indexCache = indexCache;
-    this.streamReader =
-        new StreamReader(objectClient, objectKey, threadPool, openStreamInformation);
     this.blockStore = new DataBlockStore(indexCache, aggregatingMetrics, configuration);
+    this.streamReader =
+        new StreamReader(
+            objectClient, objectKey, threadPool, this::removeBlocks, openStreamInformation);
     this.sequentialReadProgression = new SequentialReadProgression(configuration);
     this.rangeOptimiser = new RangeOptimiser(configuration);
   }
@@ -93,7 +95,7 @@ public class DataBlockManager implements Closeable {
    * @param pos the position of the byte
    * @param readMode whether this ask corresponds to a sync or async read
    */
-  public synchronized void makePositionAvailable(long pos, ReadMode readMode) {
+  public synchronized void makePositionAvailable(long pos, ReadMode readMode) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     makeRangeAvailable(pos, 1, readMode);
   }
@@ -107,7 +109,8 @@ public class DataBlockManager implements Closeable {
    * @param len length of the read
    * @param readMode whether this ask corresponds to a sync or async read
    */
-  public synchronized void makeRangeAvailable(long pos, long len, ReadMode readMode) {
+  public synchronized void makeRangeAvailable(long pos, long len, ReadMode readMode)
+      throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
 
@@ -132,8 +135,11 @@ public class DataBlockManager implements Closeable {
             sequentialReadProgression.getSizeForGeneration(generation));
     long effectiveEnd = truncatePos(pos + maxReadLength - 1);
 
-    // Find missing blocks for given range
-    List<Integer> missingBlockIndexes = blockStore.getMissingBlockIndexesInRange(pos, effectiveEnd);
+    // Find missing blocks for given range.
+    // measure is false because we already add statistics in isRangeAvailable(),
+    // so no need to add measure
+    List<Integer> missingBlockIndexes =
+        blockStore.getMissingBlockIndexesInRange(pos, effectiveEnd, false);
 
     // Return if all blocks are in store
     if (missingBlockIndexes.isEmpty()) return;
@@ -148,7 +154,12 @@ public class DataBlockManager implements Closeable {
       for (int blockIndex : group) {
         BlockKey blockKey = new BlockKey(objectKey, getBlockIndexRange(blockIndex));
         DataBlock block =
-            new DataBlock(blockKey, generation, this.indexCache, this.aggregatingMetrics);
+            new DataBlock(
+                blockKey,
+                generation,
+                this.indexCache,
+                this.aggregatingMetrics,
+                this.configuration.getBlockReadTimeout());
         // Add block to the store for future reference
         blockStore.add(block);
         blocksToFill.add(block);
@@ -194,32 +205,9 @@ public class DataBlockManager implements Closeable {
   }
 
   private boolean isRangeAvailable(long pos, long endPos) {
-    List<Integer> missingBlockIndexes = blockStore.getMissingBlockIndexesInRange(pos, endPos);
+    // measure is true, since this is the first check if block exist or not
+    List<Integer> missingBlockIndexes = blockStore.getMissingBlockIndexesInRange(pos, endPos, true);
     return missingBlockIndexes.isEmpty();
-  }
-
-  /**
-   * Retrieves all {@link DataBlock}s that cover the specified byte range {@code [pos, pos + len)}.
-   *
-   * @param pos the starting byte position of the desired range (inclusive)
-   * @param len the number of bytes to include in the range
-   * @return a list of {@link DataBlock}s that together cover the specified range
-   */
-  public synchronized List<DataBlock> getBlocks(long pos, long len) {
-    // TODO This method assumes that all required blocks are already present in the BlockStore.
-    // If any block is missing, code will throw exception. We need to handle this case
-    int startBlockIndex = getPositionIndex(pos);
-    int endBlockIndex = getPositionIndex(Math.min(pos + len - 1, getLastObjectByte()));
-
-    List<DataBlock> blocks = new ArrayList<>();
-    for (int index = startBlockIndex; index <= endBlockIndex; index++) {
-      blocks.add(blockStore.getBlockByIndex(index).get());
-    }
-    return blocks;
-  }
-
-  private int getPositionIndex(long pos) {
-    return (int) (pos / this.configuration.getReadBufferSize());
   }
 
   private long getLastObjectByte() {
@@ -257,6 +245,15 @@ public class DataBlockManager implements Closeable {
    */
   public synchronized Optional<DataBlock> getBlock(long pos) {
     return this.blockStore.getBlock(pos);
+  }
+
+  /**
+   * Removes the specified {@link DataBlock}s from the block store.
+   *
+   * @param blocks the list of {@link DataBlock}s to remove
+   */
+  private synchronized void removeBlocks(final List<DataBlock> blocks) {
+    blocks.forEach(blockStore::remove);
   }
 
   /**

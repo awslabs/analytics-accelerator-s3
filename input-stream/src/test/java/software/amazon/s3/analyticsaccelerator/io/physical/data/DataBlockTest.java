@@ -32,6 +32,7 @@ public class DataBlockTest {
   private static final ObjectKey TEST_OBJECT_KEY =
       ObjectKey.builder().s3URI(TEST_URI).etag(ETAG).build();
   private static final byte[] TEST_DATA_BYTES = "test-data".getBytes(StandardCharsets.UTF_8);
+  private static final long READ_TIMEOUT = 5_000;
 
   @Test
   public void testValidConstructor() {
@@ -39,7 +40,8 @@ public class DataBlockTest {
     BlockKey blockKey = new BlockKey(TEST_OBJECT_KEY, range);
 
     DataBlock block =
-        new DataBlock(blockKey, 2, mock(BlobStoreIndexCache.class), mock(Metrics.class));
+        new DataBlock(
+            blockKey, 2, mock(BlobStoreIndexCache.class), mock(Metrics.class), READ_TIMEOUT);
 
     assertEquals(block.getBlockKey(), blockKey);
     assertEquals(block.getGeneration(), 2);
@@ -52,6 +54,8 @@ public class DataBlockTest {
 
     assertThrows(
         IllegalArgumentException.class,
-        () -> new DataBlock(blockKey, -1, mock(BlobStoreIndexCache.class), mock(Metrics.class)));
+        () ->
+            new DataBlock(
+                blockKey, -1, mock(BlobStoreIndexCache.class), mock(Metrics.class), READ_TIMEOUT));
   }
 }

@@ -22,6 +22,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
@@ -43,6 +44,7 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
     justification = "We mean to pass nulls to checks")
 public class ParquetLogicalIOImplTest {
   private static final S3URI TEST_URI = S3URI.of("foo", "bar");
+  private final ExecutorService threadPool = Executors.newFixedThreadPool(30);
 
   @Test
   void testConstructor() {
@@ -145,7 +147,8 @@ public class ParquetLogicalIOImplTest {
             mockClient,
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT,
-            mock(Metrics.class));
+            mock(Metrics.class),
+            threadPool);
     PhysicalIOImpl physicalIO =
         new PhysicalIOImpl(
             s3URI,

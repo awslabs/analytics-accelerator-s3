@@ -23,6 +23,8 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
@@ -49,6 +51,7 @@ public class BlobTest {
   private static final int OBJECT_SIZE = 100;
   ObjectMetadata mockMetadataStore =
       ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
+  private final ExecutorService threadPool = Executors.newFixedThreadPool(30);
 
   @Test
   void testCreateBoundaries() {
@@ -56,17 +59,18 @@ public class BlobTest {
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
     assertThrows(
         NullPointerException.class,
-        () -> new Blob(null, mockMetadataStore, mock(BlockManager.class), TestTelemetry.DEFAULT));
+        () ->
+            new Blob(null, mockMetadataStore, mock(DataBlockManager.class), TestTelemetry.DEFAULT));
     assertThrows(
         NullPointerException.class,
-        () -> new Blob(objectKey, null, mock(BlockManager.class), TestTelemetry.DEFAULT));
+        () -> new Blob(objectKey, null, mock(DataBlockManager.class), TestTelemetry.DEFAULT));
 
     assertThrows(
         NullPointerException.class,
         () -> new Blob(objectKey, mockMetadataStore, null, TestTelemetry.DEFAULT));
     assertThrows(
         NullPointerException.class,
-        () -> new Blob(objectKey, mockMetadataStore, mock(BlockManager.class), null));
+        () -> new Blob(objectKey, mockMetadataStore, mock(DataBlockManager.class), null));
   }
 
   @Test
@@ -137,7 +141,7 @@ public class BlobTest {
   @Test
   public void testExecuteSubmitsCorrectRanges() throws IOException {
     // Given: test blob and an IOPlan
-    BlockManager blockManager = mock(BlockManager.class);
+    DataBlockManager blockManager = mock(DataBlockManager.class);
     Blob blob = new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
     List<Range> ranges = new LinkedList<>();
     ranges.add(new Range(0, 100));
@@ -156,7 +160,7 @@ public class BlobTest {
   @Test
   public void testCloseClosesBlockManager() {
     // Given: test blob
-    BlockManager blockManager = mock(BlockManager.class);
+    DataBlockManager blockManager = mock(DataBlockManager.class);
     Blob blob = new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
 
     // When: blob is closed
@@ -170,8 +174,8 @@ public class BlobTest {
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(data.length()).etag(ETAG).build();
     FakeObjectClient fakeObjectClient = new FakeObjectClient(data);
-    BlockManager blockManager =
-        new BlockManager(
+    DataBlockManager blockManager =
+        new DataBlockManager(
             objectKey,
             fakeObjectClient,
             mockMetadataStore,
@@ -179,7 +183,8 @@ public class BlobTest {
             PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class),
             mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT);
+            OpenStreamInformation.DEFAULT,
+            threadPool);
 
     return new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
   }
@@ -187,7 +192,7 @@ public class BlobTest {
   @Test
   public void testAsyncCleanupWithEmptyBlockStore() {
     // Given: test blob with empty block store
-    BlockManager blockManager = mock(BlockManager.class);
+    DataBlockManager blockManager = mock(DataBlockManager.class);
     when(blockManager.isBlockStoreEmpty()).thenReturn(true);
     Blob blob = new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
 
@@ -201,7 +206,7 @@ public class BlobTest {
   @Test
   public void testAsyncCleanupWithNonEmptyBlockStore() {
     // Given: test blob with non-empty block store
-    BlockManager blockManager = mock(BlockManager.class);
+    DataBlockManager blockManager = mock(DataBlockManager.class);
     when(blockManager.isBlockStoreEmpty()).thenReturn(false);
     Blob blob = new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
 
@@ -244,7 +249,7 @@ public class BlobTest {
   @Test
   public void testExecuteWithFailure() throws IOException {
     // Given: test blob with block manager that throws exception
-    BlockManager blockManager = mock(BlockManager.class);
+    DataBlockManager blockManager = mock(DataBlockManager.class);
     doThrow(new IOException("Simulated failure"))
         .when(blockManager)
         .makeRangeAvailable(anyLong(), anyLong(), any(ReadMode.class));
@@ -263,7 +268,7 @@ public class BlobTest {
   @Test
   public void testReadWithMissingBlock() {
     // Given: test blob with block manager that returns empty block
-    BlockManager blockManager = mock(BlockManager.class);
+    DataBlockManager blockManager = mock(DataBlockManager.class);
     when(blockManager.getBlock(anyLong())).thenReturn(Optional.empty());
     Blob blob = new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
 
@@ -275,11 +280,11 @@ public class BlobTest {
   @Test
   public void testReadWithPartialBlockRead() throws IOException {
     // Given: test blob with block that returns partial data
-    Block mockBlock = mock(Block.class);
+    DataBlock mockBlock = mock(DataBlock.class);
     when(mockBlock.read(any(byte[].class), anyInt(), anyInt(), anyLong()))
         .thenReturn(-1); // Simulate end of stream
 
-    BlockManager blockManager = mock(BlockManager.class);
+    DataBlockManager blockManager = mock(DataBlockManager.class);
     when(blockManager.getBlock(anyLong())).thenReturn(Optional.of(mockBlock));
 
     Blob blob = new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
