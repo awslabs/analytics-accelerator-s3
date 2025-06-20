@@ -15,6 +15,7 @@
  */
 package software.amazon.s3.analyticsaccelerator.io.physical.impl;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
@@ -278,6 +279,37 @@ public class PhysicalIOImplTest {
     byte[] buffer = new byte[5];
     assertEquals(5, physicalIOImplV2.readTail(buffer, 0, 5));
     assertEquals(1, blobStore.blobCount());
+  }
+
+  @Test
+  void testReadFully() throws IOException {
+    final String TEST_DATA = "abcdef0123456789";
+    FakeObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
+    MetadataStore metadataStore =
+        new MetadataStore(fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
+    BlobStore blobStore =
+        new BlobStore(
+            fakeObjectClient,
+            TestTelemetry.DEFAULT,
+            PhysicalIOConfiguration.DEFAULT,
+            mock(Metrics.class));
+    PhysicalIOImpl physicalIOImplV2 =
+        new PhysicalIOImpl(
+            s3URI,
+            metadataStore,
+            blobStore,
+            TestTelemetry.DEFAULT,
+            OpenStreamInformation.DEFAULT,
+            executorService);
+    int position = 3;
+    int length = 5;
+    byte[] buffer = new byte[length];
+    physicalIOImplV2.readFully(position, buffer, 0, length);
+    byte[] expected =
+        TEST_DATA
+            .substring(position, position + length)
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    assertArrayEquals(expected, buffer);
   }
 
   @SuppressWarnings("unchecked")

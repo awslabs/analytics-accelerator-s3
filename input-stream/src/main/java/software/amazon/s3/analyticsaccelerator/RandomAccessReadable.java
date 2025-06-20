@@ -76,4 +76,16 @@ public interface RandomAccessReadable extends Closeable {
    * @throws IOException on any IO failure
    */
   void readVectored(List<ObjectRange> ranges, IntFunction<ByteBuffer> allocate) throws IOException;
+
+  /**
+   * Fill the provided buffer with the contents of the input source starting at {@code position} for
+   * the given {@code offset} and {@code length}.
+   *
+   * @param position start position of the read
+   * @param buffer target buffer to copy data
+   * @param offset offset in the buffer to copy the data
+   * @param length size of the read
+   * @throws IOException if an I/O error occurs
+   */
+  void readFully(long position, byte[] buffer, int offset, int length) throws IOException;
 }

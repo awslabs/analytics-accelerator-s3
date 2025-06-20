@@ -235,6 +235,35 @@ public class S3SeekableInputStream extends SeekableInputStream {
   }
 
   /**
+   * Fill the provided buffer with the contents of the input source starting at {@code position} for
+   * the given {@code offset} and {@code length}.
+   *
+   * @param position start position of the read
+   * @param buffer target buffer to copy data
+   * @param offset offset in the buffer to copy the data
+   * @param length size of the read
+   * @throws IOException if an I/O error occurs
+   */
+  public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+    throwIfClosed("cannot read from closed stream");
+    validatePositionedReadArgs(position, buffer, offset, length);
+
+    if (length == 0) {
+      return;
+    }
+
+    this.telemetry.measureVerbose(
+        () ->
+            Operation.builder()
+                .name(OPERATION_READ)
+                .attribute(StreamAttributes.uri(this.s3URI))
+                .attribute(StreamAttributes.etag(this.logicalIO.metadata().getEtag()))
+                .attribute(StreamAttributes.range(position, position + length - 1))
+                .build(),
+        () -> this.logicalIO.readFully(position, buffer, offset, length));
+  }
+
+  /**
    * Releases all resources associated with the {@link S3SeekableInputStream}.
    *
    * @throws IOException if an I/O error occurs

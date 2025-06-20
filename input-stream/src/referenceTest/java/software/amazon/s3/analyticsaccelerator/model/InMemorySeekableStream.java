@@ -15,6 +15,7 @@
  */
 package software.amazon.s3.analyticsaccelerator.model;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.Consumer;
@@ -82,6 +83,28 @@ public class InMemorySeekableStream extends SeekableInputStream {
       buffer.put(buf);
       range.getByteBuffer().complete(buffer);
     }
+  }
+
+  @Override
+  public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+    // Save current position of stream
+    long prevPosition = this.position;
+    if (position >= this.contentLength) {
+      throw new IOException("Position is beyond end of stream");
+    }
+
+    data.position((int) position);
+    int bytesAvailable = this.contentLength - (int) position;
+    int bytesToRead = Math.min(length, bytesAvailable);
+    data.get(buffer, offset, bytesToRead);
+    if (bytesToRead < length) {
+      throw new IOException(
+          "Reached the end of stream with " + (length - bytesToRead) + " bytes left to read");
+    }
+
+    // Restore original position
+    this.position = prevPosition;
+    data.position((int) this.position);
   }
 
   @Override
