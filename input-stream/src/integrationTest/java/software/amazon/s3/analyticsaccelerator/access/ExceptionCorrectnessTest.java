@@ -19,9 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.s3.analyticsaccelerator.S3SdkObjectClient;
@@ -34,7 +32,7 @@ public class ExceptionCorrectnessTest extends IntegrationTestBase {
   private static final String NON_EXISTENT_OBJECT = "non-existent.bin";
 
   @ParameterizedTest
-  @MethodSource("provideTestParameters")
+  @MethodSource("clientKinds")
   void testNonExistentObjectThrowsRightException(S3ClientKind clientKind) throws IOException {
     final S3ExecutionConfiguration config = this.getS3ExecutionContext().getConfiguration();
     final S3URI nonExistentURI =
@@ -42,10 +40,6 @@ public class ExceptionCorrectnessTest extends IntegrationTestBase {
     S3AsyncClient s3AsyncClient = clientKind.getS3Client(getS3ExecutionContext());
     S3SeekableInputStreamFactory factory = createInputStreamFactory(s3AsyncClient);
     assertThrows(FileNotFoundException.class, () -> factory.createStream(nonExistentURI));
-  }
-
-  private static Stream<Arguments> provideTestParameters() {
-    return getS3ClientKinds().stream().map(Arguments::of);
   }
 
   private static S3SeekableInputStreamFactory createInputStreamFactory(

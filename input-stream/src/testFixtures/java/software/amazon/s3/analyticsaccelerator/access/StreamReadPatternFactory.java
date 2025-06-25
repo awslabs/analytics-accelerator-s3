@@ -42,9 +42,9 @@ public final class StreamReadPatternFactory {
   }
 
   /**
-   * Construct a read pattern that 'jumps through the object' forward by 20% increments and reads
-   * 10% of the object each time. Essentially, this results half of the content being read and half
-   * of the content being ignored.
+   * Construct a read pattern that 'jumps through the object' forward by 5% increments and reads 5%
+   * of the object each time. Essentially, this results half of the content being read and half of
+   * the content being ignored.
    *
    * @param s3Object {@link S3Object} to read
    * @return a forward seeking read pattern

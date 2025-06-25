@@ -28,7 +28,7 @@ import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 public class SmallObjectPrefetchingIntegrationTest extends IntegrationTestBase {
 
   @ParameterizedTest
-  @MethodSource("prefetchingTest")
+  @MethodSource("clientKinds")
   void testSmallObjectRead(S3ClientKind s3ClientKind) throws IOException {
 
     List<StreamRead> streamReads = new ArrayList<>();
@@ -60,7 +60,7 @@ public class SmallObjectPrefetchingIntegrationTest extends IntegrationTestBase {
   }
 
   @ParameterizedTest
-  @MethodSource("prefetchingTest")
+  @MethodSource("clientKinds")
   void testLargeObjectRead(S3ClientKind s3ClientKind) throws IOException {
 
     List<StreamRead> streamReads = new ArrayList<>();
@@ -97,9 +97,5 @@ public class SmallObjectPrefetchingIntegrationTest extends IntegrationTestBase {
       //
       // s3AALClientStreamReader.getS3SeekableInputStreamFactory().getMetrics().get(MetricKey.CACHE_HIT));
     }
-  }
-
-  static List<S3ClientKind> prefetchingTest() {
-    return getS3ClientKinds();
   }
 }

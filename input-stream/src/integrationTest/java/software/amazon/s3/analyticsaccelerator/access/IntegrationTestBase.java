@@ -65,6 +65,10 @@ public abstract class IntegrationTestBase extends ExecutionBase {
     this.s3ExecutionContext.getAndSet(null).close();
   }
 
+  static List<S3ClientKind> clientKinds() {
+    return getS3ClientKinds();
+  }
+
   /**
    * Returns the currently active execution context
    *

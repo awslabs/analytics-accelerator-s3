@@ -18,7 +18,6 @@ package software.amazon.s3.analyticsaccelerator.access;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
-import java.util.List;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import software.amazon.s3.analyticsaccelerator.util.MetricKey;
@@ -117,9 +116,5 @@ public class ReadCorrectnessTest extends IntegrationTestBase {
               .getMetrics()
               .get(MetricKey.GET_REQUEST_COUNT));
     }
-  }
-
-  static List<S3ClientKind> clientKinds() {
-    return getS3ClientKinds();
   }
 }
