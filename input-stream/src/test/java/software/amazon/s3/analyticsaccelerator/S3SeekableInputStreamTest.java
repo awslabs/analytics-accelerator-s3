@@ -53,7 +53,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
   @Test
   void testConstructor() {
     S3SeekableInputStream inputStream =
-        new S3SeekableInputStream(TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT);
+        new S3SeekableInputStream(
+            TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT, OpenStreamInformation.DEFAULT);
     assertNotNull(inputStream);
   }
 
@@ -61,22 +62,35 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
   void testConstructorThrowsOnNullArgument() {
     SpotBugsLambdaWorkaround.assertThrowsClosableResult(
         NullPointerException.class,
-        () -> new S3SeekableInputStream(null, mock(LogicalIO.class), TestTelemetry.DEFAULT));
+        () ->
+            new S3SeekableInputStream(
+                null, mock(LogicalIO.class), TestTelemetry.DEFAULT, OpenStreamInformation.DEFAULT));
 
     SpotBugsLambdaWorkaround.assertThrowsClosableResult(
         NullPointerException.class,
-        () -> new S3SeekableInputStream(TEST_URI, mock(LogicalIO.class), null));
+        () ->
+            new S3SeekableInputStream(
+                TEST_URI, mock(LogicalIO.class), null, OpenStreamInformation.DEFAULT));
 
     SpotBugsLambdaWorkaround.assertThrowsClosableResult(
         NullPointerException.class,
-        () -> new S3SeekableInputStream(TEST_URI, null, TestTelemetry.DEFAULT));
+        () ->
+            new S3SeekableInputStream(
+                TEST_URI, null, TestTelemetry.DEFAULT, OpenStreamInformation.DEFAULT));
+
+    SpotBugsLambdaWorkaround.assertThrowsClosableResult(
+        NullPointerException.class,
+        () ->
+            new S3SeekableInputStream(
+                TEST_URI, mock(LogicalIO.class), TestTelemetry.DEFAULT, null));
   }
 
   @Test
   void testInitialGetPosition() throws IOException {
     // Given
     try (S3SeekableInputStream stream =
-        new S3SeekableInputStream(TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT)) {
+        new S3SeekableInputStream(
+            TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT, OpenStreamInformation.DEFAULT)) {
 
       // When: nothing
       // Then: stream position is at 0
@@ -88,7 +102,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
   void testReadAdvancesPosition() throws IOException {
     // Given
     try (S3SeekableInputStream stream =
-        new S3SeekableInputStream(TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT)) {
+        new S3SeekableInputStream(
+            TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT, OpenStreamInformation.DEFAULT)) {
 
       // When: read() is called
       stream.read();
@@ -102,7 +117,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
   void testSeek() throws IOException {
     // Given
     try (S3SeekableInputStream stream =
-        new S3SeekableInputStream(TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT)) {
+        new S3SeekableInputStream(
+            TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT, OpenStreamInformation.DEFAULT)) {
 
       // When
       stream.seek(13);
@@ -116,7 +132,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
   void testFullRead() throws IOException {
     // Given
     try (S3SeekableInputStream stream =
-        new S3SeekableInputStream(TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT)) {
+        new S3SeekableInputStream(
+            TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT, OpenStreamInformation.DEFAULT)) {
 
       // When: all data is requested
       String dataReadOut = IoUtils.toUtf8String(stream);
@@ -130,7 +147,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
   void testSeekToVeryEnd() throws IOException {
     // Given
     try (S3SeekableInputStream stream =
-        new S3SeekableInputStream(TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT)) {
+        new S3SeekableInputStream(
+            TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT, OpenStreamInformation.DEFAULT)) {
 
       // When: we seek to the last byte
       stream.seek(TEST_DATA.length() - 1);
@@ -179,7 +197,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
     // Given
     LogicalIO logicalIO = mock(LogicalIO.class);
     S3SeekableInputStream stream =
-        new S3SeekableInputStream(TEST_URI, logicalIO, TestTelemetry.DEFAULT);
+        new S3SeekableInputStream(
+            TEST_URI, logicalIO, TestTelemetry.DEFAULT, OpenStreamInformation.DEFAULT);
     stream.close();
     // Then
     verify(logicalIO, times(1)).close();
@@ -340,7 +359,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
     when(mockLogicalIO.metadata())
         .thenReturn(ObjectMetadata.builder().contentLength(200).etag("RANDOM").build());
     try (S3SeekableInputStream stream =
-        new S3SeekableInputStream(TEST_URI, mockLogicalIO, TestTelemetry.DEFAULT)) {
+        new S3SeekableInputStream(
+            TEST_URI, mockLogicalIO, TestTelemetry.DEFAULT, OpenStreamInformation.DEFAULT)) {
 
       // When: logical IO returns with a -1 read
       final int INITIAL_POS = 123;
@@ -397,7 +417,11 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
                           LogicalIOConfiguration.DEFAULT,
                           new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT));
                   try (SeekableInputStream stream =
-                      new S3SeekableInputStream(TEST_URI, logicalIO, TestTelemetry.DEFAULT)) {
+                      new S3SeekableInputStream(
+                          TEST_URI,
+                          logicalIO,
+                          TestTelemetry.DEFAULT,
+                          OpenStreamInformation.DEFAULT)) {
                     byte[] buffer = new byte[4];
                     long readBytes = stream.readTail(buffer, 0, 4);
                     assertEquals(4, readBytes);
@@ -464,7 +488,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
   }
 
   private S3SeekableInputStream getTestStream() {
-    return new S3SeekableInputStream(TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT);
+    return new S3SeekableInputStream(
+        TEST_URI, fakeLogicalIO, TestTelemetry.DEFAULT, OpenStreamInformation.DEFAULT);
   }
 
   private S3SeekableInputStream getTestStreamWithContent(String content, S3URI s3URI)
@@ -493,6 +518,7 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
             TestTelemetry.DEFAULT,
             LogicalIOConfiguration.DEFAULT,
             new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT)),
-        TestTelemetry.DEFAULT);
+        TestTelemetry.DEFAULT,
+        OpenStreamInformation.DEFAULT);
   }
 }

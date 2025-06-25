@@ -126,7 +126,9 @@ public class Block implements Closeable {
                 .etag(this.blockKey.getObjectKey().getEtag())
                 .referrer(referrer)
                 .build();
-
+        if (openStreamInformation.getRequestCallback() != null) {
+          openStreamInformation.getRequestCallback().onGetRequest();
+        }
         this.source =
             this.telemetry.measureCritical(
                 () ->

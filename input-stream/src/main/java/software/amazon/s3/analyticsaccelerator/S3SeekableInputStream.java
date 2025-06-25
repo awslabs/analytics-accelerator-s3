@@ -26,6 +26,8 @@ import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIO;
+import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
+import software.amazon.s3.analyticsaccelerator.util.RequestCallback;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
@@ -51,6 +53,7 @@ public class S3SeekableInputStream extends SeekableInputStream {
 
   private static final String OPERATION_STREAM_CLOSE = "seekablestream.close";
   private final long streamBirth = System.nanoTime();
+  private final RequestCallback requestCallback;
 
   /**
    * Given a LogicalIO, creates a new instance of {@link S3SeekableInputStream}.
@@ -58,12 +61,17 @@ public class S3SeekableInputStream extends SeekableInputStream {
    * @param s3URI the object this stream is using
    * @param logicalIO already initialised LogicalIO
    * @param telemetry The {@link Telemetry} to use to report measurements.
+   * @param openStreamInformation The to use to report measurements.
    */
   S3SeekableInputStream(
-      @NonNull S3URI s3URI, @NonNull LogicalIO logicalIO, @NonNull Telemetry telemetry) {
+      @NonNull S3URI s3URI,
+      @NonNull LogicalIO logicalIO,
+      @NonNull Telemetry telemetry,
+      @NonNull OpenStreamInformation openStreamInformation) {
     this.s3URI = s3URI;
     this.logicalIO = logicalIO;
     this.telemetry = telemetry;
+    this.requestCallback = openStreamInformation.getRequestCallback();
     this.position = 0;
     this.closed = false;
   }
@@ -282,5 +290,13 @@ public class S3SeekableInputStream extends SeekableInputStream {
     if (closed) {
       throw new IOException(msg);
     }
+  }
+  /**
+   * Returns the request callback.
+   *
+   * @return the request callback
+   */
+  public RequestCallback getRequestCallback() {
+    return requestCallback;
   }
 }
