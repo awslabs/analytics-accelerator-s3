@@ -67,6 +67,11 @@ class SequentialFileTypeIntegrationTest extends IntegrationTestBase {
               .getS3SeekableInputStreamFactory()
               .getMetrics()
               .get(MetricKey.GET_REQUEST_COUNT));
+
+      // TODO: This should be fixed with the new PhysicalIO, currently the cache hit metric is
+      // inaccurate.
+      //  assertEquals(expectedGETCount,
+      // s3AALClientStreamReader.getS3SeekableInputStreamFactory().getMetrics().get(MetricKey.CACHE_HIT));
     }
   }
 
@@ -106,6 +111,11 @@ class SequentialFileTypeIntegrationTest extends IntegrationTestBase {
               .getS3SeekableInputStreamFactory()
               .getMetrics()
               .get(MetricKey.GET_REQUEST_COUNT));
+
+      // TODO: This should be fixed with the new PhysicalIO, currently the cache hit metric is
+      // inaccurate.
+      //  assertEquals(2,
+      // s3AALClientStreamReader.getS3SeekableInputStreamFactory().getMetrics().get(MetricKey.CACHE_HIT));
     }
   }
 
