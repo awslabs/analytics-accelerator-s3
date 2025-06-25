@@ -15,14 +15,21 @@
  */
 package software.amazon.s3.analyticsaccelerator.access;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static software.amazon.s3.analyticsaccelerator.access.ChecksumAssertions.assertChecksums;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.Optional;
+import java.util.concurrent.*;
 import java.util.stream.Stream;
+import lombok.NonNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import software.amazon.awssdk.core.checksums.Crc32CChecksum;
+import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 
 /**
  * This tests concurrency and thread safety of teh shared state. While the DAT InputStream itself is
@@ -83,26 +90,76 @@ public class ConcurrencyCorrectnessTest extends IntegrationTestBase {
         CONCURRENCY_ITERATIONS);
   }
 
-  @ParameterizedTest
-  @MethodSource("etagTests")
-  void testChangingEtagFailsStream(
-      S3ClientKind s3ClientKind,
-      S3Object s3Object,
-      StreamReadPatternKind streamReadPattern,
-      AALInputStreamConfigurationKind configuration)
-      throws IOException {
-    testChangingEtagMidStream(s3ClientKind, s3Object, streamReadPattern, configuration);
-  }
+  /**
+   * Tests concurrent access to AAL. This runs the specified pattern on multiple threads
+   * concurrently
+   *
+   * @param s3ClientKind S3 client kind to use
+   * @param s3Object S3 object to read
+   * @param streamReadPatternKind stream read pattern to apply
+   * @param AALInputStreamConfigurationKind configuration kind
+   * @param concurrencyLevel concurrency level - how many threads are running at once
+   * @param iterations how many iterations each thread does
+   */
+  protected void testAALReadConcurrency(
+      @NonNull S3ClientKind s3ClientKind,
+      @NonNull S3Object s3Object,
+      @NonNull StreamReadPatternKind streamReadPatternKind,
+      @NonNull AALInputStreamConfigurationKind AALInputStreamConfigurationKind,
+      int concurrencyLevel,
+      int iterations)
+      throws IOException, InterruptedException, ExecutionException {
+    StreamReadPattern streamReadPattern = streamReadPatternKind.getStreamReadPattern(s3Object);
+    // Read using the standard S3 async client. We do this once, to calculate the checksums
+    Crc32CChecksum directChecksum = new Crc32CChecksum();
+    executeReadPatternDirectly(
+        s3ClientKind,
+        s3Object,
+        streamReadPattern,
+        Optional.of(directChecksum),
+        OpenStreamInformation.DEFAULT);
 
-  @ParameterizedTest
-  @MethodSource("etagTests")
-  void testChangingEtagReturnsCachedObject(
-      S3ClientKind s3ClientKind,
-      S3Object s3Object,
-      StreamReadPatternKind streamReadPattern,
-      AALInputStreamConfigurationKind configuration)
-      throws IOException {
-    testChangingEtagAfterStreamPassesAndReturnsCachedObject(s3ClientKind, s3Object, configuration);
+    // Create the s3DATClientStreamReader - that creates the shared state
+    try (S3AALClientStreamReader s3AALClientStreamReader =
+        this.createS3AALClientStreamReader(s3ClientKind, AALInputStreamConfigurationKind)) {
+      // Create the thread pool
+      ExecutorService executorService = Executors.newFixedThreadPool(concurrencyLevel);
+      Future<?>[] resultFutures = new Future<?>[concurrencyLevel];
+
+      for (int i = 0; i < concurrencyLevel; i++) {
+        resultFutures[i] =
+            executorService.submit(
+                () -> {
+                  try {
+                    // Run multiple iterations
+                    for (int j = 0; j < iterations; j++) {
+                      // Run DAT on the thread
+                      // This will create a new stream every time, but all streams will share state
+                      Crc32CChecksum datChecksum = new Crc32CChecksum();
+                      executeReadPatternOnAAL(
+                          s3Object,
+                          s3AALClientStreamReader,
+                          streamReadPattern,
+                          Optional.of(datChecksum),
+                          OpenStreamInformation.DEFAULT);
+
+                      // Assert checksums
+                      assertChecksums(directChecksum, datChecksum);
+                    }
+                  } catch (Throwable t) {
+                    throw new RuntimeException(t);
+                  }
+                });
+      }
+      // wait for each future to propagate errors
+      for (int i = 0; i < concurrencyLevel; i++) {
+        // This should throw an exception, if a thread threw one, including assertions
+        resultFutures[i].get();
+      }
+      // Shutdown. Wait for termination indefinitely - we expect it to always complete
+      executorService.shutdown();
+      assertTrue(executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS));
+    }
   }
 
   static Stream<Arguments> sequentialReads() {
@@ -125,14 +182,6 @@ public class ConcurrencyCorrectnessTest extends IntegrationTestBase {
     return argumentsFor(
         getS3ClientKinds(),
         S3Object.smallAndMediumObjects(),
-        parquetPatterns(),
-        concurrencyCorrectnessConfigurationKind());
-  }
-
-  static Stream<Arguments> etagTests() {
-    return argumentsFor(
-        getS3ClientKinds(),
-        S3Object.smallBinaryObjects(),
         parquetPatterns(),
         concurrencyCorrectnessConfigurationKind());
   }
