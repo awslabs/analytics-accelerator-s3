@@ -73,6 +73,7 @@ public abstract class IntegrationTestBase extends ExecutionBase {
    * @param s3ClientKind S3 client kind to use
    * @param s3Object S3 object to read
    * @param streamReadPattern stream read pattern to apply
+   * @param s3AALClientStreamReader reader to use
    */
   protected void testAndCompareStreamReadPattern(
       @NonNull S3ClientKind s3ClientKind,
