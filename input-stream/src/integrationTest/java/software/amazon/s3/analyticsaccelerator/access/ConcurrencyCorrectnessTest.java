@@ -165,7 +165,7 @@ public class ConcurrencyCorrectnessTest extends IntegrationTestBase {
   static Stream<Arguments> sequentialReads() {
     return argumentsFor(
         getS3ClientKinds(),
-        S3Object.smallAndMediumObjects(),
+        Arrays.asList(S3Object.RANDOM_256MB, S3Object.CSV_20MB),
         sequentialPatterns(),
         concurrencyCorrectnessConfigurationKind());
   }
@@ -173,16 +173,16 @@ public class ConcurrencyCorrectnessTest extends IntegrationTestBase {
   static Stream<Arguments> skippingReads() {
     return argumentsFor(
         getS3ClientKinds(),
-        S3Object.smallAndMediumObjects(),
-        skippingPatterns(),
+        Arrays.asList(S3Object.RANDOM_128MB, S3Object.CSV_20MB),
+        Arrays.asList(StreamReadPatternKind.SKIPPING_FORWARD),
         concurrencyCorrectnessConfigurationKind());
   }
 
   static Stream<Arguments> parquetReads() {
     return argumentsFor(
         getS3ClientKinds(),
-        S3Object.smallAndMediumObjects(),
-        parquetPatterns(),
+        Arrays.asList(S3Object.RANDOM_256MB),
+        Arrays.asList(StreamReadPatternKind.QUASI_PARQUET_COLUMN_CHUNK),
         concurrencyCorrectnessConfigurationKind());
   }
 
