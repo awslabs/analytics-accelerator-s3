@@ -15,74 +15,50 @@
  */
 package software.amazon.s3.analyticsaccelerator.access;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_MB;
+
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.Test;
+import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 
 /** Tests read stream behaviour with untrusted S3ClientKinds on multiple sizes and read patterns */
 public class GrayFailureTest extends IntegrationTestBase {
-  @ParameterizedTest
-  @MethodSource("sequentialReads")
-  void testSequentialReads(
-      S3ClientKind clientKind,
-      S3Object s3Object,
-      StreamReadPatternKind streamReadPattern,
-      AALInputStreamConfigurationKind configuration)
-      throws IOException {
-    testAndCompareStreamReadPattern(clientKind, s3Object, streamReadPattern, configuration);
-  }
 
-  @ParameterizedTest
-  @MethodSource("skippingReads")
-  void testSkippingReads(
-      S3ClientKind clientKind,
-      S3Object s3Object,
-      StreamReadPatternKind streamReadPattern,
-      AALInputStreamConfigurationKind configuration)
-      throws IOException {
-    testAndCompareStreamReadPattern(clientKind, s3Object, streamReadPattern, configuration);
-  }
+  @Test
+  void testFailedReadRecovers() throws IOException {
 
-  @ParameterizedTest
-  @MethodSource("parquetReads")
-  void testQuasiParquetReads(
-      S3ClientKind clientKind,
-      S3Object s3Object,
-      StreamReadPatternKind streamReadPattern,
-      AALInputStreamConfigurationKind configuration)
-      throws IOException {
-    testAndCompareStreamReadPattern(clientKind, s3Object, streamReadPattern, configuration);
-  }
+    List<StreamRead> streamReads = new ArrayList<>();
+    streamReads.add(new StreamRead(5 * ONE_MB, 10 * ONE_MB));
+    streamReads.add(new StreamRead(15 * ONE_MB, 4 * ONE_MB));
+    streamReads.add(new StreamRead(50 * ONE_MB, 20 * ONE_MB));
 
-  static Stream<Arguments> sequentialReads() {
-    return argumentsFor(
-        S3ClientKind.faultyClients(),
-        S3Object.smallObjects(),
-        sequentialPatterns(),
-        grayFailureConfigurationKind());
-  }
+    StreamReadPattern streamReadPattern =
+        StreamReadPattern.builder().streamReads(streamReads).build();
 
-  static Stream<Arguments> skippingReads() {
-    return argumentsFor(
-        S3ClientKind.faultyClients(),
-        S3Object.smallObjects(),
-        skippingPatterns(),
-        grayFailureConfigurationKind());
-  }
-
-  static Stream<Arguments> parquetReads() {
-    return argumentsFor(
-        S3ClientKind.faultyClients(),
-        S3Object.smallObjects(),
-        parquetPatterns(),
-        grayFailureConfigurationKind());
-  }
-
-  private static List<AALInputStreamConfigurationKind> grayFailureConfigurationKind() {
-    return Arrays.asList(AALInputStreamConfigurationKind.GRAY_FAILURE);
+    // Verifies stream contents match, and also that 7 GET requests are made.
+    // For the above request pattern, we expect 6 Blocks to be created:
+    // [5MB - 13MB, 13MB - 15MB] for the 5MB - 10MB read
+    // [15MB, 19MB] for the 15MB - 19MB read
+    // [50MB - 58MB, 58MB - 64MB, 64MB - 70MB] for the 50MB - 70MB
+    // the first GET will fail and retried as we're using the faulty client, so expect a total of 7
+    // GETS.
+    try (S3AALClientStreamReader s3AALClientStreamReader =
+        this.createS3AALClientStreamReader(
+            S3ClientKind.FAULTY_S3_CLIENT, AALInputStreamConfigurationKind.GRAY_FAILURE)) {
+      testAndCompareStreamReadPattern(
+          S3ClientKind.FAULTY_S3_CLIENT,
+          S3Object.RANDOM_128MB,
+          streamReadPattern,
+          s3AALClientStreamReader);
+      assertEquals(
+          7,
+          s3AALClientStreamReader
+              .getS3SeekableInputStreamFactory()
+              .getMetrics()
+              .get(MetricKey.GET_REQUEST_COUNT));
+    }
   }
 }

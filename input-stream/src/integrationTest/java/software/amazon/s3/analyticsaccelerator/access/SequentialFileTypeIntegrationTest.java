@@ -17,9 +17,10 @@ package software.amazon.s3.analyticsaccelerator.access;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_MB;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,35 +29,110 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamConfiguration;
-import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
 import software.amazon.s3.analyticsaccelerator.common.ConnectorConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
-import software.amazon.s3.analyticsaccelerator.util.ObjectFormat;
-import software.amazon.s3.analyticsaccelerator.util.ObjectFormatSelector;
-import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
-import software.amazon.s3.analyticsaccelerator.util.S3URI;
+import software.amazon.s3.analyticsaccelerator.util.*;
 
 class SequentialFileTypeIntegrationTest extends IntegrationTestBase {
 
+  private final StreamReadPattern streamReadPattern =
+      StreamReadPattern.builder()
+          .streamRead(new StreamRead(ONE_MB, 3 * ONE_MB))
+          .streamRead(new StreamRead(6 * ONE_MB, 3 * ONE_MB))
+          .streamRead(new StreamRead(10 * ONE_MB, 3 * ONE_MB))
+          .build();
+
+  // Tests that when the object is below the partition size, the whole object is downloaded.
   @ParameterizedTest
   @MethodSource("sequentialReader")
-  void testingSequentialReads(
-      S3ClientKind clientKind,
-      S3Object s3Object,
-      StreamReadPatternKind streamReadPattern,
-      AALInputStreamConfigurationKind configuration)
+  void testingSequentialReadPatterBelowPartitionSize(S3ClientKind clientKind, S3Object s3Object)
       throws IOException {
-    testAndCompareStreamReadPattern(clientKind, s3Object, streamReadPattern, configuration);
+
+    try (S3AALClientStreamReader s3AALClientStreamReader =
+        this.createS3AALClientStreamReader(clientKind, AALInputStreamConfigurationKind.DEFAULT)) {
+
+      testAndCompareStreamReadPattern(
+          clientKind, s3Object, streamReadPattern, s3AALClientStreamReader);
+
+      // The physicalIO is reading in 8MB chunks. So the total gets should be Math.ceil(file size /
+      // 8MB).
+      // For example, for a 20MB, this will be 3, [0-8MB, 8MB - 16MB, 16MB - 20MB].
+      int expectedGETCount = (int) Math.ceil((double) s3Object.getSize() / (8 * ONE_MB));
+
+      // The sequential prefetcher should download the whole file,
+      assertEquals(
+          expectedGETCount,
+          s3AALClientStreamReader
+              .getS3SeekableInputStreamFactory()
+              .getMetrics()
+              .get(MetricKey.GET_REQUEST_COUNT));
+
+      // TODO: This should be fixed with the new PhysicalIO, currently the cache hit metric is
+      // inaccurate.
+      //  assertEquals(expectedGETCount,
+      // s3AALClientStreamReader.getS3SeekableInputStreamFactory().getMetrics().get(MetricKey.CACHE_HIT));
+    }
+  }
+
+  // Tests that when the object is above the partition size, the object is only uploaded up to the
+  // paritition.
+  @ParameterizedTest
+  @MethodSource("clientKinds")
+  void testingSequentialReadPatternAbovePartitionSize(S3ClientKind clientKind) throws IOException {
+
+    long partitionSize = 16 * ONE_MB;
+
+    Map<String, String> configMap = new HashMap<>();
+    configMap.put("logicalio.partition.size", String.valueOf(partitionSize));
+    ConnectorConfiguration config = new ConnectorConfiguration(configMap, "");
+
+    StreamReadPattern streamReadPattern =
+        StreamReadPattern.builder()
+            .streamRead(new StreamRead(ONE_MB, 3 * ONE_MB))
+            .streamRead(new StreamRead(6 * ONE_MB, 3 * ONE_MB))
+            .streamRead(new StreamRead(10 * ONE_MB, 3 * ONE_MB))
+            .streamRead(new StreamRead(18 * ONE_MB, ONE_MB))
+            .build();
+
+    try (S3AALClientStreamReader s3AALClientStreamReader =
+        this.createS3AALClientStreamReader(
+            clientKind, S3SeekableInputStreamConfiguration.fromConfiguration(config))) {
+
+      testAndCompareStreamReadPattern(
+          clientKind, S3Object.CSV_20MB, streamReadPattern, s3AALClientStreamReader);
+
+      // The sequential prefetcher will do a total of 3 GETs. It should prefetch the first 16MB of
+      // the file in 2
+      // 8MB GETS, and then there should be a new GET for the read at 18MB.
+      assertEquals(
+          3,
+          s3AALClientStreamReader
+              .getS3SeekableInputStreamFactory()
+              .getMetrics()
+              .get(MetricKey.GET_REQUEST_COUNT));
+
+      // TODO: This should be fixed with the new PhysicalIO, currently the cache hit metric is
+      // inaccurate.
+      //  assertEquals(2,
+      // s3AALClientStreamReader.getS3SeekableInputStreamFactory().getMetrics().get(MetricKey.CACHE_HIT));
+    }
   }
 
   static Stream<Arguments> sequentialReader() {
-    return argumentsFor(
-        getS3ClientKinds(),
-        S3Object.getSequentialS3Objects(),
-        sequentialPatterns(),
-        getS3SeekableInputStreamConfigurations());
+    List<S3Object> s3Objects = new ArrayList<>();
+    s3Objects.add(S3Object.CSV_20MB);
+    s3Objects.add(S3Object.TXT_16MB);
+
+    ArrayList<Arguments> results = new ArrayList<>();
+
+    for (S3Object s3Object : s3Objects) {
+      for (S3ClientKind s3ClientKind : getS3ClientKinds()) {
+        results.add(Arguments.of(s3ClientKind, s3Object));
+      }
+    }
+
+    return results.stream();
   }
 
   @Test
@@ -90,61 +166,5 @@ class SequentialFileTypeIntegrationTest extends IntegrationTestBase {
     assertThrows(
         IllegalArgumentException.class,
         () -> S3SeekableInputStreamConfiguration.fromConfiguration(connectorConfiguration));
-  }
-
-  @Test
-  void testSequentialPrefetchSize() throws IOException, InterruptedException {
-    long partitionSize = 16 * 1024 * 1024;
-
-    Map<String, String> configMap = new HashMap<>();
-    configMap.put("logicalio.partition.size", String.valueOf(partitionSize));
-    ConnectorConfiguration connectorConfiguration = new ConnectorConfiguration(configMap, "");
-
-    S3Object largeFile = S3Object.CSV_20MB;
-    verifyPrefetchBehavior(largeFile, partitionSize, connectorConfiguration);
-  }
-
-  private void verifyPrefetchBehavior(
-      S3Object file, long partitionSize, ConnectorConfiguration connectorConfiguration)
-      throws IOException, InterruptedException {
-    S3URI s3URI = file.getObjectUri(this.getS3ExecutionContext().getConfiguration().getBaseUri());
-
-    S3SeekableInputStreamFactory factory =
-        new S3SeekableInputStreamFactory(
-            this.getS3ExecutionContext().getObjectClient(),
-            S3SeekableInputStreamConfiguration.fromConfiguration(connectorConfiguration));
-
-    try (S3SeekableInputStream stream = factory.createStream(s3URI)) {
-      byte[] singleByte = new byte[1];
-      int firstByteRead = stream.read(singleByte);
-      assertTrue(firstByteRead > 0, "Should be able to read first byte");
-
-      // Brief pause to allow prefetch to start
-      Thread.sleep(100);
-
-      long expectedPrefetchSize = Math.min(file.getSize(), partitionSize);
-
-      // Read up to the expected prefetch size
-      byte[] buffer = new byte[8192];
-      long bytesReadInPrefetch = 1; // Start with 1 for the first byte we already read
-      int bytesRead;
-
-      while (bytesReadInPrefetch < expectedPrefetchSize
-          && (bytesRead =
-                  stream.read(
-                      buffer,
-                      0,
-                      (int) Math.min(buffer.length, expectedPrefetchSize - bytesReadInPrefetch)))
-              != -1) {
-        bytesReadInPrefetch += bytesRead;
-      }
-
-      // Verify we could read the expected prefetch amount
-      assertEquals(
-          expectedPrefetchSize,
-          bytesReadInPrefetch,
-          String.format(
-              "Should read %d bytes from prefetch for %s", expectedPrefetchSize, file.getName()));
-    }
   }
 }
