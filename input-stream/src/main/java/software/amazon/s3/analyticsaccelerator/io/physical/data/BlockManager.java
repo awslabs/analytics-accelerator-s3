@@ -216,8 +216,9 @@ public class BlockManager implements Closeable {
    * @return generation of the block
    */
   private long getGeneration(long pos, ReadMode readMode) {
-    // Generation is zero for ASYNC reads or first block of the object
-    if (readMode == ReadMode.ASYNC || pos < configuration.getReadBufferSize()) return 0;
+    // Generation is zero for read modes which not allow request extension or first block of the
+    // object
+    if (!readMode.allowRequestExtension() || pos < configuration.getReadBufferSize()) return 0;
 
     Optional<Block> previousBlock = blockStore.getBlock(pos - 1);
     return previousBlock.map(block -> block.getGeneration() + 1).orElse(0L);

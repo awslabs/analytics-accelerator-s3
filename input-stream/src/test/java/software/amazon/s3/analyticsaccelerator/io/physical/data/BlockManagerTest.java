@@ -29,6 +29,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
@@ -583,38 +585,26 @@ public class BlockManagerTest {
   }
 
   @Test
-  @DisplayName("Test makeRangeAvailable with async read mode")
-  void testMakeRangeAvailableAsync() throws IOException {
-    PhysicalIOConfiguration configuration =
-        PhysicalIOConfiguration.builder().smallObjectsPrefetchingEnabled(false).build();
-
+  @DisplayName("Test makeRangeAvailable with sync read mode")
+  void testMakeRangeAvailableSync() throws IOException {
     // Given
     ObjectClient objectClient = mock(ObjectClient.class);
-    BlockManager blockManager = getTestBlockManager(objectClient, 16 * ONE_MB, configuration);
-    blockManager.makePositionAvailable(0, ReadMode.SYNC); // Create first 8 blocks with generation 0
+    BlockManager blockManager = getTestBlockManager(objectClient, 100 * ONE_MB);
 
     // When
-    blockManager.makeRangeAvailable(
-        64 * ONE_KB, 100, ReadMode.ASYNC); // Should read next 64KB but with generation 0 not 1.
+    blockManager.makeRangeAvailable(0, 5 * ONE_MB, ReadMode.SYNC);
+    blockManager.makeRangeAvailable(5 * ONE_MB, 3 * ONE_MB, ReadMode.SYNC);
 
     // Then
     ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
     verify(objectClient, timeout(1_000).times(2)).getObject(requestCaptor.capture(), any());
 
-    List<GetRequest> capturedRequests = requestCaptor.getAllValues();
-    // Convert expected ranges to a Set
-    Set<Range> expectedRanges = new HashSet<>();
-    expectedRanges.add(new Range(0, 65535));
-    expectedRanges.add(new Range(65536, 131071));
+    List<GetRequest> getRequestList = requestCaptor.getAllValues();
 
-    // Convert actual requests to ranges
-    Set<Range> actualRanges = new HashSet<>();
-    for (GetRequest req : capturedRequests) {
-      actualRanges.add(new Range(req.getRange().getStart(), req.getRange().getEnd()));
-    }
-
-    // Verify that async mode doesn't trigger sequential read
-    assertEquals(expectedRanges, actualRanges);
+    // Verify that with the SYNC mode, sequential prefetching kicks in
+    assertEquals(getRequestList.get(0).getRange().getLength(), 5 * ONE_MB);
+    // Second request gets extended by 4MB to 9MB.
+    assertEquals(getRequestList.get(1).getRange().getLength(), 4 * ONE_MB);
   }
 
   @Test
@@ -682,6 +672,41 @@ public class BlockManagerTest {
       executor.shutdown();
       assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
     }
+  }
+
+  @ParameterizedTest
+  @MethodSource("readModes")
+  @DisplayName("Test makeRangeAvailable with async read modes")
+  void testMakeRangeAvailableAsync(ReadMode readMode) throws IOException {
+    // Given
+    ObjectClient objectClient = mock(ObjectClient.class);
+    BlockManager blockManager = getTestBlockManager(objectClient, 100 * ONE_MB);
+
+    // When
+    blockManager.makeRangeAvailable(0, 5 * ONE_MB, readMode);
+    blockManager.makeRangeAvailable(5 * ONE_MB, 3 * ONE_MB, readMode);
+    blockManager.makeRangeAvailable(8 * ONE_MB, 5 * ONE_MB, readMode);
+
+    // Then
+    ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
+    verify(objectClient, timeout(1_000).times(3)).getObject(requestCaptor.capture(), any());
+
+    List<GetRequest> getRequestList = requestCaptor.getAllValues();
+
+    // Verify that prefetch modes don't trigger sequential prefetching
+    assertEquals(getRequestList.get(0).getRange().getLength(), 5 * ONE_MB);
+    assertEquals(getRequestList.get(1).getRange().getLength(), 3 * ONE_MB);
+    assertEquals(getRequestList.get(2).getRange().getLength(), 5 * ONE_MB);
+  }
+
+  private static List<ReadMode> readModes() {
+    List<ReadMode> readModes = new ArrayList<>();
+    readModes.add(ReadMode.READ_VECTORED);
+    readModes.add(ReadMode.COLUMN_PREFETCH);
+    readModes.add(ReadMode.DICTIONARY_PREFETCH);
+    readModes.add(ReadMode.PREFETCH_TAIL);
+    readModes.add(ReadMode.REMAINING_COLUMN_PREFETCH);
+    return readModes;
   }
 
   private BlockManager getTestBlockManager(int size) throws IOException {
