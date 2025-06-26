@@ -21,403 +21,359 @@ import static org.mockito.Mockito.*;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.*;
-import lombok.SneakyThrows;
-import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
-import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
-import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.Range;
-import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.*;
 
 @SuppressFBWarnings(
     value = "NP_NONNULL_PARAM_VIOLATION",
     justification = "We mean to pass nulls to checks")
-@SuppressWarnings("unchecked")
 public class BlockTest {
   private static final S3URI TEST_URI = S3URI.of("foo", "bar");
-  private static final String ETAG = "RANDOM";
-  private static final ObjectKey objectKey = ObjectKey.builder().s3URI(TEST_URI).etag(ETAG).build();
-  private static final long DEFAULT_READ_TIMEOUT = 120_000;
-  private static final int DEFAULT_READ_RETRY_COUNT = 20;
-  private static final byte[] TEST_DATA_BYTES = "test-data".getBytes(StandardCharsets.UTF_8);
+  private static final String ETAG = "RandomString";
+  private static final String TEST_DATA = "test-data";
+  private static final byte[] TEST_DATA_BYTES = TEST_DATA.getBytes(StandardCharsets.UTF_8);
+  private static final long READ_TIMEOUT = 5_000;
 
-  @Test
-  public void testConstructor() throws IOException {
+  private ObjectKey objectKey;
+  private BlockKey blockKey;
+  private Metrics mockMetrics;
+  private BlobStoreIndexCache mockIndexCache;
 
-    final String TEST_DATA = "test-data";
-    ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
-    BlockKey blockKey = new BlockKey(objectKey, new Range(0, TEST_DATA.length()));
-    Block block =
-        new Block(
-            blockKey,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT);
-    assertNotNull(block);
+  @BeforeEach
+  void setUp() {
+    objectKey = ObjectKey.builder().s3URI(TEST_URI).etag(ETAG).build();
+    blockKey = new BlockKey(objectKey, new Range(0, TEST_DATA.length()));
+    mockMetrics = mock(Metrics.class);
+    mockIndexCache = mock(BlobStoreIndexCache.class);
   }
 
   @Test
-  @DisplayName("Test read method with valid position")
-  void testReadWithValidPosition() throws IOException {
-    // Setup
-    final String TEST_DATA = "test-data";
-    BlockKey blockKey = new BlockKey(objectKey, new Range(0, TEST_DATA.length()));
-    ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
-    byte[] testData = TEST_DATA.getBytes(StandardCharsets.UTF_8);
+  void testConstructorWithValidParameters() {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
 
-    Metrics mockMetrics = mock(Metrics.class);
-    BlobStoreIndexCache mockIndexCache = new BlobStoreIndexCache(PhysicalIOConfiguration.DEFAULT);
-    mockIndexCache = spy(mockIndexCache);
+    assertNotNull(block);
+    assertEquals(blockKey, block.getBlockKey());
+    assertEquals(0, block.getGeneration());
+    assertFalse(block.isDataReady());
+  }
 
-    Block block =
-        new Block(
-            blockKey,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mockMetrics,
-            mockIndexCache,
-            OpenStreamInformation.DEFAULT);
+  @Test
+  void testConstructorWithNullBlockKey() {
+    assertThrows(
+        NullPointerException.class,
+        () -> new Block(null, 0, mockIndexCache, mockMetrics, READ_TIMEOUT));
+  }
 
-    // Test when data is not in cache
-    when(mockIndexCache.contains(blockKey)).thenReturn(false);
+  @Test
+  void testConstructorWithNullIndexCache() {
+    assertThrows(
+        NullPointerException.class, () -> new Block(blockKey, 0, null, mockMetrics, READ_TIMEOUT));
+  }
+
+  @Test
+  void testConstructorWithNullMetrics() {
+    assertThrows(
+        NullPointerException.class,
+        () -> new Block(blockKey, 0, mockIndexCache, null, READ_TIMEOUT));
+  }
+
+  @Test
+  void testConstructorWithNegativeGeneration() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> new Block(blockKey, -1, mockIndexCache, mockMetrics, READ_TIMEOUT));
+  }
+
+  @Test
+  void testConstructorWithNegativeRangeStart() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> {
+          BlockKey invalidBlockKey = new BlockKey(objectKey, new Range(-1, TEST_DATA.length()));
+          new Block(invalidBlockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+        });
+  }
+
+  @Test
+  void testConstructorWithNegativeRangeEnd() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> {
+          BlockKey blockKey = new BlockKey(objectKey, new Range(0, -1));
+          new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+        });
+  }
+
+  @Test
+  void testSetDataAndIsDataReady() {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+
+    assertFalse(block.isDataReady());
+
+    block.setData(TEST_DATA_BYTES);
+
+    assertTrue(block.isDataReady());
+    verify(mockMetrics).add(any(), eq((long) TEST_DATA_BYTES.length));
+    verify(mockIndexCache).put(blockKey, blockKey.getRange().getLength());
+  }
+
+  @Test
+  void testReadSingleByteAfterDataSet() throws IOException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    block.setData(TEST_DATA_BYTES);
+
     int result = block.read(0);
 
-    // Verify
-    verify(mockIndexCache, times(2)).put(blockKey, blockKey.getRange().getLength());
-    verify(mockIndexCache, times(0)).getIfPresent(blockKey);
-    assertEquals(Byte.toUnsignedInt(testData[0]), result);
-
-    // Test when data is in cache
-    when(mockIndexCache.contains(blockKey)).thenReturn(true);
-    result = block.read(1);
-
-    // Verify
-    verify(mockIndexCache).getIfPresent(blockKey);
-    assertEquals(Byte.toUnsignedInt(testData[1]), result);
+    assertEquals(Byte.toUnsignedInt(TEST_DATA_BYTES[0]), result);
+    verify(mockIndexCache).recordAccess(blockKey);
   }
 
   @Test
-  public void testSingleByteReadReturnsCorrectByte() throws IOException {
-    // Given: a Block containing "test-data"
-    final String TEST_DATA = "test-data";
-    ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
-    BlockKey blockKey = new BlockKey(objectKey, new Range(0, TEST_DATA_BYTES.length));
-    Block block =
-        new Block(
-            blockKey,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT);
+  void testReadSingleByteAtDifferentPositions() throws IOException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    block.setData(TEST_DATA_BYTES);
 
-    // When: bytes are requested from the block
-    int r1 = block.read(0);
-    int r2 = block.read(TEST_DATA.length() - 1);
-    int r3 = block.read(4);
-
-    // Then: they are the correct bytes
-    assertEquals(116, r1); // 't' = 116
-    assertEquals(97, r2); // 'a' = 97
-    assertEquals(45, r3); // '-' = 45
+    assertEquals(116, block.read(0)); // 't'
+    assertEquals(101, block.read(1)); // 'e'
+    assertEquals(115, block.read(2)); // 's'
+    assertEquals(116, block.read(3)); // 't'
+    assertEquals(45, block.read(4)); // '-'
+    assertEquals(100, block.read(5)); // 'd'
+    assertEquals(97, block.read(6)); // 'a'
+    assertEquals(116, block.read(7)); // 't'
+    assertEquals(97, block.read(8)); // 'a'
   }
 
   @Test
-  public void testBufferedReadReturnsCorrectBytes() throws IOException {
-    // Given: a Block containing "test-data"
-    final String TEST_DATA = "test-data";
-    ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
-    BlockKey blockKey = new BlockKey(objectKey, new Range(0, TEST_DATA.length()));
-    Block block =
-        new Block(
-            blockKey,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT);
+  void testReadSingleByteWithNegativePosition() throws IOException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    block.setData(TEST_DATA_BYTES);
 
-    // When: bytes are requested from the block
-    byte[] b1 = new byte[4];
-    int r1 = block.read(b1, 0, b1.length, 0);
-    byte[] b2 = new byte[4];
-    int r2 = block.read(b2, 0, b2.length, 5);
-
-    // Then: they are the correct bytes
-    assertEquals(4, r1);
-    assertEquals("test", new String(b1, StandardCharsets.UTF_8));
-
-    assertEquals(4, r2);
-    assertEquals("data", new String(b2, StandardCharsets.UTF_8));
+    assertThrows(IllegalArgumentException.class, () -> block.read(-1));
   }
 
   @Test
-  void testNulls() {
-    final String TEST_DATA = "test-data";
-    ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
-    BlockKey blockKey = new BlockKey(objectKey, new Range(0, TEST_DATA.length()));
-    assertThrows(
-        NullPointerException.class,
-        () ->
-            new Block(
-                null,
-                fakeObjectClient,
-                TestTelemetry.DEFAULT,
-                0,
-                ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                mock(Metrics.class),
-                mock(BlobStoreIndexCache.class),
-                null));
-    assertThrows(
-        NullPointerException.class,
-        () ->
-            new Block(
-                blockKey,
-                null,
-                TestTelemetry.DEFAULT,
-                0,
-                ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                mock(Metrics.class),
-                mock(BlobStoreIndexCache.class),
-                null));
-    assertThrows(
-        NullPointerException.class,
-        () ->
-            new Block(
-                blockKey,
-                fakeObjectClient,
-                null,
-                0,
-                ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                mock(Metrics.class),
-                mock(BlobStoreIndexCache.class),
-                null));
-    assertThrows(
-        NullPointerException.class,
-        () ->
-            new Block(
-                blockKey,
-                fakeObjectClient,
-                TestTelemetry.DEFAULT,
-                0,
-                null,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                mock(Metrics.class),
-                mock(BlobStoreIndexCache.class),
-                null));
+  void testReadBufferAfterDataSet() throws IOException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    block.setData(TEST_DATA_BYTES);
+
+    byte[] buffer = new byte[4];
+    int bytesRead = block.read(buffer, 0, 4, 0);
+
+    assertEquals(4, bytesRead);
+    assertEquals("test", new String(buffer, StandardCharsets.UTF_8));
+    verify(mockIndexCache).recordAccess(blockKey);
   }
 
   @Test
-  void testBoundaries() {
-    final String TEST_DATA = "test-data";
-    ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            new Block(
-                new BlockKey(objectKey, new Range(-1, TEST_DATA.length())),
-                fakeObjectClient,
-                TestTelemetry.DEFAULT,
-                0,
-                ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                mock(Metrics.class),
-                mock(BlobStoreIndexCache.class),
-                OpenStreamInformation.DEFAULT));
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            new Block(
-                new BlockKey(objectKey, new Range(0, -5)),
-                fakeObjectClient,
-                TestTelemetry.DEFAULT,
-                0,
-                ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                mock(Metrics.class),
-                mock(BlobStoreIndexCache.class),
-                OpenStreamInformation.DEFAULT));
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            new Block(
-                new BlockKey(objectKey, new Range(20, 1)),
-                fakeObjectClient,
-                TestTelemetry.DEFAULT,
-                0,
-                ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                mock(Metrics.class),
-                mock(BlobStoreIndexCache.class),
-                OpenStreamInformation.DEFAULT));
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            new Block(
-                new BlockKey(objectKey, new Range(0, 5)),
-                fakeObjectClient,
-                TestTelemetry.DEFAULT,
-                -1,
-                ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                mock(Metrics.class),
-                mock(BlobStoreIndexCache.class),
-                OpenStreamInformation.DEFAULT));
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            new Block(
-                new BlockKey(objectKey, new Range(-5, 0)),
-                fakeObjectClient,
-                TestTelemetry.DEFAULT,
-                TEST_DATA.length(),
-                ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
-                mock(Metrics.class),
-                mock(BlobStoreIndexCache.class),
-                OpenStreamInformation.DEFAULT));
-  }
+  void testReadBufferAtDifferentPositions() throws IOException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    block.setData(TEST_DATA_BYTES);
 
-  @SneakyThrows
-  @Test
-  void testReadBoundaries() {
-    final String TEST_DATA = "test-data";
-    ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
-    byte[] b = new byte[4];
-    Block block =
-        new Block(
-            new BlockKey(objectKey, new Range(0, TEST_DATA.length())),
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT);
-    assertThrows(IllegalArgumentException.class, () -> block.read(-10));
-    assertThrows(NullPointerException.class, () -> block.read(null, 0, 3, 1));
-    assertThrows(IllegalArgumentException.class, () -> block.read(b, -5, 3, 1));
-    assertThrows(IllegalArgumentException.class, () -> block.read(b, 0, -5, 1));
-    assertThrows(IllegalArgumentException.class, () -> block.read(b, 10, 3, 1));
-  }
+    byte[] buffer1 = new byte[4];
+    int bytesRead1 = block.read(buffer1, 0, 4, 0);
+    assertEquals(4, bytesRead1);
+    assertEquals("test", new String(buffer1, StandardCharsets.UTF_8));
 
-  @SneakyThrows
-  @Test
-  void testContains() {
-    final String TEST_DATA = "test-data";
-    ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
-    Block block =
-        new Block(
-            new BlockKey(objectKey, new Range(0, TEST_DATA.length())),
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT);
-    assertTrue(block.contains(0));
-    assertFalse(block.contains(TEST_DATA.length() + 1));
-  }
-
-  @SneakyThrows
-  @Test
-  void testContainsBoundaries() {
-    final String TEST_DATA = "test-data";
-    ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
-    Block block =
-        new Block(
-            new BlockKey(objectKey, new Range(0, TEST_DATA.length())),
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT);
-    assertThrows(IllegalArgumentException.class, () -> block.contains(-1));
+    byte[] buffer2 = new byte[4];
+    int bytesRead2 = block.read(buffer2, 0, 4, 5);
+    assertEquals(4, bytesRead2);
+    assertEquals("data", new String(buffer2, StandardCharsets.UTF_8));
   }
 
   @Test
-  void testReadTimeoutAndRetry() throws IOException {
-    final String TEST_DATA = "test-data";
-    ObjectKey stuckObjectKey =
-        ObjectKey.builder().s3URI(S3URI.of("stuck-client", "bar")).etag(ETAG).build();
-    ObjectClient fakeStuckObjectClient = new FakeStuckObjectClient(TEST_DATA);
-    BlockKey blockKey = new BlockKey(stuckObjectKey, new Range(0, TEST_DATA.length()));
-    Block block =
-        new Block(
-            blockKey,
-            fakeStuckObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT);
-    assertThrows(IOException.class, () -> block.read(4));
+  void testReadBufferPartialRead() throws IOException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    block.setData(TEST_DATA_BYTES);
+
+    byte[] buffer = new byte[10];
+    int bytesRead = block.read(buffer, 0, 10, 7);
+
+    assertEquals(2, bytesRead); // Only 2 bytes available from position 7
+    assertEquals("ta", new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
   }
 
-  @SneakyThrows
   @Test
-  void testClose() {
-    final String TEST_DATA = "test-data";
-    ObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
-    Block block =
-        new Block(
-            new BlockKey(objectKey, new Range(0, TEST_DATA.length())),
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT);
+  void testReadBufferWithInvalidParameters() throws IOException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    block.setData(TEST_DATA_BYTES);
+
+    byte[] buffer = new byte[4];
+
+    assertThrows(IllegalArgumentException.class, () -> block.read(buffer, -1, 4, 0));
+    assertThrows(IllegalArgumentException.class, () -> block.read(buffer, 0, -1, 0));
+    assertThrows(IllegalArgumentException.class, () -> block.read(buffer, 0, 4, -1));
+    assertThrows(IllegalArgumentException.class, () -> block.read(buffer, 4, 1, 0));
+  }
+
+  @Test
+  void testReadBeforeDataSet() {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, 100); // Short timeout
+
+    assertThrows(IOException.class, () -> block.read(0));
+  }
+
+  @Test
+  void testReadBufferBeforeDataSet() {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, 100); // Short timeout
+    byte[] buffer = new byte[4];
+
+    assertThrows(IOException.class, () -> block.read(buffer, 0, 4, 0));
+  }
+
+  @Test
+  void testReadWithTimeout() throws InterruptedException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, 100); // Short timeout
+
+    CountDownLatch latch = new CountDownLatch(1);
+    CompletableFuture<Void> readTask =
+        CompletableFuture.runAsync(
+            () -> {
+              try {
+                latch.countDown();
+                block.read(0);
+                fail("Expected IOException due to timeout");
+              } catch (IOException e) {
+                // Expected
+              }
+            });
+
+    latch.await(); // Wait for read to start
+    Thread.sleep(200); // Wait longer than timeout
+
+    assertDoesNotThrow(() -> readTask.get(1, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void testConcurrentReadsAfterDataSet() throws InterruptedException, ExecutionException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    block.setData(TEST_DATA_BYTES);
+
+    int numThreads = 10;
+    ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+    @SuppressWarnings("unchecked")
+    List<CompletableFuture<Integer>> futures = new ArrayList<>();
+
+    for (int i = 0; i < numThreads; i++) {
+      final int pos = i % TEST_DATA_BYTES.length;
+      CompletableFuture<Integer> future =
+          CompletableFuture.supplyAsync(
+              () -> {
+                try {
+                  return block.read(pos);
+                } catch (IOException e) {
+                  throw new RuntimeException(e);
+                }
+              },
+              executor);
+      futures.add(future);
+    }
+
+    for (int i = 0; i < numThreads; i++) {
+      int expectedByte = Byte.toUnsignedInt(TEST_DATA_BYTES[i % TEST_DATA_BYTES.length]);
+      assertEquals(expectedByte, futures.get(i).get().intValue());
+    }
+
+    executor.shutdown();
+  }
+
+  @Test
+  void testCloseReleasesData() throws IOException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    block.setData(TEST_DATA_BYTES);
+
+    assertTrue(block.isDataReady());
+
     block.close();
-    block.close();
+
+    // After close, reading should fail
+    assertThrows(IOException.class, () -> block.read(0));
+  }
+
+  @Test
+  void testMultipleSetDataCalls() {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+
+    block.setData(TEST_DATA_BYTES);
+    assertTrue(block.isDataReady());
+
+    // Second call should not affect the state
+    byte[] newData = "new-data".getBytes(StandardCharsets.UTF_8);
+    block.setData(newData);
+    assertTrue(block.isDataReady());
+  }
+
+  @Test
+  void testGenerationProperty() {
+    Block block1 = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    Block block2 = new Block(blockKey, 5, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    Block block3 = new Block(blockKey, 100, mockIndexCache, mockMetrics, READ_TIMEOUT);
+
+    assertEquals(0, block1.getGeneration());
+    assertEquals(5, block2.getGeneration());
+    assertEquals(100, block3.getGeneration());
+  }
+
+  @Test
+  void testReadIntoBuffer() throws IOException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
+    block.setData(TEST_DATA_BYTES);
+
+    byte[] buffer = new byte[20];
+    int bytesRead = block.read(buffer, 2, 5, 0);
+
+    assertEquals(5, bytesRead);
+    assertEquals(TEST_DATA.substring(0, 5), new String(buffer, 2, 5, StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void testReadTimeoutIfDataNeverSet() {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, 100); // 100 ms
+
+    IOException ex = assertThrows(IOException.class, () -> block.read(0));
+    assertTrue(ex.getMessage().contains("Failed to read data"));
+  }
+
+  @Test
+  void testReadBlocksUntilDataIsReady() throws Exception {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, 1000);
+
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    Future<Integer> result = executor.submit(() -> block.read(0));
+
+    // simulate delay
+    Thread.sleep(100);
+    block.setData(TEST_DATA_BYTES);
+
+    assertEquals(Byte.toUnsignedInt(TEST_DATA_BYTES[0]), result.get(1, TimeUnit.SECONDS));
+    executor.shutdown();
+  }
+
+  @Test
+  void testReadHandlesInterruptedException() throws InterruptedException {
+    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, 5000);
+
+    Thread testThread =
+        new Thread(
+            () -> {
+              try {
+                block.read(0); // this internally calls awaitData()
+                fail("Expected IOException due to interruption");
+              } catch (IOException e) {
+                assertTrue(e.getMessage().contains("interrupted"));
+                assertTrue(Thread.currentThread().isInterrupted());
+              }
+            });
+
+    testThread.start();
+    Thread.sleep(100); // Ensure thread is waiting inside awaitData()
+    testThread.interrupt();
+    testThread.join();
   }
 }

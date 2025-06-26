@@ -42,9 +42,14 @@ public class S3SeekableInputStreamTestBase {
   protected final FakeObjectClient fakeObjectClient = new FakeObjectClient(TEST_DATA);
   protected final MetadataStore metadataStore =
       new MetadataStore(fakeObjectClient, TestTelemetry.DEFAULT, PhysicalIOConfiguration.DEFAULT);
+  protected final ExecutorService threadPool = Executors.newFixedThreadPool(30);
   protected final BlobStore blobStore =
       new BlobStore(
-          fakeObjectClient, TestTelemetry.DEFAULT, physicalIOConfiguration, mock(Metrics.class));
+          fakeObjectClient,
+          TestTelemetry.DEFAULT,
+          physicalIOConfiguration,
+          mock(Metrics.class),
+          threadPool);
   protected final LogicalIOConfiguration logicalIOConfiguration = LogicalIOConfiguration.DEFAULT;
 
   protected final LogicalIO fakeLogicalIO;
