@@ -1,0 +1,4 @@
+software.amazon.s3.analyticsaccelerator
+software.amazon.s3.analyticsaccelerator.common
+software.amazon.s3.analyticsaccelerator.request
+software.amazon.s3.analyticsaccelerator.util
