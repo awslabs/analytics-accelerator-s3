@@ -89,7 +89,12 @@ public class BlockManager implements Closeable {
     this.blockStore = new BlockStore(indexCache, aggregatingMetrics, configuration);
     this.streamReader =
         new StreamReader(
-            objectClient, objectKey, threadPool, this::removeBlocks, openStreamInformation);
+            objectClient,
+            objectKey,
+            threadPool,
+            this::removeBlocks,
+            aggregatingMetrics,
+            openStreamInformation);
     this.sequentialReadProgression = new SequentialReadProgression(configuration);
     this.rangeOptimiser = new RangeOptimiser(configuration);
 

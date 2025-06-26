@@ -29,6 +29,7 @@ import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.Block;
 import software.amazon.s3.analyticsaccelerator.request.*;
 import software.amazon.s3.analyticsaccelerator.util.BlockKey;
@@ -43,6 +44,7 @@ public class StreamReaderTest {
   private ExecutorService mockExecutorService;
   private Consumer<List<Block>> mockRemoveBlocksFunc;
   private OpenStreamInformation mockOpenStreamInfo;
+  private Metrics mockMetrics;
 
   private StreamReader streamReader;
 
@@ -53,6 +55,7 @@ public class StreamReaderTest {
     mockObjectKey = mock(ObjectKey.class);
     mockExecutorService = mock(ExecutorService.class);
     mockRemoveBlocksFunc = mock(Consumer.class);
+    mockMetrics = mock(Metrics.class);
     mockOpenStreamInfo = mock(OpenStreamInformation.class);
 
     streamReader =
@@ -61,6 +64,7 @@ public class StreamReaderTest {
             mockObjectKey,
             mockExecutorService,
             mockRemoveBlocksFunc,
+            mockMetrics,
             mockOpenStreamInfo);
   }
 

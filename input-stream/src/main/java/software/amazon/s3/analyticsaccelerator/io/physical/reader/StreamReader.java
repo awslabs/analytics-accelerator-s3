@@ -27,9 +27,11 @@ import java.util.stream.Collectors;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.Block;
 import software.amazon.s3.analyticsaccelerator.request.*;
+import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 
@@ -46,6 +48,7 @@ public class StreamReader implements Closeable {
   private final ExecutorService threadPool;
   // Callback function to remove failed blocks from the data store
   private final Consumer<List<Block>> removeBlocksFunc;
+  private final Metrics aggregatingMetrics;
   private final OpenStreamInformation openStreamInformation;
 
   private static final Logger LOG = LoggerFactory.getLogger(StreamReader.class);
@@ -57,6 +60,7 @@ public class StreamReader implements Closeable {
    * @param objectKey the key identifying the S3 object and its ETag
    * @param threadPool an {@link ExecutorService} used for async I/O operations
    * @param removeBlocksFunc a function to remove blocks from
+   * @param aggregatingMetrics the metrics aggregator for performance or usage monitoring
    * @param openStreamInformation contains stream information
    */
   public StreamReader(
@@ -64,11 +68,13 @@ public class StreamReader implements Closeable {
       @NonNull ObjectKey objectKey,
       @NonNull ExecutorService threadPool,
       @NonNull Consumer<List<Block>> removeBlocksFunc,
+      @NonNull Metrics aggregatingMetrics,
       @NonNull OpenStreamInformation openStreamInformation) {
     this.objectClient = objectClient;
     this.objectKey = objectKey;
     this.threadPool = threadPool;
     this.removeBlocksFunc = removeBlocksFunc;
+    this.aggregatingMetrics = aggregatingMetrics;
     this.openStreamInformation = openStreamInformation;
   }
 
@@ -189,6 +195,8 @@ public class StreamReader implements Closeable {
    */
   private ObjectContent fetchObjectContent(GetRequest getRequest) {
     try {
+
+      this.aggregatingMetrics.add(MetricKey.GET_REQUEST_COUNT, 1);
       // Block on the async S3 request and return the result
       return this.objectClient.getObject(getRequest, this.openStreamInformation).join();
     } catch (Exception e) {
