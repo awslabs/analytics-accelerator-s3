@@ -47,6 +47,7 @@ public class PhysicalIOConfiguration {
   private static final boolean DEFAULT_SMALL_OBJECTS_PREFETCHING_ENABLED = true;
   private static final long DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD = 8 * ONE_MB;
   private static final int DEFAULT_THREAD_POOL_SIZE = 96;
+  private static final long DEFAULT_READ_BUFFER_SIZE = 8 * ONE_KB;
 
   /**
    * Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_MEMORY_CAPACITY_BYTES} by default.
@@ -151,6 +152,9 @@ public class PhysicalIOConfiguration {
 
   @Builder.Default private int threadPoolSize = DEFAULT_THREAD_POOL_SIZE;
 
+  private static final String READ_BUFFER_SIZE_KEY = "readbuffersize";
+  @Builder.Default private long readBufferSize = DEFAULT_READ_BUFFER_SIZE;
+
   /** Default set of settings for {@link PhysicalIO} */
   public static final PhysicalIOConfiguration DEFAULT = PhysicalIOConfiguration.builder().build();
 
@@ -192,6 +196,7 @@ public class PhysicalIOConfiguration {
             configuration.getLong(
                 SMALL_OBJECT_SIZE_THRESHOLD_KEY, DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD))
         .threadPoolSize(configuration.getInt(THREAD_POOL_SIZE_KEY, DEFAULT_THREAD_POOL_SIZE))
+        .readBufferSize(configuration.getLong(READ_BUFFER_SIZE_KEY, DEFAULT_READ_BUFFER_SIZE))
         .build();
   }
 
@@ -215,6 +220,7 @@ public class PhysicalIOConfiguration {
    * @param smallObjectsPrefetchingEnabled Whether small object prefetching is enabled
    * @param smallObjectSizeThreshold Maximum size in bytes for an object to be considered small
    * @param threadPoolSize Size of thread pool to be used for async operations
+   * @param readBufferSize Size of the maximum buffer for read operations
    */
   @Builder
   private PhysicalIOConfiguration(
@@ -232,7 +238,8 @@ public class PhysicalIOConfiguration {
       int blockReadRetryCount,
       boolean smallObjectsPrefetchingEnabled,
       long smallObjectSizeThreshold,
-      int threadPoolSize) {
+      int threadPoolSize,
+      long readBufferSize) {
     Preconditions.checkArgument(memoryCapacityBytes > 0, "`memoryCapacityBytes` must be positive");
     Preconditions.checkArgument(
         memoryCleanupFrequencyMilliseconds > 0,
@@ -254,6 +261,7 @@ public class PhysicalIOConfiguration {
     Preconditions.checkArgument(
         smallObjectSizeThreshold > 0, "`smallObjectSizeThreshold` must be positive");
     Preconditions.checkNotNull(threadPoolSize > 0, "`threadPoolSize` must be positive");
+    Preconditions.checkArgument(readBufferSize > 0, "`readBufferSize` must be positive");
 
     this.memoryCapacityBytes = memoryCapacityBytes;
     this.memoryCleanupFrequencyMilliseconds = memoryCleanupFrequencyMilliseconds;
@@ -270,6 +278,7 @@ public class PhysicalIOConfiguration {
     this.smallObjectsPrefetchingEnabled = smallObjectsPrefetchingEnabled;
     this.smallObjectSizeThreshold = smallObjectSizeThreshold;
     this.threadPoolSize = threadPoolSize;
+    this.readBufferSize = readBufferSize;
   }
 
   @Override
@@ -293,6 +302,7 @@ public class PhysicalIOConfiguration {
     builder.append("\tsmallObjectsPrefetchingEnabled: " + smallObjectsPrefetchingEnabled + "\n");
     builder.append("\tsmallObjectSizeThreshold: " + smallObjectSizeThreshold + "\n");
     builder.append("\tthreadPoolSize: " + threadPoolSize + "\n");
+    builder.append("\treadBufferSize: " + readBufferSize + "\n");
 
     return builder.toString();
   }

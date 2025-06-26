@@ -23,6 +23,8 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.TestTelemetry;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
@@ -49,6 +51,7 @@ public class BlobTest {
   private static final int OBJECT_SIZE = 100;
   ObjectMetadata mockMetadataStore =
       ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
+  private final ExecutorService threadPool = Executors.newFixedThreadPool(30);
 
   @Test
   void testCreateBoundaries() {
@@ -179,7 +182,8 @@ public class BlobTest {
             PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class),
             mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT);
+            OpenStreamInformation.DEFAULT,
+            threadPool);
 
     return new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
   }

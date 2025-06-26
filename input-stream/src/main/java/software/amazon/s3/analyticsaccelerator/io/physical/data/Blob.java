@@ -94,7 +94,7 @@ public class Blob implements Closeable {
     try {
       lock.readLock().lock();
       blockManager.makePositionAvailable(pos, ReadMode.SYNC);
-      return blockManager.getBlock(pos).get().read(pos);
+      return blockManager.getBlock(pos).get().read(pos); // TODO add if block exist check
     } finally {
       lock.readLock().unlock();
     }
@@ -126,6 +126,8 @@ public class Blob implements Closeable {
 
       while (numBytesRead < len && nextPosition < contentLength()) {
         final long nextPositionFinal = nextPosition;
+
+        // TODO throw IOException here
         Block nextBlock =
             blockManager
                 .getBlock(nextPosition)
@@ -134,7 +136,7 @@ public class Blob implements Closeable {
                         new IllegalStateException(
                             String.format(
                                 "This block object key %s (for position %s) should have been available.",
-                                objectKey.getS3URI().toString(), nextPositionFinal)));
+                                objectKey.getS3URI(), nextPositionFinal)));
 
         int bytesRead = nextBlock.read(buf, off + numBytesRead, len - numBytesRead, nextPosition);
 

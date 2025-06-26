@@ -17,191 +17,99 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import lombok.Getter;
 import lombok.NonNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.s3.analyticsaccelerator.S3SdkObjectClient;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
-import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
-import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
-import software.amazon.s3.analyticsaccelerator.request.GetRequest;
-import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
-import software.amazon.s3.analyticsaccelerator.request.ObjectContent;
-import software.amazon.s3.analyticsaccelerator.request.ReadMode;
-import software.amazon.s3.analyticsaccelerator.request.Referrer;
-import software.amazon.s3.analyticsaccelerator.util.*;
+import software.amazon.s3.analyticsaccelerator.util.BlockKey;
+import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 
 /**
- * A Block holding part of an object's data and owning its own async process for fetching part of
- * the object.
+ * Represents a block of data from an object stream, identified by a {@link BlockKey} and a
+ * generation number. The block's data is set asynchronously and becomes accessible only after it
+ * has been marked ready.
  */
 public class Block implements Closeable {
-  private CompletableFuture<ObjectContent> source;
-  private CompletableFuture<byte[]> data;
+  /**
+   * The underlying byte array containing this block's data. It is set asynchronously via {@link
+   * #setData(byte[])} and should only be accessed through read methods after {@link #awaitData()}
+   * confirms readiness.
+   *
+   * <p>This field is marked {@code @Nullable} because the data is not initialized at construction
+   * time, which would otherwise cause static code analysis to fail.
+   */
+  @Nullable private byte[] data;
+
   @Getter private final BlockKey blockKey;
-  private final Telemetry telemetry;
-  private final ObjectClient objectClient;
-  private final OpenStreamInformation openStreamInformation;
-  private final ReadMode readMode;
-  private final Referrer referrer;
-  private final long readTimeout;
-  private final int readRetryCount;
   @Getter private final long generation;
 
-  private final Metrics aggregatingMetrics;
   private final BlobStoreIndexCache indexCache;
-  private static final String OPERATION_BLOCK_GET_ASYNC = "block.get.async";
-  private static final String OPERATION_BLOCK_GET_JOIN = "block.get.join";
-
-  private static final Logger LOG = LoggerFactory.getLogger(Block.class);
+  private final Metrics aggregatingMetrics;
+  private final long readTimeout;
+  /**
+   * A synchronization aid that allows threads to wait until the block's data is available.
+   *
+   * <p>This latch is initialized with a count of 1 and is used to coordinate access to the {@code
+   * data} field. When a {@link Block} is created, its {@code data} is not immediately available—it
+   * must be set asynchronously via {@link #setData(byte[])}. Until that happens, any thread
+   * attempting to read from this block will call {@link #awaitData()}, which internally waits on
+   * this latch.
+   *
+   * <p>Once {@code setData(byte[])} is invoked, it sets the internal data and decrements the latch,
+   * unblocking all threads waiting for the data to become available. This ensures safe and
+   * race-free access to the data by multiple readers, without using explicit locks.
+   *
+   * <p>The latch is effectively used as a one-time gate: it transitions from closed to open exactly
+   * once, after which all future readers proceed without blocking.
+   */
+  private final CountDownLatch dataReadyLatch = new CountDownLatch(1);
 
   /**
-   * Constructs a Block data.
+   * Constructs a {@link Block} object
    *
-   * @param blockKey the objectkey and range of the object
-   * @param objectClient the object client to use to interact with the object store
-   * @param telemetry an instance of {@link Telemetry} to use
-   * @param generation generation of the block in a sequential read pattern (should be 0 by default)
-   * @param readMode read mode describing whether this is a sync or async fetch
-   * @param readTimeout Timeout duration (in milliseconds) for reading a block object from S3
-   * @param readRetryCount Number of retries for block read failure
-   * @param aggregatingMetrics blobstore metrics
+   * @param blockKey the key identifying the object and byte range
+   * @param generation the generation number of this block in a sequential read pattern
    * @param indexCache blobstore index cache
-   * @param openStreamInformation contains stream information
+   * @param aggregatingMetrics blobstore metrics
+   * @param readTimeout read timeout in milliseconds
    */
   public Block(
       @NonNull BlockKey blockKey,
-      @NonNull ObjectClient objectClient,
-      @NonNull Telemetry telemetry,
       long generation,
-      @NonNull ReadMode readMode,
-      long readTimeout,
-      int readRetryCount,
-      @NonNull Metrics aggregatingMetrics,
       @NonNull BlobStoreIndexCache indexCache,
-      @NonNull OpenStreamInformation openStreamInformation)
-      throws IOException {
-
-    long start = blockKey.getRange().getStart();
-    long end = blockKey.getRange().getEnd();
+      @NonNull Metrics aggregatingMetrics,
+      long readTimeout) {
     Preconditions.checkArgument(
         0 <= generation, "`generation` must be non-negative; was: %s", generation);
-    Preconditions.checkArgument(0 <= start, "`start` must be non-negative; was: %s", start);
-    Preconditions.checkArgument(0 <= end, "`end` must be non-negative; was: %s", end);
-    Preconditions.checkArgument(
-        start <= end, "`start` must be less than `end`; %s is not less than %s", start, end);
-    Preconditions.checkArgument(
-        0 < readTimeout, "`readTimeout` must be greater than 0; was %s", readTimeout);
-    Preconditions.checkArgument(
-        0 < readRetryCount, "`readRetryCount` must be greater than 0; was %s", readRetryCount);
 
-    this.generation = generation;
-    this.telemetry = telemetry;
     this.blockKey = blockKey;
-    this.objectClient = objectClient;
-    this.openStreamInformation = openStreamInformation;
-    this.readMode = readMode;
-    this.referrer = new Referrer(this.blockKey.getRange().toHttpString(), readMode);
-    this.readTimeout = readTimeout;
-    this.readRetryCount = readRetryCount;
-    this.aggregatingMetrics = aggregatingMetrics;
+    this.generation = generation;
     this.indexCache = indexCache;
-    generateSourceAndData();
-  }
-
-  /** Method to help construct source and data */
-  private void generateSourceAndData() throws IOException {
-
-    int retries = 0;
-    while (retries < this.readRetryCount) {
-      try {
-        GetRequest getRequest =
-            GetRequest.builder()
-                .s3Uri(this.blockKey.getObjectKey().getS3URI())
-                .range(this.blockKey.getRange())
-                .etag(this.blockKey.getObjectKey().getEtag())
-                .referrer(referrer)
-                .build();
-
-        this.source =
-            this.telemetry.measureCritical(
-                () ->
-                    Operation.builder()
-                        .name(OPERATION_BLOCK_GET_ASYNC)
-                        .attribute(StreamAttributes.uri(this.blockKey.getObjectKey().getS3URI()))
-                        .attribute(StreamAttributes.etag(this.blockKey.getObjectKey().getEtag()))
-                        .attribute(StreamAttributes.range(this.blockKey.getRange()))
-                        .attribute(StreamAttributes.generation(generation))
-                        .build(),
-                () -> {
-                  this.aggregatingMetrics.add(MetricKey.GET_REQUEST_COUNT, 1);
-                  return objectClient.getObject(getRequest, openStreamInformation);
-                });
-
-        // Handle IOExceptions when converting stream to byte array
-        this.data =
-            this.source.thenApply(
-                objectContent -> {
-                  try {
-                    byte[] bytes =
-                        StreamUtils.toByteArray(
-                            objectContent,
-                            this.blockKey.getObjectKey(),
-                            this.blockKey.getRange(),
-                            this.readTimeout);
-                    int blockRange = blockKey.getRange().getLength();
-                    this.aggregatingMetrics.add(MetricKey.MEMORY_USAGE, blockRange);
-                    this.indexCache.put(blockKey, blockRange);
-                    return bytes;
-                  } catch (IOException | TimeoutException e) {
-                    throw new RuntimeException(
-                        "Error while converting InputStream to byte array", e);
-                  }
-                });
-
-        return; // Successfully generated source and data, exit loop
-      } catch (RuntimeException e) {
-        retries++;
-        LOG.debug(
-            "Retry {}/{} - Failed to fetch block data due to: {}",
-            retries,
-            this.readRetryCount,
-            e.getMessage());
-
-        if (retries >= this.readRetryCount) {
-          LOG.error("Max retries reached. Unable to fetch block data.");
-          throw new IOException("Failed to fetch block data after retries", e);
-        }
-      }
-    }
-  }
-
-  /** @return if data is loaded */
-  public boolean isDataLoaded() {
-    return data.isDone();
+    this.aggregatingMetrics = aggregatingMetrics;
+    this.readTimeout = readTimeout;
   }
 
   /**
-   * Reads a byte from the underlying object
+   * Reads a single byte at the specified absolute position in the object.
    *
-   * @param pos The position to read
-   * @return an unsigned int representing the byte that was read
-   * @throws IOException if an I/O error occurs
+   * @param pos the absolute position within the object
+   * @return the unsigned byte value at the given position, as an int in [0, 255]
+   * @throws IOException if the data is not ready or the position is invalid
    */
   public int read(long pos) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
-
-    byte[] content = this.getDataWithRetries();
-    indexCache.recordAccess(blockKey);
-    return Byte.toUnsignedInt(content[posToOffset(pos)]);
+    awaitData();
+    indexCache.recordAccess(this.blockKey);
+    int contentOffset = posToOffset(pos);
+    return Byte.toUnsignedInt(this.data[contentOffset]);
   }
 
   /**
-   * Reads data into the provided buffer
+   * Reads up to {@code len} bytes from the block starting at the given object position and writes
+   * them into the provided buffer starting at {@code off}.
    *
    * @param buf buffer to read data into
    * @param off start position in buffer at which data is written
@@ -216,93 +124,72 @@ public class Block implements Closeable {
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
     Preconditions.checkArgument(off < buf.length, "`off` must be less than size of buffer");
 
-    byte[] content = this.getDataWithRetries();
-    indexCache.recordAccess(blockKey);
+    awaitData();
+
+    indexCache.recordAccess(this.blockKey);
     int contentOffset = posToOffset(pos);
-    int available = content.length - contentOffset;
+    int available = this.data.length - contentOffset;
     int bytesToCopy = Math.min(len, available);
 
-    for (int i = 0; i < bytesToCopy; ++i) {
-      buf[off + i] = content[contentOffset + i];
-    }
+    if (bytesToCopy >= 0) System.arraycopy(this.data, contentOffset, buf, off, bytesToCopy);
 
     return bytesToCopy;
   }
 
   /**
-   * Does this block contain the position?
+   * Checks if data of the block is ready
    *
-   * @param pos the position
-   * @return true if the byte at the position is contained by this block
+   * @return true if data is ready, false otherwise
    */
-  public boolean contains(long pos) {
-    Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
-    return this.blockKey.getRange().contains(pos);
+  public boolean isDataReady() {
+    return dataReadyLatch.getCount() == 0;
   }
 
   /**
-   * Determines the offset in the Block corresponding to a position in an object.
+   * Converts an absolute object position to an offset within this block's data.
    *
-   * @param pos the position of a byte in the object
-   * @return the offset in the byte buffer underlying this Block
+   * @param pos the absolute position in the object
+   * @return the relative offset within this block's byte array
    */
   private int posToOffset(long pos) {
     return (int) (pos - this.blockKey.getRange().getStart());
   }
 
   /**
-   * Returns the bytes fetched by the issued {@link GetRequest}. If it receives an IOException from
-   * {@link S3SdkObjectClient}, retries for MAX_RETRIES count.
+   * Sets the data for this block and signals that the data is ready for reading. This method should
+   * be called exactly once per block.
    *
-   * @return the bytes fetched by the issued {@link GetRequest}.
-   * @throws IOException if an I/O error occurs after maximum retry counts
+   * @param data the byte array representing the block's data
    */
-  private byte[] getDataWithRetries() throws IOException {
-    for (int i = 0; i < this.readRetryCount; i++) {
-      try {
-        return this.getData();
-      } catch (IOException ex) {
-        if (ex.getClass() == IOException.class) {
-          if (i < this.readRetryCount - 1) {
-            LOG.debug("Get data failed. Retrying. Retry Count {}", i);
-            generateSourceAndData();
-          } else {
-            LOG.error("Cannot read block file. Retry reached the limit");
-            throw new IOException("Cannot read block file", ex.getCause());
-          }
-        } else {
-          throw ex;
-        }
-      }
-    }
-    throw new IOException("Cannot read block file", new IOException("Error while getting block"));
+  public void setData(final byte[] data) {
+    this.data = data;
+    this.aggregatingMetrics.add(MetricKey.MEMORY_USAGE, data.length);
+    this.indexCache.put(this.blockKey, this.blockKey.getRange().getLength());
+    dataReadyLatch.countDown();
   }
 
   /**
-   * Returns the bytes fetched by the issued {@link GetRequest}. This method will block until the
-   * data is fully available.
+   * Waits for the block's data to become available. This method blocks until {@link
+   * #setData(byte[])} is called.
    *
-   * @return the bytes fetched by the issued {@link GetRequest}.
-   * @throws IOException if an I/O error occurs
+   * @throws IOException if the thread is interrupted or data is not set
    */
-  private byte[] getData() throws IOException {
-    return this.telemetry.measureJoinCritical(
-        () ->
-            Operation.builder()
-                .name(OPERATION_BLOCK_GET_JOIN)
-                .attribute(StreamAttributes.uri(this.blockKey.getObjectKey().getS3URI()))
-                .attribute(StreamAttributes.etag(this.blockKey.getObjectKey().getEtag()))
-                .attribute(StreamAttributes.range(this.blockKey.getRange()))
-                .attribute(StreamAttributes.rangeLength(this.blockKey.getRange().getLength()))
-                .build(),
-        this.data,
-        this.readTimeout);
+  private void awaitData() throws IOException {
+    try {
+      if (!dataReadyLatch.await(readTimeout, TimeUnit.MILLISECONDS)) {
+        // TODO Reorganise exceptions
+        throw new IOException("Failed to read data", new IOException("Failed to read data"));
+      }
+    } catch (InterruptedException e) {
+      throw new IOException("Failed to read data", new IOException("Failed to read data"));
+    }
+
+    if (data == null) throw new IOException("Failed to read data");
   }
 
-  /** Closes the {@link Block} and frees up all resources it holds */
+  /** Releases the resources held by this block by clearing the internal data buffer. */
   @Override
-  public void close() {
-    // Only the source needs to be canceled, the continuation will cancel on its own
-    this.source.cancel(false);
+  public void close() throws IOException {
+    this.data = null;
   }
 }

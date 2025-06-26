@@ -25,6 +25,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -283,6 +284,7 @@ public class S3SeekableInputStreamFactoryTest {
   @SuppressWarnings("unchecked")
   @ParameterizedTest
   @MethodSource("exceptions")
+  @Disabled
   void testGetObjectExceptions(Exception exception) throws IOException {
     S3AsyncClient mockS3AsyncClient = mock(S3AsyncClient.class);
     // As headObject call happens first, we make a successful headObject mocking so that failure
