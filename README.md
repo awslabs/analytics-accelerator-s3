@@ -141,6 +141,8 @@ These optimizations are:
 
 * Sequential prefetching - The library detects sequential read patterns to prefetch data and reduce latency, and reads the full object when the object is small to minimize the number of read operations.
 * Small object prefetching - The library will prefetch the object if the object size is less than 3MB.
+* Closed Range requests - The library exclusively uses closed range requests when accessing S3, which is the recommended best practice for making requests to S3.
+* Read Vectored support - The library provides built-in implementation of Read Vectored functionality, enabling efficient reading of multiple non-contiguous ranges of data in a single operation.
 
  When the object key ends with the file extension `.parquet` or `.par`, we use the following Apache Parquet specific optimizations:
 
