@@ -198,7 +198,7 @@ public class SSECEncryptionTest extends IntegrationTestBase {
   static Stream<Arguments> encryptedParquetReads() {
     List<S3Object> readEncryptedObjects = new ArrayList<>();
     readEncryptedObjects.add(S3Object.RANDOM_SSEC_ENCRYPTED_PARQUET_1MB);
-    readEncryptedObjects.add(S3Object.RANDOM_SSEC_ENCRYPTED_PARQUET_64MB);
+    readEncryptedObjects.add(S3Object.RANDOM_SSEC_ENCRYPTED_PARQUET_10MB);
 
     return argumentsFor(
         getS3ClientKinds(),
@@ -209,7 +209,7 @@ public class SSECEncryptionTest extends IntegrationTestBase {
 
   static Stream<Arguments> encryptedReadsWithWrongKey() {
     List<S3Object> readEncryptedObjects = new ArrayList<>();
-    readEncryptedObjects.add(S3Object.RANDOM_SSEC_ENCRYPTED_PARQUET_64MB);
+    readEncryptedObjects.add(S3Object.RANDOM_SSEC_ENCRYPTED_PARQUET_10MB);
 
     return argumentsFor(
         getS3ClientKinds(),

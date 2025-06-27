@@ -61,9 +61,9 @@ public enum S3Object {
       "random-encrypted-1mb.parquet",
       SizeConstants.ONE_MB_IN_BYTES,
       S3ObjectKind.RANDOM_PARQUET_ENCRYPTED),
-  RANDOM_SSEC_ENCRYPTED_PARQUET_64MB(
-      "random-encrypted-64mb.parquet",
-      64 * SizeConstants.ONE_MB_IN_BYTES,
+  RANDOM_SSEC_ENCRYPTED_PARQUET_10MB(
+      "random-encrypted-10mb.parquet",
+      10 * SizeConstants.ONE_MB_IN_BYTES,
       S3ObjectKind.RANDOM_PARQUET_ENCRYPTED);
 
   private final String name;

@@ -23,12 +23,7 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
-import software.amazon.awssdk.transfer.s3.model.CompletedUpload;
-import software.amazon.awssdk.transfer.s3.model.UploadRequest;
 import software.amazon.s3.analyticsaccelerator.access.S3ExecutionContext;
 import software.amazon.s3.analyticsaccelerator.access.S3ObjectKind;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
@@ -45,9 +40,11 @@ public class RandomSequentialObjectGenerator extends BenchmarkObjectGenerator {
    * Creates an instance of random data generator
    *
    * @param context an instance of {@link S3ExecutionContext}
+   * @param s3ObjectKind S3 Object Kind
    */
-  public RandomSequentialObjectGenerator(@NonNull S3ExecutionContext context) {
-    super(context, S3ObjectKind.RANDOM_SEQUENTIAL);
+  public RandomSequentialObjectGenerator(
+      @NonNull S3ExecutionContext context, @NonNull S3ObjectKind s3ObjectKind) {
+    super(context, s3ObjectKind);
   }
 
   /**
@@ -58,7 +55,6 @@ public class RandomSequentialObjectGenerator extends BenchmarkObjectGenerator {
    */
   @Override
   public void generate(S3URI s3URI, long size) {
-    // Figure out the buffer size.
     int bufferSize =
         (int)
             Math.min(
@@ -69,63 +65,19 @@ public class RandomSequentialObjectGenerator extends BenchmarkObjectGenerator {
                     .getCrtPartSizeInBytes());
     Preconditions.checkArgument(bufferSize > 0);
 
-    // Start outputting progress to console
-    String progressPrefix = "[" + s3URI + "] ";
+    String progressPrefix = createProgressPrefix(s3URI);
     System.out.println(
         progressPrefix + "Generating with " + size + " bytes [" + bufferSize + " bytes buffer]");
 
-    // Create the CRT-backed S3TransferManager
-    try (S3TransferManager s3TransferManager =
-        S3TransferManager.builder().s3Client(this.getContext().getS3CrtClient()).build()) {
+    performStreamUpload(
+        s3URI,
+        AsyncRequestBody.fromPublisher(new RandomDataGeneratorPublisher(size, bufferSize)),
+        size);
+  }
 
-      // Create the upload request based on the publisher
-      UploadRequest uploadRequest =
-          UploadRequest.builder()
-              .putObjectRequest(
-                  PutObjectRequest.builder().bucket(s3URI.getBucket()).key(s3URI.getKey()).build())
-              .requestBody(
-                  AsyncRequestBody.fromPublisher(
-                      new RandomDataGeneratorPublisher(size, bufferSize)))
-              .build();
-
-      // Start the upload - this will trigger calls to RandomDataGeneratorPublisher below
-      System.out.println(progressPrefix + "Uploading");
-      CompletedUpload completedUpload =
-          s3TransferManager.upload(uploadRequest).completionFuture().join();
-      System.out.println(progressPrefix + "Done");
-
-      // Verify the size and MD5 of the data to see that they match
-      System.out.println(progressPrefix + "Verifying data...");
-
-      // Get object metadata via HEAD
-      HeadObjectResponse headObjectResponse =
-          this.getContext()
-              .getS3CrtClient()
-              .headObject(
-                  HeadObjectRequest.builder().bucket(s3URI.getBucket()).key(s3URI.getKey()).build())
-              .join();
-
-      // Verify length
-      if (headObjectResponse.contentLength() != size) {
-        throw new IllegalStateException(
-            progressPrefix
-                + "Expected object size: "
-                + size
-                + "; actual object size: "
-                + headObjectResponse.contentLength());
-      }
-
-      // Verify eTag
-      if (!completedUpload.response().eTag().equals(headObjectResponse.eTag())) {
-        throw new IllegalStateException(
-            progressPrefix
-                + "Expected eTag: "
-                + completedUpload.response().eTag()
-                + "; actual eTag: "
-                + headObjectResponse.eTag());
-      }
-      System.out.println(progressPrefix + "Done");
-    }
+  @Override
+  protected S3ObjectKind getEncryptedKind() {
+    return S3ObjectKind.RANDOM_SEQUENTIAL_ENCRYPTED;
   }
 
   /** The publisher that produces random data */

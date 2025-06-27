@@ -16,6 +16,8 @@
 package software.amazon.s3.analyticsaccelerator.benchmarks.data.generation;
 
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.access.S3AsyncClientFactoryConfiguration;
 import software.amazon.s3.analyticsaccelerator.access.S3ExecutionConfiguration;
 import software.amazon.s3.analyticsaccelerator.access.S3ExecutionContext;
@@ -31,6 +33,10 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
  * comparable.
  */
 public class BenchmarkDataGeneratorDriver {
+
+  private static final String CUSTOMER_KEY = System.getenv("CUSTOMER_KEY");
+  private static final Logger LOG = LoggerFactory.getLogger(BenchmarkDataGeneratorDriver.class);
+
   /**
    * This is the entry point to the generation code. ALl the context is extracted from the
    * Environment variables via {@link S3ExecutionConfiguration#fromEnvironment()}. The list of
@@ -60,6 +66,14 @@ public class BenchmarkDataGeneratorDriver {
       // For each object, generate the data
       for (S3Object s3Object : S3Object.values()) {
         // Build the Url
+        S3ObjectKind s3ObjectKind = s3Object.getKind();
+        if ((s3ObjectKind.equals(S3ObjectKind.RANDOM_SEQUENTIAL_ENCRYPTED)
+                || s3ObjectKind.equals(S3ObjectKind.RANDOM_PARQUET_ENCRYPTED))
+            && (CUSTOMER_KEY == null || CUSTOMER_KEY.trim().isEmpty())) {
+          LOG.warn("Skipping {} as CUSTOMER_KEY is not set", s3ObjectKind);
+          continue;
+        }
+
         S3URI s3URI = s3Object.getObjectUri(s3ExecutionContext.getConfiguration().getBaseUri());
 
         // Create the generator
@@ -82,8 +96,13 @@ public class BenchmarkDataGeneratorDriver {
   private static BenchmarkObjectGenerator createGenerator(
       S3ExecutionContext context, S3ObjectKind s3ObjectKind) {
     switch (s3ObjectKind) {
+      case RANDOM_SEQUENTIAL_ENCRYPTED:
+        return new RandomSequentialObjectGenerator(
+            context, S3ObjectKind.RANDOM_SEQUENTIAL_ENCRYPTED);
+      case RANDOM_PARQUET_ENCRYPTED:
+        return new ParquetObjectGenerator(context, S3ObjectKind.RANDOM_PARQUET_ENCRYPTED);
       case RANDOM_SEQUENTIAL:
-        return new RandomSequentialObjectGenerator(context);
+        return new RandomSequentialObjectGenerator(context, S3ObjectKind.RANDOM_SEQUENTIAL);
       default:
         throw new IllegalArgumentException("Unsupported kind: " + s3ObjectKind);
     }

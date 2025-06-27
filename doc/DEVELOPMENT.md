@@ -23,6 +23,7 @@ Configure the following environment variables before generating data and running
 * `S3_TEST_BUCKET` - the bucket benchmarks and the data generation runs against.
 * `S3_TEST_REGION` - the region the bucket belongs to.
 * `S3_TEST_PREFIX` - the prefix within the bucket that benchmarks and the data generation runs against
+* `CUSTOMER_KEY` - the Base64-encoded encryption key that enables Server-Side Encryption with Customer-Provided Keys (SSE-C) for S3 object uploads.
 
 ### Data Generation
 After your environment is configured, you can generate data to run benchmarks against.
