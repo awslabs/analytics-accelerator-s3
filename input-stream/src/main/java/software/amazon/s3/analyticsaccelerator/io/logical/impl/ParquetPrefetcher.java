@@ -29,6 +29,7 @@ import software.amazon.s3.analyticsaccelerator.io.logical.parquet.*;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanState;
+import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.ColumnPrefetchingServerClient;
 import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
@@ -77,7 +78,8 @@ public class ParquetPrefetcher {
       PhysicalIO physicalIO,
       Telemetry telemetry,
       LogicalIOConfiguration logicalIOConfiguration,
-      ParquetColumnPrefetchStore parquetColumnPrefetchStore) {
+      ParquetColumnPrefetchStore parquetColumnPrefetchStore,
+      ColumnPrefetchingServerClient columnPrefetchingServerClient) {
     this(
         s3Uri,
         logicalIOConfiguration,
@@ -89,7 +91,12 @@ public class ParquetPrefetcher {
         new ParquetPrefetchRemainingColumnTask(
             s3Uri, telemetry, physicalIO, parquetColumnPrefetchStore),
         new ParquetPredictivePrefetchingTask(
-            s3Uri, telemetry, logicalIOConfiguration, physicalIO, parquetColumnPrefetchStore));
+            s3Uri,
+            telemetry,
+            logicalIOConfiguration,
+            physicalIO,
+            parquetColumnPrefetchStore,
+            columnPrefetchingServerClient));
   }
 
   /**

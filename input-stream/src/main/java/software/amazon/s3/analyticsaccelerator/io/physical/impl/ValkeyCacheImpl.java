@@ -79,7 +79,8 @@ public class ValkeyCacheImpl implements Cache {
    */
   @Override
   public void set(String key, byte[] value) {
-    jedisCluster.set(key.getBytes(StandardCharsets.UTF_8), value);
+    //    TODO: TTL hardcoded for now, better to make this configurable
+    jedisCluster.setex(key.getBytes(StandardCharsets.UTF_8), 1200, value);
   }
 
   /** Closes the connection to the Valkey ElastiCache server */

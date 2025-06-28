@@ -17,12 +17,14 @@ package software.amazon.s3.analyticsaccelerator.io.logical.parquet;
 
 import static software.amazon.s3.analyticsaccelerator.util.Constants.DEFAULT_MIN_ADJACENT_COLUMN_LENGTH;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.NonNull;
+import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
@@ -33,6 +35,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlan;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanState;
+import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.ColumnPrefetchingServerClient;
 import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
@@ -82,6 +85,7 @@ public class ParquetPredictivePrefetchingTask {
   private final LogicalIOConfiguration logicalIOConfiguration;
   private static final String OPERATION_PARQUET_PREFETCH_COLUMNS = "parquet.task.prefetch.columns";
   private static final Logger LOG = LoggerFactory.getLogger(ParquetPredictivePrefetchingTask.class);
+  private static ColumnPrefetchingServerClient columnPrefetchingServerClient;
 
   /**
    * Creates a new instance of {@link ParquetPredictivePrefetchingTask}
@@ -97,12 +101,20 @@ public class ParquetPredictivePrefetchingTask {
       @NonNull Telemetry telemetry,
       @NonNull LogicalIOConfiguration logicalIOConfiguration,
       @NonNull PhysicalIO physicalIO,
-      @NonNull ParquetColumnPrefetchStore parquetColumnPrefetchStore) {
+      @NonNull ParquetColumnPrefetchStore parquetColumnPrefetchStore,
+      ColumnPrefetchingServerClient columnPrefetchingServerClient) {
     this.s3Uri = s3Uri;
     this.telemetry = telemetry;
     this.physicalIO = physicalIO;
     this.logicalIOConfiguration = logicalIOConfiguration;
     this.parquetColumnPrefetchStore = parquetColumnPrefetchStore;
+
+    if (logicalIOConfiguration.isColumnDataCachingEnabled()
+        && ParquetPredictivePrefetchingTask.columnPrefetchingServerClient == null
+        && columnPrefetchingServerClient != null) {
+      ParquetPredictivePrefetchingTask.columnPrefetchingServerClient =
+          columnPrefetchingServerClient;
+    }
   }
 
   /**
@@ -212,8 +224,22 @@ public class ParquetPredictivePrefetchingTask {
             // Ranges for column data
             List<Range> columnRanges = new ArrayList<>();
 
+            if (this.logicalIOConfiguration.isColumnDataCachingEnabled()) {
+              try (Response response =
+                  columnPrefetchingServerClient.prefetchColumns(
+                      this.s3Uri.getBucket(),
+                      this.s3Uri.getKey(),
+                      getRecentColumns(columnMappers.getOffsetIndexToColumnMap(), isDictionary))) {
+
+                LOG.info("The response from CPS is: {}", response.message());
+              } catch (IOException e) {
+                throw new IOException("Error prefetching", e);
+              }
+            }
+
             for (String recentColumn :
                 getRecentColumns(columnMappers.getOffsetIndexToColumnMap(), isDictionary)) {
+
               if (columnMappers.getColumnNameToColumnMap().containsKey(recentColumn)) {
                 List<ColumnMetadata> columnMetadataList =
                     columnMappers.getColumnNameToColumnMap().get(recentColumn);

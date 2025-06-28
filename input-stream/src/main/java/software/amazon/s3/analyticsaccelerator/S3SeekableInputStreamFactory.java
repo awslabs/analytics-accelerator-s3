@@ -21,6 +21,7 @@ import java.util.concurrent.Executors;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
@@ -34,6 +35,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.ValkeyCacheImpl;
+import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.ColumnPrefetchingServerClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
 import software.amazon.s3.analyticsaccelerator.util.ObjectFormatSelector;
@@ -57,6 +59,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   private final MetadataStore objectMetadataStore;
   private final Cache cache;
   private final ExecutorService executorService;
+  private final ColumnPrefetchingServerClient columnPrefetchingServerClient;
   private final BlobStore objectBlobStore;
   private final Telemetry telemetry;
   private final ObjectFormatSelector objectFormatSelector;
@@ -82,21 +85,25 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
         new MetadataStore(objectClient, telemetry, configuration.getPhysicalIOConfiguration());
     this.objectFormatSelector = new ObjectFormatSelector(configuration.getLogicalIOConfiguration());
 
-    if (configuration.getPhysicalIOConfiguration().isEnableTailMetadataCaching()) {
+    if (configuration.getPhysicalIOConfiguration().isTailMetadataCachingEnabled()) {
       this.cache =
           new ValkeyCacheImpl(configuration.getPhysicalIOConfiguration().getCacheEndpoint());
-
-      LOG.info("Cache successfully instantiated");
-
       this.executorService =
           Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 10);
-
     } else {
-      LOG.info("Cache disabled");
-
       this.cache = null;
       this.executorService = null;
     }
+
+    if (configuration.getLogicalIOConfiguration().isColumnDataCachingEnabled()) {
+      OkHttpClient client = new OkHttpClient();
+      this.columnPrefetchingServerClient =
+          new ColumnPrefetchingServerClient(
+              client, configuration.getLogicalIOConfiguration().getCpsEndpoint());
+    } else {
+      this.columnPrefetchingServerClient = null;
+    }
+
     this.objectBlobStore =
         new BlobStore(
             objectClient,
@@ -163,7 +170,8 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
                 openStreamInformation.getStreamContext()),
             telemetry,
             configuration.getLogicalIOConfiguration(),
-            parquetColumnPrefetchStore);
+            parquetColumnPrefetchStore,
+            columnPrefetchingServerClient);
 
       case SEQUENTIAL:
         return new SequentialLogicalIOImpl(
@@ -210,12 +218,9 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
     this.telemetry.close();
   }
 
-  private void handleCacheClosure(Cache cache, boolean shouldFlushCache) {
+  private void handleCacheClosure(Cache cache, boolean shouldFlushCache) throws IOException {
     if (cache != null) {
       if (shouldFlushCache) {
-        LOG.info("Cache is being closed");
-        LOG.info("Starting to clear cache");
-
         long cacheClearStartTime = System.nanoTime();
 
         cache.clearCache();
@@ -223,8 +228,9 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
         long cacheClearDuration = System.nanoTime() - cacheClearStartTime;
         double cacheClearMsDuration = cacheClearDuration / 1_000_000.0;
 
-        LOG.info("Cache has been cleared");
         LOG.info("Cache clear took: {}ms", String.format("%.2f", cacheClearMsDuration));
+
+        columnPrefetchingServerClient.clearCPSCache();
       }
 
       cache.close();
