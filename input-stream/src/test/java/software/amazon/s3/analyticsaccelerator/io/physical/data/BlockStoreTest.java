@@ -47,7 +47,7 @@ public class BlockStoreTest {
 
   @SneakyThrows
   @Test
-  public void test__blockStore__getBlockAfterAddBlock() {
+  public void testBlockStoreGetBlockAfterAddBlock() {
     // Given: empty BlockStore
     FakeObjectClient fakeObjectClient = new FakeObjectClient("test-data");
     ObjectMetadata mockMetadataStore =
@@ -61,17 +61,7 @@ public class BlockStoreTest {
     // When: a new block is added
     blockStore.add(
         blockKey,
-        new Block(
-            blockKey,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT));
+        getTestDefaultBuilder().blockKey(blockKey).objectClient(fakeObjectClient).build());
 
     // Then: getBlock can retrieve the same block
     Optional<Block> b = blockStore.getBlock(4);
@@ -83,7 +73,7 @@ public class BlockStoreTest {
   }
 
   @Test
-  public void test__blockStore__findNextMissingByteCorrect() throws IOException {
+  public void testBlockStoreFindNextMissingByteCorrect() throws IOException {
     // Given: BlockStore with blocks (2,3), (5,10), (12,15)
     final String X_TIMES_16 = "xxxxxxxxxxxxxxxx";
     FakeObjectClient fakeObjectClient = new FakeObjectClient(X_TIMES_16);
@@ -98,43 +88,13 @@ public class BlockStoreTest {
     BlockKey blockKey3 = new BlockKey(objectKey, new Range(12, 15));
     blockStore.add(
         blockKey1,
-        new Block(
-            blockKey1,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT));
+        getTestDefaultBuilder().blockKey(blockKey1).objectClient(fakeObjectClient).build());
     blockStore.add(
         blockKey2,
-        new Block(
-            blockKey2,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT));
+        getTestDefaultBuilder().blockKey(blockKey2).objectClient(fakeObjectClient).build());
     blockStore.add(
         blockKey3,
-        new Block(
-            blockKey3,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT));
+        getTestDefaultBuilder().blockKey(blockKey3).objectClient(fakeObjectClient).build());
 
     // When & Then: we query for the next missing byte, the result is correct
     assertEquals(OptionalLong.of(0), blockStore.findNextMissingByte(0));
@@ -149,7 +109,7 @@ public class BlockStoreTest {
 
   @SneakyThrows
   @Test
-  public void test__blockStore__findNextAvailableByteCorrect() {
+  public void testBlockStoreFindNextAvailableByteCorrect() {
     // Given: BlockStore with blocks (2,3), (5,10), (12,15)
     final String X_TIMES_16 = "xxxxxxxxxxxxxxxx";
     FakeObjectClient fakeObjectClient = new FakeObjectClient(X_TIMES_16);
@@ -162,45 +122,16 @@ public class BlockStoreTest {
     BlockKey blockKey1 = new BlockKey(objectKey, new Range(2, 3));
     BlockKey blockKey2 = new BlockKey(objectKey, new Range(5, 10));
     BlockKey blockKey3 = new BlockKey(objectKey, new Range(12, 15));
+
     blockStore.add(
         blockKey1,
-        new Block(
-            blockKey1,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT));
+        getTestDefaultBuilder().blockKey(blockKey1).objectClient(fakeObjectClient).build());
     blockStore.add(
         blockKey2,
-        new Block(
-            blockKey2,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT));
+        getTestDefaultBuilder().blockKey(blockKey2).objectClient(fakeObjectClient).build());
     blockStore.add(
         blockKey3,
-        new Block(
-            blockKey3,
-            fakeObjectClient,
-            TestTelemetry.DEFAULT,
-            0,
-            ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
-            mock(Metrics.class),
-            mock(BlobStoreIndexCache.class),
-            OpenStreamInformation.DEFAULT));
+        getTestDefaultBuilder().blockKey(blockKey3).objectClient(fakeObjectClient).build());
 
     // When & Then: we query for the next available byte, the result is correct
     assertEquals(OptionalLong.of(2), blockStore.findNextLoadedByte(0));
@@ -214,7 +145,7 @@ public class BlockStoreTest {
   }
 
   @Test
-  public void test__blockStore__closesBlocks() {
+  public void testBlockStoreClosesBlocks() {
     // Given: BlockStore with a block
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
@@ -233,7 +164,7 @@ public class BlockStoreTest {
   }
 
   @Test
-  public void test__blockStore__closeWorksWithExceptions() {
+  public void testBlockStoreCloseWorksWithExceptions() {
     // Given: BlockStore with two blocks
     ObjectMetadata mockMetadataStore =
         ObjectMetadata.builder().contentLength(OBJECT_SIZE).etag(ETAG).build();
@@ -253,5 +184,14 @@ public class BlockStoreTest {
 
     // Then: 1\ blockStore.close did not throw, 2\ b2 was closed
     verify(b2, times(1)).close();
+  }
+
+  private Block.BlockBuilder getTestDefaultBuilder() {
+    return Block.builder()
+        .telemetry(TestTelemetry.DEFAULT)
+        .readMode(ReadMode.SYNC)
+        .aggregatingMetrics(mock(Metrics.class))
+        .indexCache(mock(BlobStoreIndexCache.class))
+        .openStreamInformation(OpenStreamInformation.DEFAULT);
   }
 }
