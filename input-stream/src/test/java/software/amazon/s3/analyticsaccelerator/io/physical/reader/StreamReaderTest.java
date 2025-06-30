@@ -442,6 +442,7 @@ public class StreamReaderTest {
     when(mockBlock.getBlockKey()).thenReturn(mockBlockKey);
     when(mockBlockKey.getRange()).thenReturn(range);
     when(mockBlock.isDataReady()).thenReturn(false);
+    when(mockBlock.getLength()).thenReturn((int) (end - start + 1));
 
     doAnswer(
             invocation -> {

@@ -187,6 +187,15 @@ public class Block implements Closeable {
     if (data == null) throw new IOException("Failed to read data");
   }
 
+  /**
+   * The method which returns the length of the block.
+   *
+   * @return the length of the block
+   */
+  public int getLength() {
+    return this.blockKey.getRange().getLength();
+  }
+
   /** Releases the resources held by this block by clearing the internal data buffer. */
   @Override
   public void close() throws IOException {

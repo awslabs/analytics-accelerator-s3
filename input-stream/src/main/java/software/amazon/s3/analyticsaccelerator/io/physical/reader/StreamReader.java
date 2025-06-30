@@ -166,9 +166,7 @@ public class StreamReader implements Closeable {
       }
 
       // Update current position after reading this block
-      long blockSize =
-          block.getBlockKey().getRange().getEnd() - block.getBlockKey().getRange().getStart() + 1;
-      currentOffset += blockSize;
+      currentOffset += block.getLength();
     }
     return true;
   }
@@ -211,18 +209,17 @@ public class StreamReader implements Closeable {
    *
    * @param inputStream the input stream to read from
    * @param block the data block to populate with read data
-   * @param currentOffset the current position in the stream
+   * @param currentPos the current position in the stream
    * @return true if the block was successfully read and populated, false otherwise
    * @throws IOException if an I/O error occurs while reading or skipping bytes
    */
-  private boolean readBlock(InputStream inputStream, Block block, long currentOffset)
+  private boolean readBlock(InputStream inputStream, Block block, long currentPos)
       throws IOException {
     long blockStart = block.getBlockKey().getRange().getStart();
-    long blockEnd = block.getBlockKey().getRange().getEnd();
-    int blockSize = (int) (blockEnd - blockStart + 1);
+    int blockSize = block.getLength();
 
     // Skip bytes if there's a gap between current position and block start
-    if (!skipToBlockStart(inputStream, blockStart, currentOffset)) {
+    if (!skipToBlockStart(inputStream, blockStart, currentPos)) {
       return false;
     }
 
@@ -240,13 +237,13 @@ public class StreamReader implements Closeable {
    *
    * @param inputStream the input stream to skip bytes from
    * @param blockStart the target start position of the block
-   * @param currentOffset the current position in the stream
+   * @param currentPos the current position in the stream
    * @return true if successfully skipped to the target position, false if EOF reached
    * @throws IOException if an I/O error occurs while skipping bytes
    */
-  private boolean skipToBlockStart(InputStream inputStream, long blockStart, long currentOffset)
+  private boolean skipToBlockStart(InputStream inputStream, long blockStart, long currentPos)
       throws IOException {
-    long skipBytes = blockStart - currentOffset;
+    long skipBytes = blockStart - currentPos;
     if (skipBytes <= 0) {
       return true; // Already at or past the target position
     }
