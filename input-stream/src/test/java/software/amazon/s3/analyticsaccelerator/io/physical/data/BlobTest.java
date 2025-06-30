@@ -249,7 +249,7 @@ public class BlobTest {
   public void testExecuteWithFailure() throws IOException {
     // Given: test blob with block manager that throws exception
     BlockManager blockManager = mock(BlockManager.class);
-    doThrow(new IOException("Simulated failure"))
+    doThrow(new RuntimeException("Simulated failure"))
         .when(blockManager)
         .makeRangeAvailable(anyLong(), anyLong(), any(ReadMode.class));
 

@@ -319,7 +319,8 @@ public class PhysicalIOImpl implements PhysicalIO {
         && e.getCause().getMessage() != null
         && (e.getCause().getMessage().contains("Status Code: 412")
             || e.getCause().getMessage().contains("Error while getting block")
-            || e.getCause().getMessage().contains("Failed to read data"))) {
+            || e.getCause().getMessage().contains("Failed to read data")
+            || e.getCause().getMessage().contains("Request timed out to fill the block"))) {
       try {
         metadataStore.evictKey(this.objectKey.getS3URI());
       } finally {

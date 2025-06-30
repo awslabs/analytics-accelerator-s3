@@ -17,7 +17,6 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -121,22 +120,21 @@ public class BlockManager implements Closeable {
    * @param pos the position of the byte
    * @param readMode whether this ask corresponds to a sync or async read
    */
-  public synchronized void makePositionAvailable(long pos, ReadMode readMode) throws IOException {
+  public synchronized void makePositionAvailable(long pos, ReadMode readMode) {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     makeRangeAvailable(pos, 1, readMode);
   }
 
   /**
    * Method that ensures that a range is fully available in the object store. After calling this
-   * method the BlockStore should contain all bytes in the range and we should be able to service a
+   * method the BlockStore should contain all bytes in the range, and we should be able to service a
    * read through the BlockStore.
    *
    * @param pos start of a read
    * @param len length of the read
    * @param readMode whether this ask corresponds to a sync or async read
    */
-  public synchronized void makeRangeAvailable(long pos, long len, ReadMode readMode)
-      throws IOException {
+  public synchronized void makeRangeAvailable(long pos, long len, ReadMode readMode) {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     Preconditions.checkArgument(0 <= len, "`len` must not be negative");
 

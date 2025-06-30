@@ -228,9 +228,6 @@ public class StreamReader implements Closeable {
 
     // Read the exact number of bytes for this block
     byte[] blockData = readExactBytes(inputStream, blockSize);
-    if (blockData == null) {
-      return false;
-    }
 
     // Populate the block with the read data
     block.setData(blockData);

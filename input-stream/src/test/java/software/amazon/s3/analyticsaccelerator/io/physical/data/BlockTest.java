@@ -151,7 +151,7 @@ public class BlockTest {
   }
 
   @Test
-  void testReadSingleByteWithNegativePosition() throws IOException {
+  void testReadSingleByteWithNegativePosition() {
     Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
     block.setData(TEST_DATA_BYTES);
 
@@ -200,7 +200,7 @@ public class BlockTest {
   }
 
   @Test
-  void testReadBufferWithInvalidParameters() throws IOException {
+  void testReadBufferWithInvalidParameters() {
     Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, READ_TIMEOUT);
     block.setData(TEST_DATA_BYTES);
 
@@ -257,7 +257,6 @@ public class BlockTest {
 
     int numThreads = 10;
     ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-    @SuppressWarnings("unchecked")
     List<CompletableFuture<Integer>> futures = new ArrayList<>();
 
     for (int i = 0; i < numThreads; i++) {

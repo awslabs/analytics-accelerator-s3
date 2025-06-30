@@ -24,7 +24,6 @@ import static software.amazon.s3.analyticsaccelerator.util.Constants.ONE_MB;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.DisplayName;
@@ -283,7 +282,7 @@ public class BlockManagerTest {
   }
 
   @Test
-  void testSmallObjectPrefetching() throws IOException, InterruptedException {
+  void testSmallObjectPrefetching() {
     // Given
     ObjectClient objectClient = mock(ObjectClient.class);
     int smallObjectSize = 2 * ONE_MB; // Size less than default threshold (3MB)
@@ -303,7 +302,7 @@ public class BlockManagerTest {
   }
 
   @Test
-  void testGetBlockReturnsAvailableBlock() throws IOException {
+  void testGetBlockReturnsAvailableBlock() {
     // Given
     PhysicalIOConfiguration config =
         PhysicalIOConfiguration.builder().smallObjectsPrefetchingEnabled(false).build();
@@ -317,7 +316,7 @@ public class BlockManagerTest {
   }
 
   @Test
-  void testMakePositionAvailableRespectsReadAhead() throws IOException {
+  void testMakePositionAvailableRespectsReadAhead() {
     // Given
 
     PhysicalIOConfiguration config =
@@ -343,7 +342,7 @@ public class BlockManagerTest {
   }
 
   @Test
-  void testMakePositionAvailableRespectsLastObjectByte() throws IOException {
+  void testMakePositionAvailableRespectsLastObjectByte() {
     // Given
     final int objectSize = 5 * ONE_KB;
     ObjectClient objectClient = mock(ObjectClient.class);
@@ -362,8 +361,7 @@ public class BlockManagerTest {
   }
 
   @Test
-  void testMakeRangeAvailableDoesNotOverreadWhenSmallObjectPrefetchingIsDisabled()
-      throws IOException {
+  void testMakeRangeAvailableDoesNotOverreadWhenSmallObjectPrefetchingIsDisabled() {
     // Given: BM with 0-64KB and 64KB+1 to 128KB
     ObjectClient objectClient = mock(ObjectClient.class);
     BlockManager blockManager =
@@ -399,8 +397,7 @@ public class BlockManagerTest {
   }
 
   @Test
-  void testMakeRangeAvailableDoesNotOverreadWhenSmallObjectPrefetchingIsEnabled()
-      throws IOException {
+  void testMakeRangeAvailableDoesNotOverreadWhenSmallObjectPrefetchingIsEnabled() {
     // Given: BM with 0-64KB and 64KB+1 to 128KB
     ObjectClient objectClient = mock(ObjectClient.class);
     BlockManager blockManager = getTestBlockManager(objectClient, 136 * ONE_KB);
@@ -419,7 +416,7 @@ public class BlockManagerTest {
   }
 
   @Test
-  void testMakeRangeAvailableNotFillBlockWhenEtagChanges() throws IOException {
+  void testMakeRangeAvailableNotFillBlockWhenEtagChanges() {
     ObjectClient objectClient = mock(ObjectClient.class);
     BlockManager blockManager = getTestBlockManager(objectClient, 128 * ONE_MB);
     blockManager.makePositionAvailable(0, ReadMode.SYNC);
@@ -434,7 +431,7 @@ public class BlockManagerTest {
                     return false;
                   }
                   // Check if the If-Match header matches expected ETag
-                  return request.getEtag() != null && request.getEtag().equals(ETAG);
+                  return request.getEtag().equals(ETAG);
                 }),
             any()))
         .thenThrow(S3Exception.builder().message("PreconditionFailed").statusCode(412).build());
@@ -444,7 +441,7 @@ public class BlockManagerTest {
   }
 
   @Test
-  void regressionTestSequentialPrefetchShouldNotShrinkRanges() throws IOException {
+  void regressionTestSequentialPrefetchShouldNotShrinkRanges() {
     // Given: BlockManager with some blocks loaded
     ObjectClient objectClient = mock(ObjectClient.class);
     BlockManager blockManager =
@@ -476,7 +473,7 @@ public class BlockManagerTest {
 
   @Test
   @DisplayName("Test isBlockStoreEmpty method")
-  void testIsBlockStoreEmpty() throws IOException {
+  void testIsBlockStoreEmpty() {
     // Given
     BlockManager blockManager = getTestBlockManager(42);
     // After adding a block
@@ -487,7 +484,7 @@ public class BlockManagerTest {
 
   @Test
   @DisplayName("Test makePositionAvailable with negative position")
-  void testMakePositionAvailableNegative() throws IOException {
+  void testMakePositionAvailableNegative() {
     BlockManager blockManager = getTestBlockManager(42);
 
     assertThrows(
@@ -497,7 +494,7 @@ public class BlockManagerTest {
 
   @Test
   @DisplayName("Test makeRangeAvailable with negative values")
-  void testMakeRangeAvailableNegative() throws IOException {
+  void testMakeRangeAvailableNegative() {
     BlockManager blockManager = getTestBlockManager(42);
 
     assertThrows(
@@ -511,7 +508,7 @@ public class BlockManagerTest {
 
   @Test
   @DisplayName("Test sequential read pattern detection")
-  void testSequentialReadPattern() throws IOException {
+  void testSequentialReadPattern() {
     // Given
     ObjectClient objectClient = mock(ObjectClient.class);
     when(objectClient.getObject(any(), any()))
@@ -544,7 +541,7 @@ public class BlockManagerTest {
 
   @Test
   @DisplayName("Test cleanup method")
-  void testCleanup() throws IOException, InterruptedException {
+  void testCleanup() throws InterruptedException {
     // Given
     BlockManager blockManager = getTestBlockManager(1024);
 
@@ -562,7 +559,7 @@ public class BlockManagerTest {
   }
 
   @Test
-  void testClose() throws IOException, InterruptedException {
+  void testClose() throws InterruptedException {
     // Given
     BlockManager blockManager = getTestBlockManager(1024);
     CountDownLatch closeLatch = new CountDownLatch(1);
@@ -586,7 +583,7 @@ public class BlockManagerTest {
 
   @Test
   @DisplayName("Test makeRangeAvailable with sync read mode")
-  void testMakeRangeAvailableSync() throws IOException {
+  void testMakeRangeAvailableSync() {
     // Given
     ObjectClient objectClient = mock(ObjectClient.class);
     BlockManager blockManager = getTestBlockManager(objectClient, 100 * ONE_MB);
@@ -609,7 +606,7 @@ public class BlockManagerTest {
 
   @Test
   @DisplayName("Test truncatePos method")
-  void testTruncatePos() throws IOException {
+  void testTruncatePos() {
     // Given
     int size = 1024;
     BlockManager blockManager = getTestBlockManager(size);
@@ -677,7 +674,7 @@ public class BlockManagerTest {
   @ParameterizedTest
   @MethodSource("readModes")
   @DisplayName("Test makeRangeAvailable with async read modes")
-  void testMakeRangeAvailableAsync(ReadMode readMode) throws IOException {
+  void testMakeRangeAvailableAsync(ReadMode readMode) {
     // Given
     ObjectClient objectClient = mock(ObjectClient.class);
     BlockManager blockManager = getTestBlockManager(objectClient, 100 * ONE_MB);
@@ -709,11 +706,11 @@ public class BlockManagerTest {
     return readModes;
   }
 
-  private BlockManager getTestBlockManager(int size) throws IOException {
+  private BlockManager getTestBlockManager(int size) {
     return getTestBlockManager(mock(ObjectClient.class), size);
   }
 
-  private BlockManager getTestBlockManager(ObjectClient objectClient, int size) throws IOException {
+  private BlockManager getTestBlockManager(ObjectClient objectClient, int size) {
     return getTestBlockManager(objectClient, size, PhysicalIOConfiguration.DEFAULT);
   }
 

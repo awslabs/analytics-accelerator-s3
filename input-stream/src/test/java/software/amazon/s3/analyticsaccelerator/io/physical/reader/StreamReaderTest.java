@@ -172,7 +172,7 @@ public class StreamReaderTest {
   }
 
   @Test
-  void processReadTask_successfulRead_populatesBlocks() throws Exception {
+  void processReadTask_successfulRead_populatesBlocks() {
     Block block = createMockBlock(0, 4);
     List<Block> blocks = Collections.singletonList(block);
 
@@ -371,13 +371,13 @@ public class StreamReaderTest {
             argThat(
                 request -> {
                   Referrer referrer = request.getReferrer();
-                  return referrer != null && referrer.getReadMode() == ReadMode.ASYNC;
+                  return referrer.getReadMode() == ReadMode.ASYNC;
                 }),
             eq(mockOpenStreamInfo));
   }
 
   @Test
-  void processReadTask_removeNonFilledBlocksFromStore_filtersCorrectly() throws Exception {
+  void processReadTask_removeNonFilledBlocksFromStore_filtersCorrectly() {
     Block filledBlock = createMockBlock(0, 2);
     Block unfilledBlock = createMockBlock(3, 5);
     when(filledBlock.isDataReady()).thenReturn(true);

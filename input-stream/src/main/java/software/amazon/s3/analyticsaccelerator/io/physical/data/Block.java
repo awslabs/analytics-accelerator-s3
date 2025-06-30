@@ -177,11 +177,11 @@ public class Block implements Closeable {
   private void awaitData() throws IOException {
     try {
       if (!dataReadyLatch.await(readTimeout, TimeUnit.MILLISECONDS)) {
-        // TODO Reorganise exceptions
-        throw new IOException("Failed to read data", new IOException("Failed to read data"));
+        throw new IOException(
+            "Failed to read data", new IOException("Request timed out to fill the block"));
       }
     } catch (InterruptedException e) {
-      throw new IOException("Failed to read data", new IOException("Failed to read data"));
+      throw new IOException("Failed to read data", e);
     }
 
     if (data == null) throw new IOException("Failed to read data");

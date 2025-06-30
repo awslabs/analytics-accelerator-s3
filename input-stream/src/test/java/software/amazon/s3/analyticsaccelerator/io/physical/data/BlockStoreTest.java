@@ -31,7 +31,6 @@ import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfigurati
 import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.util.*;
 
-@SuppressWarnings("unchecked")
 @SuppressFBWarnings(
     value = "NP_NONNULL_PARAM_VIOLATION",
     justification = "We mean to pass nulls to checks")
@@ -40,9 +39,7 @@ public class BlockStoreTest {
   private static final S3URI TEST_URI = S3URI.of("foo", "bar");
   private static final String ETAG = "RANDOM";
   private static final ObjectKey objectKey = ObjectKey.builder().s3URI(TEST_URI).etag(ETAG).build();
-  private static final int OBJECT_SIZE = 100;
   private static final long DEFAULT_READ_TIMEOUT = 120_000;
-  private static final int DEFAULT_READ_RETRY_COUNT = 20;
 
   private BlobStoreIndexCache mockIndexCache;
   private Metrics mockMetrics;
@@ -61,28 +58,19 @@ public class BlockStoreTest {
   @Test
   public void constructor_nullIndexCache_throws() {
     assertThrows(
-        NullPointerException.class,
-        () -> {
-          new BlockStore(null, mockMetrics, configuration);
-        });
+        NullPointerException.class, () -> new BlockStore(null, mockMetrics, configuration));
   }
 
   @Test
   public void constructor_nullMetrics_throws() {
     assertThrows(
-        NullPointerException.class,
-        () -> {
-          new BlockStore(mockIndexCache, null, configuration);
-        });
+        NullPointerException.class, () -> new BlockStore(mockIndexCache, null, configuration));
   }
 
   @Test
   public void constructor_nullConfiguration_throws() {
     assertThrows(
-        NullPointerException.class,
-        () -> {
-          new BlockStore(mockIndexCache, mockMetrics, null);
-        });
+        NullPointerException.class, () -> new BlockStore(mockIndexCache, mockMetrics, null));
   }
 
   @Test
