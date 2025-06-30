@@ -235,6 +235,14 @@ public class StreamReader implements Closeable {
    * Skips bytes in the input stream to reach the start position of a block. Handles cases where
    * blocks may not be contiguous in the stream.
    *
+   * <p><b>Examples:</b>
+   *
+   * <ul>
+   *   <li>If currentPos=100 and blockStart=150, skips 50 bytes to reach block start
+   *   <li>If currentPos=200 and blockStart=200, no skipping needed (already at position)
+   *   <li>If currentPos=300 and blockStart=250, no skipping needed (past target position)
+   * </ul>
+   *
    * @param inputStream the input stream to skip bytes from
    * @param blockStart the target start position of the block
    * @param currentPos the current position in the stream
