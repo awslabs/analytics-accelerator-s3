@@ -277,6 +277,16 @@ public class BlobTest {
   }
 
   @Test
+  public void testPositionReadWithMissingBlock() {
+    // Given: test blob with block manager that returns empty block
+    BlockManager blockManager = mock(BlockManager.class);
+    when(blockManager.getBlock(anyLong())).thenReturn(Optional.empty());
+    Blob blob = new Blob(objectKey, mockMetadataStore, blockManager, TestTelemetry.DEFAULT);
+
+    assertThrows(IllegalStateException.class, () -> blob.read(0));
+  }
+
+  @Test
   public void testReadWithPartialBlockRead() throws IOException {
     // Given: test blob with block that returns partial data
     Block mockBlock = mock(Block.class);
