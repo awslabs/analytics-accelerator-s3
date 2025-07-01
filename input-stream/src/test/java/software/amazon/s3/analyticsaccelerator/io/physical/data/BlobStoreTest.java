@@ -342,7 +342,7 @@ public class BlobStoreTest {
     blobStore.close();
 
     // Then: Verify the hit rate
-    assertEquals(90.0, expectedHitRate, 0.01, "Hit rate should be approximately 60%");
+    assertEquals(90.0, expectedHitRate, 0.01, "Hit rate should be approximately 90%");
   }
 
   @Test

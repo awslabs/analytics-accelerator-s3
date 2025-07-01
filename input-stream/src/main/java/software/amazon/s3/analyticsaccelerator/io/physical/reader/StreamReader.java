@@ -304,18 +304,7 @@ public class StreamReader implements Closeable {
         blocks.stream().filter(block -> !block.isDataReady()).collect(Collectors.toList()));
   }
 
-  /**
-   * Closes the underlying {@link ObjectClient} and shuts down the thread pool used for asynchronous
-   * execution.
-   *
-   * @throws IOException if the {@code objectClient} fails to close properly
-   */
+  /** Shuts down the StreamReader object. */
   @Override
-  public void close() throws IOException {
-    try {
-      this.objectClient.close();
-    } finally {
-      this.threadPool.shutdown();
-    }
-  }
+  public void close() {}
 }

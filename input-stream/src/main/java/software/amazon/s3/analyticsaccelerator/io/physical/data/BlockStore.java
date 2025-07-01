@@ -161,11 +161,6 @@ public class BlockStore implements Closeable {
         try {
           iterator.remove();
           aggregatingMetrics.reduce(MetricKey.MEMORY_USAGE, blockKey.getRange().getLength());
-          LOG.debug(
-              "Removed block with key {}-{}-{} from block store during cleanup",
-              blockKey.getObjectKey().getS3URI(),
-              blockKey.getRange().getStart(),
-              blockKey.getRange().getEnd());
         } catch (Exception e) {
           LOG.error("Error in removing block {}", e.getMessage());
         }

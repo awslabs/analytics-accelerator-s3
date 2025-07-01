@@ -304,5 +304,6 @@ public class BlockManager implements Closeable {
   @Override
   public void close() {
     blockStore.close();
+    streamReader.close();
   }
 }

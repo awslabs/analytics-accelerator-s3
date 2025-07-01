@@ -399,22 +399,6 @@ public class StreamReaderTest {
                     blocksToRemove.size() == 1 && blocksToRemove.contains(unfilledBlock)));
   }
 
-  @Test
-  void close_callsObjectClientCloseAndShutsDownExecutor() throws IOException {
-    streamReader.close();
-
-    verify(mockObjectClient).close();
-    verify(mockExecutorService).shutdown();
-  }
-
-  @Test
-  void close_objectClientThrowsException_stillShutsDownExecutor() throws IOException {
-    doThrow(new IOException("Close failed")).when(mockObjectClient).close();
-
-    assertThrows(IOException.class, () -> streamReader.close());
-    verify(mockExecutorService).shutdown();
-  }
-
   // Helper to call private processReadTask using reflection for testing
   private Runnable invokeProcessReadTask(List<Block> blocks, ReadMode readMode) {
     try {
