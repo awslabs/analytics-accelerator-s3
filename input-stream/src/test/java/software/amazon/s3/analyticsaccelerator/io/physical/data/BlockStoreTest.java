@@ -240,30 +240,11 @@ public class BlockStoreTest {
     blockStore.add(block2);
 
     // When: Missing blocks are requested for range covering indexes 0-2
-    List<Integer> missingBlocks =
-        blockStore.getMissingBlockIndexesInRange(new Range(0, 24575), true);
+    List<Integer> missingBlocks = blockStore.getMissingBlockIndexesInRange(new Range(0, 24575));
 
     // Then: Only index 1 is reported as missing (indexes 0 and 2 exist)
     assertEquals(1, missingBlocks.size());
     assertTrue(missingBlocks.contains(1));
-
-    // And: Metrics are updated correctly (2 hits, 1 miss)
-    verify(mockMetrics, times(2)).add(eq(MetricKey.CACHE_HIT), eq(1L));
-    verify(mockMetrics, times(1)).add(eq(MetricKey.CACHE_MISS), eq(1L));
-  }
-
-  @Test
-  public void test__blockStore__getMissingBlockIndexesInRange_noMeasure() {
-    // Given: A BlockStore with a block at index 0
-    BlockKey blockKey = new BlockKey(objectKey, new Range(0, 8191));
-    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, DEFAULT_READ_TIMEOUT);
-    blockStore.add(block);
-
-    // When: Missing blocks are requested with measure=false
-    blockStore.getMissingBlockIndexesInRange(new Range(0, 16383), false);
-
-    // Then: No metrics are updated
-    verify(mockMetrics, never()).add(any(), anyLong());
   }
 
   @Test
@@ -415,7 +396,7 @@ public class BlockStoreTest {
   public void test__blockStore__getMissingBlockIndexesInRange_startGreaterThanEnd() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> blockStore.getMissingBlockIndexesInRange(new Range(10_000, 5_000), true));
+        () -> blockStore.getMissingBlockIndexesInRange(new Range(10_000, 5_000)));
   }
 
   @Test

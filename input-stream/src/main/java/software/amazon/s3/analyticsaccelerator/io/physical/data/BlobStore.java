@@ -34,7 +34,6 @@ import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
-import software.amazon.s3.analyticsaccelerator.util.MetricComputationUtils;
 import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
@@ -175,11 +174,6 @@ public class BlobStore implements Closeable {
       }
       blobMap.forEach((k, v) -> v.close());
       indexCache.cleanUp();
-      long hits = metrics.get(MetricKey.CACHE_HIT);
-      long miss = metrics.get(MetricKey.CACHE_MISS);
-      LOG.debug(
-          "Cache Hits: {}, Misses: {}, Hit Rate: {}%",
-          hits, miss, MetricComputationUtils.computeCacheHitRate(hits, miss));
     } catch (Exception e) {
       LOG.error("Error while closing BlobStore", e);
     }

@@ -209,25 +209,6 @@ public class BlobStoreTest {
   }
 
   @Test
-  void testCacheHitsAndMisses() throws IOException {
-    // Given: Initial cache hits and misses are 0
-    assertEquals(0, blobStore.getMetrics().get(MetricKey.CACHE_HIT));
-    assertEquals(0, blobStore.getMetrics().get(MetricKey.CACHE_MISS));
-
-    Blob blob = blobStore.get(objectKey, objectMetadata, mock(OpenStreamInformation.class));
-    byte[] b = new byte[TEST_DATA.length()];
-    blob.read(b, 0, b.length, 0);
-
-    assertEquals(0, blobStore.getMetrics().get(MetricKey.CACHE_HIT));
-    assertEquals(1, blobStore.getMetrics().get(MetricKey.CACHE_MISS));
-
-    blob.read(b, 0, b.length, 0);
-
-    assertEquals(1, blobStore.getMetrics().get(MetricKey.CACHE_HIT));
-    assertEquals(1, blobStore.getMetrics().get(MetricKey.CACHE_MISS));
-  }
-
-  @Test
   void testMemoryUsageAfterEviction() throws IOException, InterruptedException {
     PhysicalIOConfiguration config =
         PhysicalIOConfiguration.builder()
@@ -323,26 +304,16 @@ public class BlobStoreTest {
 
     byte[] data = new byte[TEST_DATA.length()];
     try {
-
       for (int i = 0; i <= 9; i++) {
         blob1.read(data, 0, data.length, 0);
         blob2.read(data, 0, data.length, 0);
       }
-
     } catch (IOException e) {
       fail("Failed to read data from blobs", e);
     }
 
-    // Record metrics before close
-    long cacheHits = blobStore.getMetrics().get(MetricKey.CACHE_HIT);
-    long cacheMisses = blobStore.getMetrics().get(MetricKey.CACHE_MISS);
-    double expectedHitRate = MetricComputationUtils.computeCacheHitRate(cacheHits, cacheMisses);
-
     // When: Close the BlobStore
-    blobStore.close();
-
-    // Then: Verify the hit rate
-    assertEquals(90.0, expectedHitRate, 0.01, "Hit rate should be approximately 90%");
+    assertDoesNotThrow(() -> blobStore.close());
   }
 
   @Test

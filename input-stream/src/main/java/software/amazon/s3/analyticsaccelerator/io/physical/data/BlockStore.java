@@ -17,11 +17,11 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,7 +65,11 @@ public class BlockStore implements Closeable {
     this.indexCache = indexCache;
     this.aggregatingMetrics = aggregatingMetrics;
     this.configuration = configuration;
-    blocks = new ConcurrentHashMap<>();
+    // All methods in BlockStore which make a change in blocks map,
+    // are called by BlockManager. These caller BlockManager methods
+    // are synchronised so, we can use HashMap<> here rather than
+    // synchronised or ConcurrentHashMap to optimize the performance
+    blocks = new HashMap<>();
   }
 
   /**
@@ -121,25 +125,19 @@ public class BlockStore implements Closeable {
    * Returns the list of block indexes that are missing for the given byte range.
    *
    * @param range the byte range to check for missing blocks
-   * @param measure whether to measure cache hits and misses. If true, metrics will be updated.
    * @return a list of missing block indexes within the specified range
    */
-  public List<Integer> getMissingBlockIndexesInRange(Range range, boolean measure) {
+  public List<Integer> getMissingBlockIndexesInRange(Range range) {
     return getMissingBlockIndexesInRange(
-        getPositionIndex(range.getStart()), getPositionIndex(range.getEnd()), measure);
+        getPositionIndex(range.getStart()), getPositionIndex(range.getEnd()));
   }
 
-  private List<Integer> getMissingBlockIndexesInRange(
-      int startIndex, int endIndex, boolean measure) {
+  private List<Integer> getMissingBlockIndexesInRange(int startIndex, int endIndex) {
     List<Integer> missingBlockIndexes = new ArrayList<>();
 
     for (int i = startIndex; i <= endIndex; i++) {
       if (!blocks.containsKey(i)) {
         missingBlockIndexes.add(i);
-
-        if (measure) aggregatingMetrics.add(MetricKey.CACHE_MISS, 1L);
-      } else {
-        if (measure) aggregatingMetrics.add(MetricKey.CACHE_HIT, 1L);
       }
     }
     return missingBlockIndexes;
