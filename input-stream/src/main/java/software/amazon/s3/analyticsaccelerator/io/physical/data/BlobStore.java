@@ -20,6 +20,7 @@ import java.io.Closeable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -33,7 +34,6 @@ import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
-import software.amazon.s3.analyticsaccelerator.util.MetricComputationUtils;
 import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
@@ -48,6 +48,7 @@ public class BlobStore implements Closeable {
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
   private final PhysicalIOConfiguration configuration;
+  private final ExecutorService threadPool;
 
   @Getter private final Metrics metrics;
   final BlobStoreIndexCache indexCache;
@@ -62,12 +63,14 @@ public class BlobStore implements Closeable {
    * @param telemetry an instance of {@link Telemetry} to use
    * @param configuration the PhysicalIO configuration
    * @param metrics an instance of {@link Metrics} to track metrics across the factory
+   * @param threadPool a thread pool for async operations
    */
   public BlobStore(
       @NonNull ObjectClient objectClient,
       @NonNull Telemetry telemetry,
       @NonNull PhysicalIOConfiguration configuration,
-      @NonNull Metrics metrics) {
+      @NonNull Metrics metrics,
+      @NonNull ExecutorService threadPool) {
     this.objectClient = objectClient;
     this.telemetry = telemetry;
     this.metrics = metrics;
@@ -82,6 +85,7 @@ public class BlobStore implements Closeable {
               return cleanupThread;
             });
     this.configuration = configuration;
+    this.threadPool = threadPool;
   }
 
   /** Schedules a periodic cleanup task to sync the blop map with the index cache */
@@ -132,14 +136,15 @@ public class BlobStore implements Closeable {
                 uri,
                 metadata,
                 new BlockManager(
-                    uri,
+                    objectKey,
                     objectClient,
                     metadata,
                     telemetry,
                     configuration,
                     metrics,
                     indexCache,
-                    openStreamInformation),
+                    openStreamInformation,
+                    threadPool),
                 telemetry));
   }
 
@@ -169,11 +174,6 @@ public class BlobStore implements Closeable {
       }
       blobMap.forEach((k, v) -> v.close());
       indexCache.cleanUp();
-      long hits = metrics.get(MetricKey.CACHE_HIT);
-      long miss = metrics.get(MetricKey.CACHE_MISS);
-      LOG.debug(
-          "Cache Hits: {}, Misses: {}, Hit Rate: {}%",
-          hits, miss, MetricComputationUtils.computeCacheHitRate(hits, miss));
     } catch (Exception e) {
       LOG.error("Error while closing BlobStore", e);
     }

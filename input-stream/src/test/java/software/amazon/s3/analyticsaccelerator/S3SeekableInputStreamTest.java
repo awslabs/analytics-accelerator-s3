@@ -370,7 +370,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
             fakeObjectClient,
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT,
-            mock(Metrics.class));
+            mock(Metrics.class),
+            threadPool);
 
     AtomicReference<Throwable> thrown = new AtomicReference<>();
 
@@ -570,7 +571,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
             fakeObjectClient,
             TestTelemetry.DEFAULT,
             PhysicalIOConfiguration.DEFAULT,
-            mock(Metrics.class));
+            mock(Metrics.class),
+            threadPool);
 
     return new S3SeekableInputStream(
         s3URI,
