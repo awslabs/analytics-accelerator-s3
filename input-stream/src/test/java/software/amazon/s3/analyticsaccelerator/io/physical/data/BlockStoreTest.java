@@ -197,10 +197,12 @@ public class BlockStoreTest {
   }
 
   @Test
-  public void test__blockStore__remove() {
+  public void test__blockStore__remove() throws IOException {
     // Given: A block in the store
-    BlockKey blockKey = new BlockKey(objectKey, new Range(0, 8191));
-    Block block = new Block(blockKey, 0, mockIndexCache, mockMetrics, DEFAULT_READ_TIMEOUT);
+    BlockKey blockKey = new BlockKey(objectKey, new Range(0, 4));
+    Block block = spy(new Block(blockKey, 0, mockIndexCache, mockMetrics, DEFAULT_READ_TIMEOUT));
+    block.setData(new byte[] {1, 2, 3, 4, 5});
+    when(block.isDataReady()).thenReturn(true);
     blockStore.add(block);
 
     // When: The block is removed
@@ -211,7 +213,11 @@ public class BlockStoreTest {
     assertFalse(result.isPresent());
 
     // And: Memory usage metrics are updated
-    verify(mockMetrics).reduce(eq(MetricKey.MEMORY_USAGE), eq(8192L)); // Range length is 8192
+    verify(mockMetrics).add(eq(MetricKey.MEMORY_USAGE), eq(5L)); // Range length is 4
+    verify(mockMetrics).reduce(eq(MetricKey.MEMORY_USAGE), eq(5L)); // Range length is 4
+
+    // And: Block's close method is called
+    verify(block).close();
   }
 
   @Test
@@ -225,6 +231,28 @@ public class BlockStoreTest {
 
     // Then: No metrics are updated
     verify(mockMetrics, never()).reduce(any(), anyLong());
+  }
+
+  @Test
+  public void test__blockStore__remove_dataNotReady() throws IOException {
+    // Given: A block in the store with data not ready
+    BlockKey blockKey = new BlockKey(objectKey, new Range(0, 4));
+    Block block = spy(new Block(blockKey, 0, mockIndexCache, mockMetrics, DEFAULT_READ_TIMEOUT));
+    when(block.isDataReady()).thenReturn(false);
+    blockStore.add(block);
+
+    // When: The block is removed
+    blockStore.remove(block);
+
+    // Then: The block is no longer in the store
+    Optional<Block> result = blockStore.getBlockByIndex(0);
+    assertFalse(result.isPresent());
+
+    // And: Memory usage metrics are not updated
+    verify(mockMetrics, never()).reduce(any(), anyLong());
+
+    // And: Block's close method is not called
+    verify(block, never()).close();
   }
 
   @Test

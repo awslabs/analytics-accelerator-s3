@@ -116,8 +116,9 @@ public class BlockStore implements Closeable {
     }
 
     int blockIndex = getBlockIndex(block);
-    if (blocks.remove(blockIndex) != null) {
-      aggregatingMetrics.reduce(MetricKey.MEMORY_USAGE, block.getBlockKey().getRange().getLength());
+    if (blocks.remove(blockIndex) != null && block.isDataReady()) {
+      aggregatingMetrics.reduce(MetricKey.MEMORY_USAGE, block.getLength());
+      safeClose(block);
     }
   }
 
