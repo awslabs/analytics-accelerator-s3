@@ -102,7 +102,12 @@ public class BlockStore implements Closeable {
    * @param block the {@code Block} to add
    */
   public void add(Block block) {
-    this.blocks.putIfAbsent(getBlockIndex(block), block);
+    int blockIndex = getBlockIndex(block);
+    if (blocks.containsKey(blockIndex)) {
+      LOG.debug("Block already exists at index {}, skipping add", blockIndex);
+    } else {
+      blocks.put(blockIndex, block);
+    }
   }
 
   /**

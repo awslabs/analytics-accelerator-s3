@@ -168,7 +168,17 @@ public class BlockManager implements Closeable {
         blockStore.getMissingBlockIndexesInRange(new Range(pos, effectiveEnd));
 
     // Return if all blocks are in store
-    if (missingBlockIndexes.isEmpty()) return;
+    if (missingBlockIndexes.isEmpty()) {
+      // Normally this case shouldn't happen since the methods
+      // are synchronized, but just in case
+      LOG.debug(
+          "All blocks are in store for key: {}, pos: {}, len: {}, effectiveEnd: {}",
+          objectKey.getS3URI().getKey(),
+          pos,
+          len,
+          effectiveEnd);
+      return;
+    }
 
     // Split missing blocks into groups of sequential indexes that respect maximum range size
     List<List<Integer>> groupedReads = splitReads(missingBlockIndexes);

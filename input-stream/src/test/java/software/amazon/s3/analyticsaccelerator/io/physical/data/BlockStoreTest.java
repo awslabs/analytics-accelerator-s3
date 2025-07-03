@@ -187,13 +187,16 @@ public class BlockStoreTest {
     // When: The first block is added
     blockStore.add(block1);
 
-    // And: A second block with the same index is added
+    // And: A second block with the same index is added (should trigger debug log)
     blockStore.add(block2);
 
     // Then: The first block remains in the store
     Optional<Block> result = blockStore.getBlockByIndex(0);
     assertTrue(result.isPresent());
     assertEquals(0, result.get().getGeneration());
+
+    // And: Only one block exists at index 0
+    assertEquals(block1, result.get());
   }
 
   @Test
