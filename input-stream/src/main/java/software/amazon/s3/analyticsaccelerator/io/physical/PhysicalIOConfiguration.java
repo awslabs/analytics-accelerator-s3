@@ -37,8 +37,6 @@ public class PhysicalIOConfiguration {
   private static final boolean DEFAULT_USE_SINGLE_CACHE = true;
   private static final long DEFAULT_BLOCK_SIZE_BYTES = 8 * ONE_MB;
   private static final long DEFAULT_READ_AHEAD_BYTES = 64 * ONE_KB;
-  private static final long DEFAULT_MAX_RANGE_SIZE = 8 * ONE_MB;
-  private static final long DEFAULT_PART_SIZE = 8 * ONE_MB;
   private static final double DEFAULT_SEQUENTIAL_PREFETCH_BASE = 2.0;
   private static final double DEFAULT_SEQUENTIAL_PREFETCH_SPEED = 1.0;
   private static final long DEFAULT_BLOCK_READ_TIMEOUT = 30_000;
@@ -48,6 +46,8 @@ public class PhysicalIOConfiguration {
   private static final long DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD = 8 * ONE_MB;
   private static final int DEFAULT_THREAD_POOL_SIZE = 96;
   private static final long DEFAULT_READ_BUFFER_SIZE = 8 * ONE_KB;
+  private static final long DEFAULT_TARGET_REQUEST_SIZE = 8 * ONE_MB;
+  private static final double DEFAULT_REQUEST_TOLERANCE_RATIO = 1.4;
 
   /**
    * Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_MEMORY_CAPACITY_BYTES} by default.
@@ -91,19 +91,6 @@ public class PhysicalIOConfiguration {
   @Builder.Default private long readAheadBytes = DEFAULT_READ_AHEAD_BYTES;
 
   private static final String READ_AHEAD_BYTES_KEY = "readaheadbytes";
-
-  /**
-   * Maximum range size, in bytes. {@link PhysicalIOConfiguration#DEFAULT_MAX_RANGE_SIZE} by
-   * default.
-   */
-  @Builder.Default private long maxRangeSizeBytes = DEFAULT_MAX_RANGE_SIZE;
-
-  private static final String MAX_RANGE_SIZE_BYTES_KEY = "maxrangesizebytes";
-
-  /** Part size, in bytes. {@link PhysicalIOConfiguration#DEFAULT_PART_SIZE} by default. */
-  @Builder.Default private long partSizeBytes = DEFAULT_PART_SIZE;
-
-  private static final String PART_SIZE_BYTES_KEY = "partsizebytes";
 
   /**
    * Base constant in the sequential prefetching geometric progression. See {@link
@@ -155,6 +142,22 @@ public class PhysicalIOConfiguration {
   private static final String READ_BUFFER_SIZE_KEY = "readbuffersize";
   @Builder.Default private long readBufferSize = DEFAULT_READ_BUFFER_SIZE;
 
+  /**
+   * Target S3 request size, in bytes. {@link PhysicalIOConfiguration#DEFAULT_TARGET_REQUEST_SIZE}
+   * by default.
+   */
+  @Builder.Default private long targetRequestSize = DEFAULT_TARGET_REQUEST_SIZE;
+
+  private static final String TARGET_REQUEST_SIZE_KEY = "target.request.size";
+
+  /**
+   * Request tolerance ratio. {@link PhysicalIOConfiguration#DEFAULT_REQUEST_TOLERANCE_RATIO} by
+   * default.
+   */
+  @Builder.Default private double requestToleranceRatio = DEFAULT_REQUEST_TOLERANCE_RATIO;
+
+  private static final String REQUEST_TOLERANCE_RATIO_KEY = "request.tolerance.ratio";
+
   /** Default set of settings for {@link PhysicalIO} */
   public static final PhysicalIOConfiguration DEFAULT = PhysicalIOConfiguration.builder().build();
 
@@ -179,8 +182,6 @@ public class PhysicalIOConfiguration {
             configuration.getInt(METADATA_STORE_CAPACITY_KEY, DEFAULT_CAPACITY_METADATA_STORE))
         .blockSizeBytes(configuration.getLong(BLOCK_SIZE_BYTES_KEY, DEFAULT_BLOCK_SIZE_BYTES))
         .readAheadBytes(configuration.getLong(READ_AHEAD_BYTES_KEY, DEFAULT_READ_AHEAD_BYTES))
-        .maxRangeSizeBytes(configuration.getLong(MAX_RANGE_SIZE_BYTES_KEY, DEFAULT_MAX_RANGE_SIZE))
-        .partSizeBytes(configuration.getLong(PART_SIZE_BYTES_KEY, DEFAULT_PART_SIZE))
         .sequentialPrefetchBase(
             configuration.getDouble(SEQUENTIAL_PREFETCH_BASE_KEY, DEFAULT_SEQUENTIAL_PREFETCH_BASE))
         .sequentialPrefetchSpeed(
@@ -197,6 +198,10 @@ public class PhysicalIOConfiguration {
                 SMALL_OBJECT_SIZE_THRESHOLD_KEY, DEFAULT_SMALL_OBJECT_SIZE_THRESHOLD))
         .threadPoolSize(configuration.getInt(THREAD_POOL_SIZE_KEY, DEFAULT_THREAD_POOL_SIZE))
         .readBufferSize(configuration.getLong(READ_BUFFER_SIZE_KEY, DEFAULT_READ_BUFFER_SIZE))
+        .targetRequestSize(
+            configuration.getLong(TARGET_REQUEST_SIZE_KEY, DEFAULT_TARGET_REQUEST_SIZE))
+        .requestToleranceRatio(
+            configuration.getDouble(REQUEST_TOLERANCE_RATIO_KEY, DEFAULT_REQUEST_TOLERANCE_RATIO))
         .build();
   }
 
@@ -209,8 +214,6 @@ public class PhysicalIOConfiguration {
    * @param metadataStoreCapacity The capacity of the MetadataStore
    * @param blockSizeBytes Block size, in bytes
    * @param readAheadBytes Read ahead, in bytes
-   * @param maxRangeSizeBytes Maximum physical read issued against the object store
-   * @param partSizeBytes What part size to use when splitting up logical reads
    * @param sequentialPrefetchBase Scale factor to control the size of sequentially prefetched
    *     physical blocks. Example: A constant of 2.0 means doubling the block sizes.
    * @param sequentialPrefetchSpeed Constant controlling the rate of growth of sequentially
@@ -221,6 +224,8 @@ public class PhysicalIOConfiguration {
    * @param smallObjectSizeThreshold Maximum size in bytes for an object to be considered small
    * @param threadPoolSize Size of thread pool to be used for async operations
    * @param readBufferSize Size of the maximum buffer for read operations
+   * @param targetRequestSize Target S3 request size, in bytes
+   * @param requestToleranceRatio Request tolerance ratio
    */
   @Builder
   private PhysicalIOConfiguration(
@@ -230,8 +235,6 @@ public class PhysicalIOConfiguration {
       int metadataStoreCapacity,
       long blockSizeBytes,
       long readAheadBytes,
-      long maxRangeSizeBytes,
-      long partSizeBytes,
       double sequentialPrefetchBase,
       double sequentialPrefetchSpeed,
       long blockReadTimeout,
@@ -239,7 +242,9 @@ public class PhysicalIOConfiguration {
       boolean smallObjectsPrefetchingEnabled,
       long smallObjectSizeThreshold,
       int threadPoolSize,
-      long readBufferSize) {
+      long readBufferSize,
+      long targetRequestSize,
+      double requestToleranceRatio) {
     Preconditions.checkArgument(memoryCapacityBytes > 0, "`memoryCapacityBytes` must be positive");
     Preconditions.checkArgument(
         memoryCleanupFrequencyMilliseconds > 0,
@@ -250,8 +255,6 @@ public class PhysicalIOConfiguration {
         metadataStoreCapacity > 0, "`metadataStoreCapacity` must be positive");
     Preconditions.checkArgument(blockSizeBytes > 0, "`blockSizeBytes` must be positive");
     Preconditions.checkArgument(readAheadBytes > 0, "`readAheadLengthBytes` must be positive");
-    Preconditions.checkArgument(maxRangeSizeBytes > 0, "`maxRangeSize` must be positive");
-    Preconditions.checkArgument(partSizeBytes > 0, "`partSize` must be positive");
     Preconditions.checkArgument(
         sequentialPrefetchBase > 0, "`sequentialPrefetchBase` must be positive");
     Preconditions.checkArgument(
@@ -262,6 +265,9 @@ public class PhysicalIOConfiguration {
         smallObjectSizeThreshold > 0, "`smallObjectSizeThreshold` must be positive");
     Preconditions.checkNotNull(threadPoolSize > 0, "`threadPoolSize` must be positive");
     Preconditions.checkArgument(readBufferSize > 0, "`readBufferSize` must be positive");
+    Preconditions.checkArgument(targetRequestSize > 0, "`targetRequestSize` must be positive");
+    Preconditions.checkArgument(
+        requestToleranceRatio >= 1, "`requestToleranceRatio` must be greater or equal than 1");
 
     this.memoryCapacityBytes = memoryCapacityBytes;
     this.memoryCleanupFrequencyMilliseconds = memoryCleanupFrequencyMilliseconds;
@@ -269,8 +275,6 @@ public class PhysicalIOConfiguration {
     this.metadataStoreCapacity = metadataStoreCapacity;
     this.blockSizeBytes = blockSizeBytes;
     this.readAheadBytes = readAheadBytes;
-    this.maxRangeSizeBytes = maxRangeSizeBytes;
-    this.partSizeBytes = partSizeBytes;
     this.sequentialPrefetchBase = sequentialPrefetchBase;
     this.sequentialPrefetchSpeed = sequentialPrefetchSpeed;
     this.blockReadTimeout = blockReadTimeout;
@@ -279,6 +283,8 @@ public class PhysicalIOConfiguration {
     this.smallObjectSizeThreshold = smallObjectSizeThreshold;
     this.threadPoolSize = threadPoolSize;
     this.readBufferSize = readBufferSize;
+    this.targetRequestSize = targetRequestSize;
+    this.requestToleranceRatio = requestToleranceRatio;
   }
 
   @Override
@@ -293,8 +299,6 @@ public class PhysicalIOConfiguration {
     builder.append("\tmetadataStoreCapacity: " + metadataStoreCapacity + "\n");
     builder.append("\tblockSizeBytes: " + blockSizeBytes + "\n");
     builder.append("\treadAheadBytes: " + readAheadBytes + "\n");
-    builder.append("\tmaxRangeSizeBytes: " + maxRangeSizeBytes + "\n");
-    builder.append("\tpartSizeBytes: " + partSizeBytes + "\n");
     builder.append("\tsequentialPrefetchBase: " + sequentialPrefetchBase + "\n");
     builder.append("\tsequentialPrefetchSpeed: " + sequentialPrefetchSpeed + "\n");
     builder.append("\tblockReadTimeout: " + blockReadTimeout + "\n");
@@ -303,6 +307,8 @@ public class PhysicalIOConfiguration {
     builder.append("\tsmallObjectSizeThreshold: " + smallObjectSizeThreshold + "\n");
     builder.append("\tthreadPoolSize: " + threadPoolSize + "\n");
     builder.append("\treadBufferSize: " + readBufferSize + "\n");
+    builder.append("\ttargetRequestSize: " + targetRequestSize + "\n");
+    builder.append("\trequestToleranceRatio: " + requestToleranceRatio + "\n");
 
     return builder.toString();
   }

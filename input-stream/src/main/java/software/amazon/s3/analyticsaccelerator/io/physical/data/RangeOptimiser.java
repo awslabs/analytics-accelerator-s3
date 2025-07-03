@@ -16,117 +16,83 @@
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import lombok.Value;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
-import software.amazon.s3.analyticsaccelerator.request.Range;
 
 /**
- * RangeSplitter is responsible for splitting up big ranges into smaller reads. The need for such
- * functionality arises from sequential prefetching. When we decide that, e.g., the next 128MB chunk
- * of an object is needed with high confidence, then we should not fetch this in a single request.
+ * Optimizes read operations by grouping sequential block indexes and splitting large groups into
+ * smaller chunks based on configured target request size and tolerance ratio.
  *
- * <p>This class is capable of implementing heuristics on how to fetch ranges of different sizes
- * optimally.
+ * <p>This class prevents inefficient large requests by splitting oversized sequential groups while
+ * merging small remainders to avoid creating too many tiny requests.
  */
 @Value
 public class RangeOptimiser {
   PhysicalIOConfiguration configuration;
 
   /**
-   * Given a list of ranges, return a potentially new set of ranges which is more optimal to fetch
-   * (i.e., split up huge ranges based on a heuristic).
+   * Optimizes read operations by grouping sequential block indexes and splitting large groups.
    *
-   * @param ranges a list of ranges
-   * @return a potentially different list of ranges with big ranges split up
+   * <p>Process:
+   *
+   * <ol>
+   *   <li>Groups consecutive block indexes into sequences
+   *   <li>Splits groups exceeding the maximum threshold into target-sized chunks
+   *   <li>Merges small remainder chunks when possible to avoid inefficient tiny requests
+   * </ol>
+   *
+   * <p>Example with 3 blocks per target and 1.4 tolerance ratio (max 4 blocks before split):
+   *
+   * <ul>
+   *   <li>Input: [1,2,3,4,5,6,7] → Groups: [[1,2,3,4,5,6,7]]
+   *   <li>7 > 4 threshold → Split: [[1,2,3], [4,5,6], [7]]
+   *   <li>Merge if [4,5,6] + [7] ≤ 4 → Result: [[1,2,3], [4,5,6,7]]
+   * </ul>
+   *
+   * @param blockIndexes ordered list of block indexes to optimize
+   * @return optimized groups of sequential block indexes within size limits
    */
-  public List<Range> splitRanges(List<Range> ranges) {
-    List<Range> splits = new LinkedList<>();
-    for (Range range : ranges) {
-      if (range.getLength() > configuration.getMaxRangeSizeBytes()) {
-        splitRange(range.getStart(), range.getEnd()).forEach(splits::add);
-      } else {
-        splits.add(range);
-      }
-    }
-
-    return splits;
-  }
-
-  private List<Range> splitRange(long start, long end) {
-    long nextRangeStart = start;
-    List<Range> generatedRanges = new LinkedList<>();
-
-    while (nextRangeStart < end) {
-      long rangeEnd = Math.min(nextRangeStart + configuration.getPartSizeBytes() - 1, end);
-      generatedRanges.add(new Range(nextRangeStart, rangeEnd));
-      nextRangeStart = rangeEnd + 1;
-    }
-
-    return generatedRanges;
-  }
-
-  /**
-   * Groups sequential block indexes into separate lists, ensuring each group doesn't exceed the
-   * maximum block count. This method optimizes read operations by: 1. First grouping blocks by
-   * sequential indexes (blocks with consecutive numbers) 2. Then splitting any large sequential
-   * groups that exceed maxRangeBlocks into smaller chunks of partSizeBlocks
-   *
-   * <p>Example 1 - Basic sequential grouping: Input: [1,2,3,5,6,8,9,10] Output:
-   * [[1,2,3],[5,6],[8,9,10]] (Blocks are grouped by sequential indexes regardless of size limits)
-   *
-   * <p>Example 2 - Size-based splitting: Input: [1,2,3,4,5,6,7,8,9,10] With maxRangeBlocks=4 and
-   * partSizeBlocks=3: Output: [[1,2,3], [4,5,6], [7,8,9], [10]] (Since the sequential group exceeds
-   * maxRangeBlocks=4, it's split into chunks of partSizeBlocks=3)
-   *
-   * <p>Example 3 - Mixed sequential and size-based splitting: Input:
-   * [1,2,3,4,5,6,10,11,12,13,14,15,16,17] With maxRangeBlocks=3 and partSizeBlocks=2: Output:
-   * [[1,2], [3,4], [5,6], [10,11], [12,13], [14,15], [16,17]] (Each sequential group exceeds
-   * maxRangeBlocks=3, so each is split into chunks of partSizeBlocks=2)
-   *
-   * @param blockIndexes an ordered list of block indexes
-   * @param readBufferSize size of each block in bytes
-   * @return a list of lists where each inner list contains sequential block indexes within size
-   *     limits
-   */
-  public List<List<Integer>> optimizeReads(List<Integer> blockIndexes, long readBufferSize) {
+  public List<List<Integer>> optimizeReads(List<Integer> blockIndexes) {
     if (blockIndexes == null || blockIndexes.isEmpty()) {
       return new ArrayList<>();
     }
 
-    int maxRangeBlocks = calculateMaxRangeBlocks(readBufferSize);
-    int partSizeBlocks = calculatePartSizeBlocks(readBufferSize);
+    int blocksPerTargetRequest = calculateBlocksPerTargetRequest();
+    int maxBlocksBeforeSplit = calculateMaxBlocksBeforeSplit(blocksPerTargetRequest);
 
     List<List<Integer>> sequentialGroups = groupSequentialBlocks(blockIndexes);
-    return splitLargeGroups(sequentialGroups, maxRangeBlocks, partSizeBlocks);
+    return splitLargeGroups(sequentialGroups, maxBlocksBeforeSplit, blocksPerTargetRequest);
   }
 
   /**
-   * Calculate maximum blocks per read based on configuration limit.
+   * Calculates how many blocks fit within the configured target request size.
    *
-   * @param readBufferSize size of each block in bytes
-   * @return maximum number of blocks per read operation
+   * @return number of blocks per target request (minimum 1)
    */
-  private int calculateMaxRangeBlocks(long readBufferSize) {
-    return Math.max(1, (int) (configuration.getMaxRangeSizeBytes() / readBufferSize));
+  private int calculateBlocksPerTargetRequest() {
+    return Math.max(
+        1, (int) (configuration.getTargetRequestSize() / configuration.getReadBufferSize()));
   }
 
   /**
-   * Calculate partition size in blocks for splitting large groups.
+   * Calculates the maximum number of blocks allowed in a group before splitting is required. Uses
+   * rounding to convert the tolerance ratio calculation to the nearest integer.
    *
-   * @param readBufferSize size of each block in bytes
-   * @return number of blocks per partition
+   * @param blocksPerTargetRequest number of blocks that fit in target request size
+   * @return maximum blocks allowed before splitting (rounded from tolerance calculation)
    */
-  private int calculatePartSizeBlocks(long readBufferSize) {
-    return Math.max(1, (int) (configuration.getPartSizeBytes() / readBufferSize));
+  private int calculateMaxBlocksBeforeSplit(int blocksPerTargetRequest) {
+    return (int) Math.round(blocksPerTargetRequest * configuration.getRequestToleranceRatio());
   }
 
   /**
-   * Group consecutive block indexes into sequences.
+   * Groups consecutive block indexes into sequential lists.
+   *
+   * <p>Example: [1,2,3,5,6,8,9,10] → [[1,2,3], [5,6], [8,9,10]]
    *
    * @param blockIndexes ordered list of block indexes
-   * @return list of sequential groups
+   * @return list of sequential groups where each group contains consecutive indexes
    */
   private List<List<Integer>> groupSequentialBlocks(List<Integer> blockIndexes) {
     List<List<Integer>> sequentialGroups = new ArrayList<>();
@@ -157,24 +123,27 @@ public class RangeOptimiser {
   }
 
   /**
-   * Split groups exceeding maxRangeBlocks into smaller chunks.
+   * Splits groups that exceed the maximum threshold into smaller target-sized chunks.
    *
-   * @param sequentialGroups list of sequential block groups
-   * @param maxRangeBlocks maximum blocks allowed per group
-   * @param partSizeBlocks size of chunks for splitting large groups
-   * @return list of groups within size limits
+   * <p>Groups within the threshold are left unchanged. Oversized groups are split into chunks of
+   * the target size.
+   *
+   * @param sequentialGroups list of sequential block groups to evaluate
+   * @param maxBlocksBeforeSplit maximum blocks allowed before splitting is required
+   * @param blocksPerTargetRequest target chunk size when splitting large groups
+   * @return list of groups where all groups are within acceptable size limits
    */
   private List<List<Integer>> splitLargeGroups(
-      List<List<Integer>> sequentialGroups, int maxRangeBlocks, int partSizeBlocks) {
+      List<List<Integer>> sequentialGroups, int maxBlocksBeforeSplit, int blocksPerTargetRequest) {
     List<List<Integer>> result = new ArrayList<>();
 
     for (List<Integer> group : sequentialGroups) {
-      if (group.size() <= maxRangeBlocks) {
-        // Group fits within limit
+      if (group.size() <= maxBlocksBeforeSplit) {
+        // Group is within threshold, don't split
         result.add(group);
       } else {
-        // Split oversized group
-        result.addAll(splitGroupIntoChunks(group, partSizeBlocks));
+        // Split oversized group into target-sized chunks
+        result.addAll(splitGroupIntoChunks(group, blocksPerTargetRequest));
       }
     }
 
@@ -182,24 +151,51 @@ public class RangeOptimiser {
   }
 
   /**
-   * Split a group into fixed-size chunks.
+   * Splits a large group into target-sized chunks with intelligent remainder handling.
    *
-   * @param group list of block indexes to split
-   * @param partSizeBlocks maximum size of each chunk
-   * @return list of chunks
+   * <p>Creates chunks of the target size, but attempts to merge small final chunks with the
+   * previous chunk if the combined size stays within the tolerance threshold. This prevents
+   * creating inefficiently small requests.
+   *
+   * <p>Example with target=3, tolerance=4:
+   *
+   * <ul>
+   *   <li>Input: [1,2,3,4,5,6,7] → Normal split: [[1,2,3], [4,5,6], [7]]
+   *   <li>Check merge: [4,5,6] + [7] = 4 ≤ 4 threshold → Merge
+   *   <li>Result: [[1,2,3], [4,5,6,7]]
+   * </ul>
+   *
+   * @param group list of block indexes to split into smaller chunks
+   * @param blocksPerTargetRequest target size for each chunk
+   * @return list of optimally-sized chunks with merged remainders when beneficial
    */
-  private List<List<Integer>> splitGroupIntoChunks(List<Integer> group, int partSizeBlocks) {
-    List<List<Integer>> chunks = new ArrayList<>();
-
-    for (int i = 0; i < group.size(); i += partSizeBlocks) {
-      List<Integer> chunk = new ArrayList<>();
-      // Add up to partSizeBlocks elements to chunk
-      for (int j = i; j < i + partSizeBlocks && j < group.size(); j++) {
-        chunk.add(group.get(j));
-      }
-      chunks.add(chunk);
-    }
-
+  private List<List<Integer>> splitGroupIntoChunks(
+      List<Integer> group, int blocksPerTargetRequest) {
+    int maxBlocksBeforeSplit = calculateMaxBlocksBeforeSplit(blocksPerTargetRequest);
+    List<List<Integer>> chunks = createInitialChunks(group, blocksPerTargetRequest);
+    mergeSmallFinalChunk(chunks, maxBlocksBeforeSplit);
     return chunks;
+  }
+
+  private List<List<Integer>> createInitialChunks(List<Integer> group, int blocksPerTargetRequest) {
+    List<List<Integer>> chunks = new ArrayList<>(group.size() / blocksPerTargetRequest + 1);
+    for (int i = 0; i < group.size(); i += blocksPerTargetRequest) {
+      int endIndex = Math.min(i + blocksPerTargetRequest, group.size());
+      chunks.add(new ArrayList<>(group.subList(i, endIndex)));
+    }
+    return chunks;
+  }
+
+  private void mergeSmallFinalChunk(List<List<Integer>> chunks, int maxBlocksBeforeSplit) {
+    if (chunks.size() < 2) return;
+
+    List<Integer> lastChunk = chunks.get(chunks.size() - 1);
+    List<Integer> previousChunk = chunks.get(chunks.size() - 2);
+
+    if (lastChunk.size() < previousChunk.size()
+        && (lastChunk.size() + previousChunk.size()) <= maxBlocksBeforeSplit) {
+      previousChunk.addAll(lastChunk);
+      chunks.remove(chunks.size() - 1);
+    }
   }
 }

@@ -213,10 +213,10 @@ public class BlockManager implements Closeable {
    * @param blockIndexes an ordered list of block indexes
    * @return a list of lists where each inner list contains sequential block indexes within size
    *     limits
-   * @see RangeOptimiser#optimizeReads(List, long)
+   * @see RangeOptimiser#optimizeReads(List)
    */
   private List<List<Integer>> splitReads(List<Integer> blockIndexes) {
-    return rangeOptimiser.optimizeReads(blockIndexes, configuration.getReadBufferSize());
+    return rangeOptimiser.optimizeReads(blockIndexes);
   }
 
   /**
