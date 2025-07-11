@@ -6,7 +6,6 @@ spotbugs = "6.0.20"
 s3 = "2.25.31"
 s3mock = "3.11.0"
 testcontainers = "1.19.7"
-crt = "0.29.10"
 lombok = "1.18.32"
 parquetFormat = "2.10.0"
 jqwik = "1.9.1"
@@ -23,7 +22,7 @@ s3 = { module = "software.amazon.awssdk:s3", version.ref = "s3" }
 s3-transfer-manager = { module = "software.amazon.awssdk:s3-transfer-manager", version.ref = "s3" }
 sdk-url-connection-client = { module = "software.amazon.awssdk:url-connection-client", version.ref = "s3" }
 sdk-bom = { group = "software.amazon.awssdk", name = "bom", version.ref = "s3" }
-crt = { module = "software.amazon.awssdk.crt:aws-crt", version.ref = "crt" }
+crt = { module = "software.amazon.awssdk:http-auth-aws-crt", version.ref = "s3" }
 netty-nio-client = { module = "software.amazon.awssdk:netty-nio-client", version.ref = "s3" }
 parquet-format = { module = "org.apache.parquet:parquet-format", version.ref = "parquetFormat" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j"}
