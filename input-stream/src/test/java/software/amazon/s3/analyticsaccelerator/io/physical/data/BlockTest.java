@@ -58,8 +58,7 @@ public class BlockTest {
             TestTelemetry.DEFAULT,
             0,
             ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
+            PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class),
             mock(BlobStoreIndexCache.class),
             OpenStreamInformation.DEFAULT);
@@ -86,8 +85,7 @@ public class BlockTest {
             TestTelemetry.DEFAULT,
             0,
             ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
+            PhysicalIOConfiguration.DEFAULT,
             mockMetrics,
             mockIndexCache,
             OpenStreamInformation.DEFAULT);
@@ -123,8 +121,7 @@ public class BlockTest {
             TestTelemetry.DEFAULT,
             0,
             ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
+            PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class),
             mock(BlobStoreIndexCache.class),
             OpenStreamInformation.DEFAULT);
@@ -153,8 +150,7 @@ public class BlockTest {
             TestTelemetry.DEFAULT,
             0,
             ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
+            PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class),
             mock(BlobStoreIndexCache.class),
             OpenStreamInformation.DEFAULT);
@@ -187,8 +183,7 @@ public class BlockTest {
                 TestTelemetry.DEFAULT,
                 0,
                 ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
+                PhysicalIOConfiguration.DEFAULT,
                 mock(Metrics.class),
                 mock(BlobStoreIndexCache.class),
                 null));
@@ -201,8 +196,7 @@ public class BlockTest {
                 TestTelemetry.DEFAULT,
                 0,
                 ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
+                PhysicalIOConfiguration.DEFAULT,
                 mock(Metrics.class),
                 mock(BlobStoreIndexCache.class),
                 null));
@@ -215,8 +209,7 @@ public class BlockTest {
                 null,
                 0,
                 ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
+                PhysicalIOConfiguration.DEFAULT,
                 mock(Metrics.class),
                 mock(BlobStoreIndexCache.class),
                 null));
@@ -229,8 +222,7 @@ public class BlockTest {
                 TestTelemetry.DEFAULT,
                 0,
                 null,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
+                PhysicalIOConfiguration.DEFAULT,
                 mock(Metrics.class),
                 mock(BlobStoreIndexCache.class),
                 null));
@@ -249,8 +241,7 @@ public class BlockTest {
                 TestTelemetry.DEFAULT,
                 0,
                 ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
+                PhysicalIOConfiguration.DEFAULT,
                 mock(Metrics.class),
                 mock(BlobStoreIndexCache.class),
                 OpenStreamInformation.DEFAULT));
@@ -263,8 +254,7 @@ public class BlockTest {
                 TestTelemetry.DEFAULT,
                 0,
                 ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
+                PhysicalIOConfiguration.DEFAULT,
                 mock(Metrics.class),
                 mock(BlobStoreIndexCache.class),
                 OpenStreamInformation.DEFAULT));
@@ -277,8 +267,7 @@ public class BlockTest {
                 TestTelemetry.DEFAULT,
                 0,
                 ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
+                PhysicalIOConfiguration.DEFAULT,
                 mock(Metrics.class),
                 mock(BlobStoreIndexCache.class),
                 OpenStreamInformation.DEFAULT));
@@ -291,8 +280,7 @@ public class BlockTest {
                 TestTelemetry.DEFAULT,
                 -1,
                 ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
+                PhysicalIOConfiguration.DEFAULT,
                 mock(Metrics.class),
                 mock(BlobStoreIndexCache.class),
                 OpenStreamInformation.DEFAULT));
@@ -305,8 +293,7 @@ public class BlockTest {
                 TestTelemetry.DEFAULT,
                 TEST_DATA.length(),
                 ReadMode.SYNC,
-                DEFAULT_READ_TIMEOUT,
-                DEFAULT_READ_RETRY_COUNT,
+                PhysicalIOConfiguration.DEFAULT,
                 mock(Metrics.class),
                 mock(BlobStoreIndexCache.class),
                 OpenStreamInformation.DEFAULT));
@@ -325,8 +312,7 @@ public class BlockTest {
             TestTelemetry.DEFAULT,
             0,
             ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
+            PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class),
             mock(BlobStoreIndexCache.class),
             OpenStreamInformation.DEFAULT);
@@ -349,8 +335,7 @@ public class BlockTest {
             TestTelemetry.DEFAULT,
             0,
             ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
+            PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class),
             mock(BlobStoreIndexCache.class),
             OpenStreamInformation.DEFAULT);
@@ -370,8 +355,7 @@ public class BlockTest {
             TestTelemetry.DEFAULT,
             0,
             ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
+            PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class),
             mock(BlobStoreIndexCache.class),
             OpenStreamInformation.DEFAULT);
@@ -394,8 +378,7 @@ public class BlockTest {
         TestTelemetry.DEFAULT,
         0,
         ReadMode.SYNC,
-        DEFAULT_READ_TIMEOUT,
-        DEFAULT_READ_RETRY_COUNT,
+        PhysicalIOConfiguration.DEFAULT,
         mock(Metrics.class),
         mock(BlobStoreIndexCache.class),
         openStreamInfo);
@@ -417,8 +400,7 @@ public class BlockTest {
             TestTelemetry.DEFAULT,
             0,
             ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
+            PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class),
             mock(BlobStoreIndexCache.class),
             OpenStreamInformation.DEFAULT);
@@ -437,8 +419,7 @@ public class BlockTest {
             TestTelemetry.DEFAULT,
             0,
             ReadMode.SYNC,
-            DEFAULT_READ_TIMEOUT,
-            DEFAULT_READ_RETRY_COUNT,
+            PhysicalIOConfiguration.DEFAULT,
             mock(Metrics.class),
             mock(BlobStoreIndexCache.class),
             OpenStreamInformation.DEFAULT);

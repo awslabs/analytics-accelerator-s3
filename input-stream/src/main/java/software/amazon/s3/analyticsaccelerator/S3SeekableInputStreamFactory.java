@@ -30,6 +30,7 @@ import software.amazon.s3.analyticsaccelerator.io.logical.impl.DefaultLogicalIOI
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetColumnPrefetchStore;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetLogicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.SequentialLogicalIOImpl;
+import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
@@ -141,13 +142,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
       case PARQUET:
         return new ParquetLogicalIOImpl(
             s3URI,
-            new PhysicalIOImpl(
-                s3URI,
-                objectMetadataStore,
-                objectBlobStore,
-                telemetry,
-                openStreamInformation,
-                threadPool),
+            createPhysicalIO(s3URI, openStreamInformation),
             telemetry,
             configuration.getLogicalIOConfiguration(),
             parquetColumnPrefetchStore);
@@ -155,28 +150,20 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
       case SEQUENTIAL:
         return new SequentialLogicalIOImpl(
             s3URI,
-            new PhysicalIOImpl(
-                s3URI,
-                objectMetadataStore,
-                objectBlobStore,
-                telemetry,
-                openStreamInformation,
-                threadPool),
+            createPhysicalIO(s3URI, openStreamInformation),
             telemetry,
             configuration.getLogicalIOConfiguration());
 
       default:
         return new DefaultLogicalIOImpl(
-            s3URI,
-            new PhysicalIOImpl(
-                s3URI,
-                objectMetadataStore,
-                objectBlobStore,
-                telemetry,
-                openStreamInformation,
-                threadPool),
-            telemetry);
+            s3URI, createPhysicalIO(s3URI, openStreamInformation), telemetry);
     }
+  }
+
+  PhysicalIO createPhysicalIO(S3URI s3URI, OpenStreamInformation openStreamInformation)
+      throws IOException {
+    return new PhysicalIOImpl(
+        s3URI, objectMetadataStore, objectBlobStore, telemetry, openStreamInformation, threadPool);
   }
 
   void storeObjectMetadata(S3URI s3URI, ObjectMetadata metadata) {
@@ -188,7 +175,7 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   /**
    * Closes the factory and underlying resources.
    *
-   * @throws IOException
+   * @throws IOException if any of the closures fail
    */
   @Override
   public void close() throws IOException {

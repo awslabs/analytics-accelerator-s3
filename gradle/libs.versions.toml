@@ -15,6 +15,7 @@ testcontainers-testcontainers = "1.20.2"
 test-logger="4.0.0"
 slf4j="2.0.16"
 caffeine = "2.9.3"
+failsafe = "3.3.2"
 
 
 [libraries]
@@ -28,6 +29,7 @@ netty-nio-client = { module = "software.amazon.awssdk:netty-nio-client", version
 parquet-format = { module = "org.apache.parquet:parquet-format", version.ref = "parquetFormat" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j"}
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
+failsafe = { module = "dev.failsafe:failsafe", version.ref = "failsafe"}
 
 # Code maintenance and best practices
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }

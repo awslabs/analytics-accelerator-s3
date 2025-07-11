@@ -73,6 +73,7 @@ dependencies {
     implementation(libs.parquet.format)
     implementation(libs.slf4j.api)
     implementation(libs.caffeine)
+    implementation(libs.failsafe)
 
     jmhImplementation(libs.s3)
     jmhImplementation(libs.s3.transfer.manager)
