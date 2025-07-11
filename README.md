@@ -10,7 +10,7 @@ With this library, you can:
 
 ## Current Status
 
-The Analytics Accelerator Library for Amazon S3 has been tested and integrated with the [Apache Hadoop S3A](https://github.com/apache/hadoop) client, and is currently in the process of being integrated into the [Iceberg S3FileIO](https://github.com/apache/iceberg) client.
+The Analytics Accelerator Library for Amazon S3 has been tested and integrated with the [Apache Hadoop S3A](https://github.com/apache/hadoop) client, which will be released in version **3.4.2**. For the [Apache Iceberg S3FileIO](https://github.com/apache/iceberg) client, it's released in version **1.9.0**.
 It is also tested for datasets stored in [S3 Table Buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-buckets.html).
 
 We're constantly working on improving Analytics Accelerator Library for Amazon S3 and are interested in hearing your feedback on features, performance, and compatibility. Please send feedback by [opening a GitHub issue](https://github.com/awslabs/analytics-accelerator-s3/issues/new/choose).
