@@ -1,5 +1,5 @@
 [versions]
-junit = "5.10.1"
+junit = "5.11.4"
 mockito = "4.11.0"
 spotless = "6.13.0"
 spotbugs = "6.0.20"
