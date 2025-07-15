@@ -33,6 +33,8 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
+import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
+import software.amazon.s3.analyticsaccelerator.common.telemetry.TelemetryConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.Block;
 import software.amazon.s3.analyticsaccelerator.request.*;
 import software.amazon.s3.analyticsaccelerator.util.BlockKey;
@@ -54,6 +56,7 @@ public class StreamReaderTest {
   private OpenStreamInformation openStreamInfo;
   private RequestCallback mockRequestCallback;
   private Metrics mockMetrics;
+  private Telemetry telemetry;
 
   private StreamReader streamReader;
 
@@ -66,6 +69,7 @@ public class StreamReaderTest {
     mockRemoveBlocksFunc = mock(Consumer.class);
     mockMetrics = mock(Metrics.class);
     mockRequestCallback = mock(RequestCallback.class);
+    telemetry = Telemetry.createTelemetry(TelemetryConfiguration.DEFAULT);
 
     openStreamInfo = OpenStreamInformation.builder().requestCallback(mockRequestCallback).build();
 
@@ -76,7 +80,8 @@ public class StreamReaderTest {
             mockExecutorService,
             mockRemoveBlocksFunc,
             mockMetrics,
-            openStreamInfo);
+            openStreamInfo,
+            telemetry);
   }
 
   @Test
@@ -90,7 +95,8 @@ public class StreamReaderTest {
                 mockExecutorService,
                 mockRemoveBlocksFunc,
                 mockMetrics,
-                openStreamInfo));
+                openStreamInfo,
+                telemetry));
 
     assertThrows(
         NullPointerException.class,
@@ -101,7 +107,8 @@ public class StreamReaderTest {
                 mockExecutorService,
                 mockRemoveBlocksFunc,
                 mockMetrics,
-                openStreamInfo));
+                openStreamInfo,
+                telemetry));
 
     assertThrows(
         NullPointerException.class,
@@ -112,7 +119,8 @@ public class StreamReaderTest {
                 null,
                 mockRemoveBlocksFunc,
                 mockMetrics,
-                openStreamInfo));
+                openStreamInfo,
+                telemetry));
 
     assertThrows(
         NullPointerException.class,
@@ -123,7 +131,8 @@ public class StreamReaderTest {
                 mockExecutorService,
                 null,
                 mockMetrics,
-                openStreamInfo));
+                openStreamInfo,
+                telemetry));
 
     assertThrows(
         NullPointerException.class,
@@ -134,7 +143,8 @@ public class StreamReaderTest {
                 mockExecutorService,
                 mockRemoveBlocksFunc,
                 null,
-                openStreamInfo));
+                openStreamInfo,
+                telemetry));
 
     assertThrows(
         NullPointerException.class,
@@ -145,6 +155,19 @@ public class StreamReaderTest {
                 mockExecutorService,
                 mockRemoveBlocksFunc,
                 mockMetrics,
+                null,
+                telemetry));
+
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            new StreamReader(
+                mockObjectClient,
+                mockObjectKey,
+                mockExecutorService,
+                mockRemoveBlocksFunc,
+                mockMetrics,
+                openStreamInfo,
                 null));
   }
 

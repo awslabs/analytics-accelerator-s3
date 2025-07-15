@@ -26,15 +26,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
+import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.SequentialReadProgression;
 import software.amazon.s3.analyticsaccelerator.io.physical.reader.StreamReader;
-import software.amazon.s3.analyticsaccelerator.request.*;
+import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
+import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.AnalyticsAcceleratorUtils;
 import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
+import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
 /** Implements a Block Manager responsible for planning and scheduling reads on a key. */
 public class BlockManager implements Closeable {
@@ -54,6 +59,7 @@ public class BlockManager implements Closeable {
   private final SequentialReadProgression sequentialReadProgression;
   private final RangeOptimiser rangeOptimiser;
 
+  private static final String OPERATION_MAKE_RANGE_AVAILABLE = "block.manager.make.range.available";
   private static final Logger LOG = LoggerFactory.getLogger(BlockManager.class);
 
   /**
@@ -93,7 +99,8 @@ public class BlockManager implements Closeable {
             threadPool,
             this::removeBlocks,
             aggregatingMetrics,
-            openStreamInformation);
+            openStreamInformation,
+            telemetry);
     this.sequentialReadProgression = new SequentialReadProgression(configuration);
     this.rangeOptimiser = new RangeOptimiser(configuration);
 
@@ -180,30 +187,42 @@ public class BlockManager implements Closeable {
       return;
     }
 
-    // Split missing blocks into groups of sequential indexes that respect maximum range size
-    List<List<Integer>> groupedReads = splitReads(missingBlockIndexes);
+    this.telemetry.measureStandard(
+        () ->
+            Operation.builder()
+                .name(OPERATION_MAKE_RANGE_AVAILABLE)
+                .attribute(StreamAttributes.uri(this.objectKey.getS3URI()))
+                .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
+                .attribute(StreamAttributes.range(pos, pos + len - 1))
+                .attribute(StreamAttributes.effectiveRange(pos, effectiveEnd))
+                .attribute(StreamAttributes.generation(generation))
+                .build(),
+        () -> {
+          // Split missing blocks into groups of sequential indexes that respect maximum range size
+          List<List<Integer>> groupedReads = splitReads(missingBlockIndexes);
 
-    // Process each group separately to optimize read operations
-    for (List<Integer> group : groupedReads) {
-      // Create blocks for this group of sequential indexes
-      List<Block> blocksToFill = new ArrayList<>();
-      for (int blockIndex : group) {
-        BlockKey blockKey = new BlockKey(objectKey, getBlockIndexRange(blockIndex));
-        Block block =
-            new Block(
-                blockKey,
-                generation,
-                this.indexCache,
-                this.aggregatingMetrics,
-                this.configuration.getBlockReadTimeout());
-        // Add block to the store for future reference
-        blockStore.add(block);
-        blocksToFill.add(block);
-      }
+          // Process each group separately to optimize read operations
+          for (List<Integer> group : groupedReads) {
+            // Create blocks for this group of sequential indexes
+            List<Block> blocksToFill = new ArrayList<>();
+            for (int blockIndex : group) {
+              BlockKey blockKey = new BlockKey(objectKey, getBlockIndexRange(blockIndex));
+              Block block =
+                  new Block(
+                      blockKey,
+                      generation,
+                      this.indexCache,
+                      this.aggregatingMetrics,
+                      this.configuration.getBlockReadTimeout());
+              // Add block to the store for future reference
+              blockStore.add(block);
+              blocksToFill.add(block);
+            }
 
-      // Perform a single read operation for this group of sequential blocks
-      streamReader.read(blocksToFill, readMode);
-    }
+            // Perform a single read operation for this group of sequential blocks
+            streamReader.read(blocksToFill, readMode);
+          }
+        });
   }
 
   /**

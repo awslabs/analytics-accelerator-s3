@@ -29,11 +29,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
+import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
+import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.Block;
-import software.amazon.s3.analyticsaccelerator.request.*;
+import software.amazon.s3.analyticsaccelerator.request.GetRequest;
+import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
+import software.amazon.s3.analyticsaccelerator.request.ObjectContent;
+import software.amazon.s3.analyticsaccelerator.request.Range;
+import software.amazon.s3.analyticsaccelerator.request.ReadMode;
+import software.amazon.s3.analyticsaccelerator.request.Referrer;
 import software.amazon.s3.analyticsaccelerator.util.MetricKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
+import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
 /**
  * {@code StreamReader} is responsible for asynchronously reading a range of bytes from an object in
@@ -50,6 +58,9 @@ public class StreamReader implements Closeable {
   private final Consumer<List<Block>> removeBlocksFunc;
   private final Metrics aggregatingMetrics;
   private final OpenStreamInformation openStreamInformation;
+  private final Telemetry telemetry;
+
+  private static final String OPERATION_STREAM_READ = "s3.stream.read";
 
   private static final Logger LOG = LoggerFactory.getLogger(StreamReader.class);
 
@@ -62,6 +73,7 @@ public class StreamReader implements Closeable {
    * @param removeBlocksFunc a function to remove blocks from
    * @param aggregatingMetrics the metrics aggregator for performance or usage monitoring
    * @param openStreamInformation contains stream information
+   * @param telemetry an instance of {@link Telemetry} to use
    */
   public StreamReader(
       @NonNull ObjectClient objectClient,
@@ -69,13 +81,15 @@ public class StreamReader implements Closeable {
       @NonNull ExecutorService threadPool,
       @NonNull Consumer<List<Block>> removeBlocksFunc,
       @NonNull Metrics aggregatingMetrics,
-      @NonNull OpenStreamInformation openStreamInformation) {
+      @NonNull OpenStreamInformation openStreamInformation,
+      @NonNull Telemetry telemetry) {
     this.objectClient = objectClient;
     this.objectKey = objectKey;
     this.threadPool = threadPool;
     this.removeBlocksFunc = removeBlocksFunc;
     this.aggregatingMetrics = aggregatingMetrics;
     this.openStreamInformation = openStreamInformation;
+    this.telemetry = telemetry;
   }
 
   /**
@@ -108,43 +122,56 @@ public class StreamReader implements Closeable {
    */
   private Runnable processReadTask(final List<Block> blocks, ReadMode readMode) {
     return () -> {
-      // Calculate the byte range needed to cover all blocks
-      Range requestRange = computeRange(blocks);
+      this.telemetry.measureCritical(
+          () ->
+              Operation.builder()
+                  .name(OPERATION_STREAM_READ)
+                  .attribute(StreamAttributes.uri(this.objectKey.getS3URI()))
+                  .attribute(StreamAttributes.etag(this.objectKey.getEtag()))
+                  .attribute(
+                      StreamAttributes.effectiveRange(
+                          blocks.get(0).getBlockKey().getRange().getStart(),
+                          blocks.get(blocks.size() - 1).getBlockKey().getRange().getEnd()))
+                  .build(),
+          () -> {
+            // Calculate the byte range needed to cover all blocks
+            Range requestRange = computeRange(blocks);
 
-      // Build S3 GET request with range, ETag validation, and referrer info
-      GetRequest getRequest =
-          GetRequest.builder()
-              .s3Uri(objectKey.getS3URI())
-              .range(requestRange)
-              .etag(objectKey.getEtag())
-              .referrer(new Referrer(requestRange.toHttpString(), readMode))
-              .build();
+            // Build S3 GET request with range, ETag validation, and referrer info
+            GetRequest getRequest =
+                GetRequest.builder()
+                    .s3Uri(objectKey.getS3URI())
+                    .range(requestRange)
+                    .etag(objectKey.getEtag())
+                    .referrer(new Referrer(requestRange.toHttpString(), readMode))
+                    .build();
 
-      openStreamInformation.getRequestCallback().onGetRequest();
+            openStreamInformation.getRequestCallback().onGetRequest();
 
-      // Fetch the object content from S3
-      ObjectContent objectContent = fetchObjectContent(getRequest);
+            // Fetch the object content from S3
+            ObjectContent objectContent = fetchObjectContent(getRequest);
 
-      if (objectContent == null) {
-        // Couldn't successfully get the response from S3.
-        // Remove blocks from store and complete async operation
-        removeNonFilledBlocksFromStore(blocks);
-        return;
-      }
+            if (objectContent == null) {
+              // Couldn't successfully get the response from S3.
+              // Remove blocks from store and complete async operation
+              removeNonFilledBlocksFromStore(blocks);
+              return;
+            }
 
-      // Process the input stream and populate data blocks
-      try (InputStream inputStream = objectContent.getStream()) {
-        boolean success = readBlocksFromStream(inputStream, blocks, requestRange.getStart());
-        if (!success) {
-          removeNonFilledBlocksFromStore(blocks);
-        }
-      } catch (EOFException e) {
-        LOG.error("EOFException while reading blocks", e);
-        removeNonFilledBlocksFromStore(blocks);
-      } catch (IOException e) {
-        LOG.error("IOException while reading blocks", e);
-        removeNonFilledBlocksFromStore(blocks);
-      }
+            // Process the input stream and populate data blocks
+            try (InputStream inputStream = objectContent.getStream()) {
+              boolean success = readBlocksFromStream(inputStream, blocks, requestRange.getStart());
+              if (!success) {
+                removeNonFilledBlocksFromStore(blocks);
+              }
+            } catch (EOFException e) {
+              LOG.error("EOFException while reading blocks", e);
+              removeNonFilledBlocksFromStore(blocks);
+            } catch (IOException e) {
+              LOG.error("IOException while reading blocks", e);
+              removeNonFilledBlocksFromStore(blocks);
+            }
+          });
     };
   }
 
