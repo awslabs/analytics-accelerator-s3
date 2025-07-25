@@ -16,137 +16,137 @@
 package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalLong;
+import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.common.Metrics;
 import software.amazon.s3.analyticsaccelerator.common.Preconditions;
-import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
+import software.amazon.s3.analyticsaccelerator.request.Range;
 import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.MetricKey;
-import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 
-/** A BlockStore, which is a collection of Blocks. */
+/**
+ * A container that manages a collection of {@link Block} instances. Each {@code Block} corresponds
+ * to a fixed-size chunk of data based on the configured block size. This class provides methods to
+ * retrieve, add, and track missing blocks within a specified data range.
+ */
 public class BlockStore implements Closeable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BlockStore.class);
 
-  private final ObjectKey s3URI;
-  private final ObjectMetadata metadata;
-  private final Map<BlockKey, Block> blocks;
-  private final Metrics aggregatingMetrics;
   private final BlobStoreIndexCache indexCache;
+  private final Metrics aggregatingMetrics;
+  private final PhysicalIOConfiguration configuration;
+  // It is safe to use Integer as key since maximum single file size is 5TB in S3
+  // and if we assume that block size will be 8KB, total number of blocks is within range
+  // 5 TB / 8 KB = (5 * 1024^4) / 8192 ≈ 671,088,640 blocks
+  // Max int value = 2,147,483,647
+  private final Map<Integer, Block> blocks;
 
   /**
-   * Constructs a new instance of a BlockStore.
+   * Creates a new {@link BlockStore} with the specified configuration.
    *
-   * @param objectKey the etag and S3 URI of the object
-   * @param metadata the metadata for the object
-   * @param aggregatingMetrics blobstore metrics
+   * @param configuration the {@link PhysicalIOConfiguration} used to define block size and other
+   *     I/O settings
    * @param indexCache blobstore index cache
+   * @param aggregatingMetrics blobstore metrics
    */
   public BlockStore(
-      ObjectKey objectKey,
-      ObjectMetadata metadata,
-      Metrics aggregatingMetrics,
-      BlobStoreIndexCache indexCache) {
-    Preconditions.checkNotNull(objectKey, "`objectKey` must not be null");
-    Preconditions.checkNotNull(metadata, "`metadata` must not be null");
-
-    this.s3URI = objectKey;
-    this.metadata = metadata;
-    this.blocks = new LinkedHashMap<>();
-    this.aggregatingMetrics = aggregatingMetrics;
+      @NonNull BlobStoreIndexCache indexCache,
+      @NonNull Metrics aggregatingMetrics,
+      @NonNull PhysicalIOConfiguration configuration) {
     this.indexCache = indexCache;
+    this.aggregatingMetrics = aggregatingMetrics;
+    this.configuration = configuration;
+    // All methods in BlockStore which make a change in blocks map,
+    // are called by BlockManager. These caller BlockManager methods
+    // are synchronised so, we can use HashMap<> here rather than
+    // synchronised or ConcurrentHashMap to optimize the performance
+    blocks = new HashMap<>();
   }
 
   /**
-   * Returns true if blockstore is empty
+   * Retrieves the {@link Block} containing the byte at the specified position, if it exists.
    *
-   * @return true if blockstore is empty
-   */
-  public boolean isBlockStoreEmpty() {
-    return blocks.isEmpty();
-  }
-
-  /**
-   * Given a position, return the Block holding the byte at that position.
-   *
-   * @param pos the position of the byte
-   * @return the Block containing the byte from the BlockStore or empty if the byte is not present
-   *     in the BlockStore
+   * @param pos the byte offset to locate
+   * @return an {@link Optional} containing the {@code Block} if found, or empty if not present
    */
   public Optional<Block> getBlock(long pos) {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
+    return getBlockByIndex(getPositionIndex(pos));
+  }
 
-    Optional<Block> block = blocks.values().stream().filter(b -> b.contains(pos)).findFirst();
-    if (block.isPresent()) {
-      aggregatingMetrics.add(MetricKey.CACHE_HIT, 1L);
+  /**
+   * Retrieves the {@link Block} at the specified index from the block store.
+   *
+   * @param index the index of the block to retrieve
+   * @return an {@link Optional} containing the {@link Block} if present; otherwise, an empty {@link
+   *     Optional}
+   */
+  public Optional<Block> getBlockByIndex(int index) {
+    Preconditions.checkArgument(0 <= index, "`index` must not be negative");
+    return Optional.ofNullable(blocks.get(index));
+  }
+
+  /**
+   * Adds a new {@link Block} to the store if a block at the corresponding index doesn't already
+   * exist.
+   *
+   * @param block the {@code Block} to add
+   */
+  public void add(Block block) {
+    int blockIndex = getBlockIndex(block);
+    if (blocks.containsKey(blockIndex)) {
+      LOG.debug("Block already exists at index {}, skipping add", blockIndex);
     } else {
-      aggregatingMetrics.add(MetricKey.CACHE_MISS, 1L);
+      blocks.put(blockIndex, block);
     }
-    return block;
   }
 
   /**
-   * Given a position, return the position of the next available byte to the right of the given byte
-   * (or the position itself if it is present in the BlockStore). Available in this context means
-   * that we already have a block that has loaded or is about to load the byte in question.
+   * Removes the specified {@link Block} from the store and updates memory usage metrics.
    *
-   * @param pos a byte position
-   * @return the position of the next available byte or empty if there is no next available byte
+   * @param block the {@code Block} to remove
    */
-  public OptionalLong findNextLoadedByte(long pos) {
-    Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
-
-    if (getBlock(pos).isPresent()) {
-      return OptionalLong.of(pos);
+  public void remove(Block block) {
+    if (block == null) {
+      return; // no-op on null input
     }
 
-    return blocks.values().stream()
-        .mapToLong(block -> block.getBlockKey().getRange().getStart())
-        .filter(startPos -> pos < startPos)
-        .min();
+    int blockIndex = getBlockIndex(block);
+    if (blocks.remove(blockIndex) != null && block.isDataReady()) {
+      aggregatingMetrics.reduce(MetricKey.MEMORY_USAGE, block.getLength());
+      safeClose(block);
+    }
   }
 
   /**
-   * Given a position, return the position of the next byte that IS NOT present in the BlockStore to
-   * the right of the given position.
+   * Returns the list of block indexes that are missing for the given byte range.
    *
-   * @param pos a byte position
-   * @return the position of the next byte NOT present in the BlockStore or empty if all bytes are
-   *     present
-   * @throws IOException if an I/O error occurs
+   * @param range the byte range to check for missing blocks
+   * @return a list of missing block indexes within the specified range
    */
-  public OptionalLong findNextMissingByte(long pos) throws IOException {
-    Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
-
-    long nextMissingByte = pos;
-    Optional<Block> nextBlock;
-    while ((nextBlock = getBlock(nextMissingByte)).isPresent()) {
-      nextMissingByte = nextBlock.get().getBlockKey().getRange().getEnd() + 1;
-    }
-
-    return nextMissingByte <= getLastObjectByte()
-        ? OptionalLong.of(nextMissingByte)
-        : OptionalLong.empty();
+  public List<Integer> getMissingBlockIndexesInRange(Range range) {
+    return getMissingBlockIndexesInRange(
+        getPositionIndex(range.getStart()), getPositionIndex(range.getEnd()));
   }
 
-  /**
-   * Add a Block to the BlockStore.
-   *
-   * @param block the block to add to the BlockStore
-   * @param blockKey key to the block
-   */
-  public void add(BlockKey blockKey, Block block) {
-    Preconditions.checkNotNull(block, "`block` must not be null");
+  private List<Integer> getMissingBlockIndexesInRange(int startIndex, int endIndex) {
+    List<Integer> missingBlockIndexes = new ArrayList<>();
 
-    this.blocks.put(blockKey, block);
+    for (int i = startIndex; i <= endIndex; i++) {
+      if (!blocks.containsKey(i)) {
+        missingBlockIndexes.add(i);
+      }
+    }
+    return missingBlockIndexes;
   }
 
   /**
@@ -156,25 +156,15 @@ public class BlockStore implements Closeable {
    * internal block store - Updates memory usage metrics
    */
   public void cleanUp() {
-
-    Iterator<Map.Entry<BlockKey, Block>> iterator = blocks.entrySet().iterator();
-
+    Iterator<Map.Entry<Integer, Block>> iterator = blocks.entrySet().iterator();
     while (iterator.hasNext()) {
-      Map.Entry<BlockKey, Block> entry = iterator.next();
-      BlockKey blockKey = entry.getKey();
-
-      if (entry.getValue().isDataLoaded() && !indexCache.contains(blockKey)) {
-        // The block is not in the index cache, so remove it from the block store
-        int range = blockKey.getRange().getLength();
+      Map.Entry<Integer, Block> entry = iterator.next();
+      Block block = entry.getValue();
+      BlockKey blockKey = block.getBlockKey();
+      if (block.isDataReady() && !indexCache.contains(blockKey)) {
         try {
-          iterator.remove(); // Remove from the iterator as well
-          aggregatingMetrics.reduce(MetricKey.MEMORY_USAGE, range);
-          LOG.debug(
-              "Removed block with key {}-{}-{} from block store during cleanup",
-              blockKey.getObjectKey().getS3URI(),
-              blockKey.getRange().getStart(),
-              blockKey.getRange().getEnd());
-
+          iterator.remove();
+          aggregatingMetrics.reduce(MetricKey.MEMORY_USAGE, blockKey.getRange().getLength());
         } catch (Exception e) {
           LOG.error("Error in removing block {}", e.getMessage());
         }
@@ -182,8 +172,24 @@ public class BlockStore implements Closeable {
     }
   }
 
-  private long getLastObjectByte() {
-    return this.metadata.getContentLength() - 1;
+  private int getBlockIndex(Block block) {
+    return getPositionIndex(block.getBlockKey().getRange().getStart());
+  }
+
+  private int getPositionIndex(long pos) {
+    return (int) (pos / this.configuration.getReadBufferSize());
+  }
+
+  /**
+   * Closes all {@link Block} instances in the store and clears the internal map. This should be
+   * called to release any underlying resources or memory.
+   */
+  @Override
+  public void close() {
+    for (Block block : blocks.values()) {
+      safeClose(block);
+    }
+    blocks.clear();
   }
 
   private void safeClose(Block block) {
@@ -194,8 +200,12 @@ public class BlockStore implements Closeable {
     }
   }
 
-  @Override
-  public void close() {
-    blocks.forEach((key, block) -> this.safeClose(block));
+  /**
+   * Returns true if blockstore is empty
+   *
+   * @return true if blockstore is empty
+   */
+  public boolean isEmpty() {
+    return this.blocks.isEmpty();
   }
 }

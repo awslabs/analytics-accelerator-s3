@@ -109,6 +109,7 @@ tasks.named<Test>("test") {
 }
 
 tasks.test {
+    maxHeapSize = "2G"
     // Report is generated and verification is run after tests
     finalizedBy(tasks.jacocoTestReport, tasks.jacocoTestCoverageVerification)
 }

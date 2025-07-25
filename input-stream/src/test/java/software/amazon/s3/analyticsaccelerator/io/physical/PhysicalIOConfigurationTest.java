@@ -33,9 +33,9 @@ public class PhysicalIOConfigurationTest {
   @Test
   void testNonDefaults() {
     PhysicalIOConfiguration configuration =
-        PhysicalIOConfiguration.builder().memoryCapacityBytes(10).partSizeBytes(20).build();
+        PhysicalIOConfiguration.builder().memoryCapacityBytes(10).targetRequestSize(20).build();
     assertEquals(10, configuration.getMemoryCapacityBytes());
-    assertEquals(20, configuration.getPartSizeBytes());
+    assertEquals(20, configuration.getTargetRequestSize());
   }
 
   @Test
@@ -58,7 +58,7 @@ public class PhysicalIOConfigurationTest {
   @Test
   void testToString() {
     PhysicalIOConfiguration configuration =
-        PhysicalIOConfiguration.builder().memoryCapacityBytes(10).partSizeBytes(20).build();
+        PhysicalIOConfiguration.builder().memoryCapacityBytes(10).targetRequestSize(20).build();
 
     assertEquals(
         configuration.toString(),
@@ -69,14 +69,15 @@ public class PhysicalIOConfigurationTest {
             + "\tmetadataStoreCapacity: 50\n"
             + "\tblockSizeBytes: 8388608\n"
             + "\treadAheadBytes: 65536\n"
-            + "\tmaxRangeSizeBytes: 8388608\n"
-            + "\tpartSizeBytes: 20\n"
             + "\tsequentialPrefetchBase: 2.0\n"
             + "\tsequentialPrefetchSpeed: 1.0\n"
             + "\tblockReadTimeout: 30000\n"
             + "\tblockReadRetryCount: 20\n"
             + "\tsmallObjectsPrefetchingEnabled: true\n"
             + "\tsmallObjectSizeThreshold: 8388608\n"
-            + "\tthreadPoolSize: 96\n");
+            + "\tthreadPoolSize: 96\n"
+            + "\treadBufferSize: 131072\n"
+            + "\ttargetRequestSize: 20\n"
+            + "\trequestToleranceRatio: 1.4\n");
   }
 }

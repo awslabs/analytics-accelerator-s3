@@ -314,11 +314,30 @@ public class PhysicalIOImpl implements PhysicalIO {
     execute(new IOPlan(ranges), ReadMode.READ_VECTORED);
   }
 
+  /**
+   * Handles exceptions from operations by evicting keys from caches when appropriate.
+   *
+   * @param e The exception to handle
+   */
   private void handleOperationExceptions(Exception e) {
+    boolean shouldEvict = false;
+
+    // Check for IO errors while reading data
+    if (e instanceof IOException
+        && e.getMessage() != null
+        && e.getMessage().contains("Error while reading data.")) {
+      shouldEvict = true;
+    }
+
+    // Check for precondition failed errors (412)
     if (e.getCause() != null
         && e.getCause().getMessage() != null
-        && (e.getCause().getMessage().contains("Status Code: 412")
-            || e.getCause().getMessage().contains("Error while getting block"))) {
+        && e.getCause().getMessage().contains("Status Code: 412")) {
+      shouldEvict = true;
+    }
+
+    // Evict keys if needed
+    if (shouldEvict) {
       try {
         metadataStore.evictKey(this.objectKey.getS3URI());
       } finally {

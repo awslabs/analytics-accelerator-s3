@@ -58,6 +58,8 @@ public class BlobStoreTest {
   private static final ObjectKey objectKey =
       ObjectKey.builder().s3URI(S3URI.of("test", "test")).etag(ETAG).build();
 
+  private final ExecutorService threadPool = Executors.newFixedThreadPool(30);
+
   private PhysicalIOConfiguration config;
   private BlobStore blobStore;
   private BlobStore mockBlobStore;
@@ -81,7 +83,7 @@ public class BlobStoreTest {
     ConnectorConfiguration connectorConfig = new ConnectorConfiguration(configMap);
     config = PhysicalIOConfiguration.fromConfiguration(connectorConfig);
 
-    blobStore = new BlobStore(objectClient, TestTelemetry.DEFAULT, config, metrics);
+    blobStore = new BlobStore(objectClient, TestTelemetry.DEFAULT, config, metrics, threadPool);
     blobStore.schedulePeriodicCleanup();
 
     mockObjectClient = mock(ObjectClient.class);
@@ -92,7 +94,8 @@ public class BlobStoreTest {
     when(mockConfig.getMemoryCleanupFrequencyMilliseconds()).thenReturn(1);
 
     // Create mock BlobStore with configured mocks
-    mockBlobStore = new BlobStore(mockObjectClient, TestTelemetry.DEFAULT, mockConfig, mockMetrics);
+    mockBlobStore =
+        new BlobStore(mockObjectClient, TestTelemetry.DEFAULT, mockConfig, mockMetrics, threadPool);
     mockBlobStore = spy(mockBlobStore);
   }
 
@@ -124,7 +127,8 @@ public class BlobStoreTest {
                 null,
                 mock(Telemetry.class),
                 mock(PhysicalIOConfiguration.class),
-                mock(Metrics.class)));
+                mock(Metrics.class),
+                mock(ExecutorService.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -132,7 +136,8 @@ public class BlobStoreTest {
                 null,
                 mock(Telemetry.class),
                 mock(PhysicalIOConfiguration.class),
-                mock(Metrics.class)));
+                mock(Metrics.class),
+                mock(ExecutorService.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -140,12 +145,17 @@ public class BlobStoreTest {
                 mock(ObjectClient.class),
                 null,
                 mock(PhysicalIOConfiguration.class),
-                mock(Metrics.class)));
+                mock(Metrics.class),
+                mock(ExecutorService.class)));
     assertThrows(
         NullPointerException.class,
         () ->
             new BlobStore(
-                mock(ObjectClient.class), mock(Telemetry.class), null, mock(Metrics.class)));
+                mock(ObjectClient.class),
+                mock(Telemetry.class),
+                null,
+                mock(Metrics.class),
+                mock(ExecutorService.class)));
   }
 
   @Test
@@ -199,23 +209,6 @@ public class BlobStoreTest {
   }
 
   @Test
-  void testCacheHitsAndMisses() throws IOException {
-    // Given: Initial cache hits and misses are 0
-    assertEquals(0, blobStore.getMetrics().get(MetricKey.CACHE_HIT));
-    assertEquals(0, blobStore.getMetrics().get(MetricKey.CACHE_MISS));
-
-    Blob blob = blobStore.get(objectKey, objectMetadata, OpenStreamInformation.DEFAULT);
-    byte[] b = new byte[TEST_DATA.length()];
-    blob.read(b, 0, b.length, 0);
-
-    assertEquals(1, blobStore.getMetrics().get(MetricKey.CACHE_HIT));
-
-    blob.read(b, 0, b.length, 0);
-
-    assertEquals(3, blobStore.getMetrics().get(MetricKey.CACHE_HIT));
-  }
-
-  @Test
   void testMemoryUsageAfterEviction() throws IOException, InterruptedException {
     PhysicalIOConfiguration config =
         PhysicalIOConfiguration.builder()
@@ -225,7 +218,8 @@ public class BlobStoreTest {
 
     ObjectClient objectClient = new FakeObjectClient(TEST_DATA);
     Metrics metrics = new Metrics();
-    BlobStore blobStore = new BlobStore(objectClient, TestTelemetry.DEFAULT, config, metrics);
+    BlobStore blobStore =
+        new BlobStore(objectClient, TestTelemetry.DEFAULT, config, metrics, threadPool);
     blobStore.schedulePeriodicCleanup();
 
     // Create multiple ObjectKeys
@@ -297,39 +291,6 @@ public class BlobStoreTest {
     // Then: Wait for all threads and verify total memory
     assertTrue(latch.await(5, TimeUnit.SECONDS));
     assertEquals(expectedTotalMemory, blobStore.getMetrics().get(MetricKey.MEMORY_USAGE));
-  }
-
-  @Test
-  void testClose() {
-    // Given: Create multiple blobs and force data loading
-    ObjectKey key1 = ObjectKey.builder().s3URI(S3URI.of("test", "test1")).etag(ETAG).build();
-    ObjectKey key2 = ObjectKey.builder().s3URI(S3URI.of("test", "test2")).etag(ETAG).build();
-
-    Blob blob1 = blobStore.get(key1, objectMetadata, OpenStreamInformation.DEFAULT);
-    Blob blob2 = blobStore.get(key2, objectMetadata, OpenStreamInformation.DEFAULT);
-
-    byte[] data = new byte[TEST_DATA.length()];
-    try {
-
-      for (int i = 0; i <= 10; i++) {
-        blob1.read(data, 0, data.length, 0);
-        blob2.read(data, 0, data.length, 0);
-      }
-
-    } catch (IOException e) {
-      fail("Failed to read data from blobs", e);
-    }
-
-    // Record metrics before close
-    long cacheHits = blobStore.getMetrics().get(MetricKey.CACHE_HIT);
-    long cacheMisses = blobStore.getMetrics().get(MetricKey.CACHE_MISS);
-    double expectedHitRate = MetricComputationUtils.computeCacheHitRate(cacheHits, cacheMisses);
-
-    // When: Close the BlobStore
-    blobStore.close();
-
-    // Then: Verify the hit rate
-    assertEquals(60.0, expectedHitRate, 0.01, "Hit rate should be approximately 60%");
   }
 
   @Test

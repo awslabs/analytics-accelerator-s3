@@ -17,6 +17,7 @@ package software.amazon.s3.analyticsaccelerator.io.physical.data;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Optional;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import lombok.NonNull;
 import org.slf4j.Logger;
@@ -94,7 +95,15 @@ public class Blob implements Closeable {
     try {
       lock.readLock().lock();
       blockManager.makePositionAvailable(pos, ReadMode.SYNC);
-      return blockManager.getBlock(pos).get().read(pos);
+      Optional<Block> block = blockManager.getBlock(pos);
+      if (!block.isPresent()) {
+        throw new IllegalStateException(
+            String.format(
+                "This block object key %s (for position %s) should have been available.",
+                objectKey.getS3URI(), pos));
+      }
+
+      return block.get().read(pos);
     } finally {
       lock.readLock().unlock();
     }
@@ -126,6 +135,7 @@ public class Blob implements Closeable {
 
       while (numBytesRead < len && nextPosition < contentLength()) {
         final long nextPositionFinal = nextPosition;
+
         Block nextBlock =
             blockManager
                 .getBlock(nextPosition)
@@ -134,7 +144,7 @@ public class Blob implements Closeable {
                         new IllegalStateException(
                             String.format(
                                 "This block object key %s (for position %s) should have been available.",
-                                objectKey.getS3URI().toString(), nextPositionFinal)));
+                                objectKey.getS3URI(), nextPositionFinal)));
 
         int bytesRead = nextBlock.read(buf, off + numBytesRead, len - numBytesRead, nextPosition);
 
