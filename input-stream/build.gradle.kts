@@ -77,6 +77,8 @@ dependencies {
 
     jmhImplementation(libs.s3)
     jmhImplementation(libs.s3.transfer.manager)
+    jmhImplementation(libs.netty.nio.client)
+    jmhImplementation(libs.apache.client)
     jmhImplementation(testFixtures(project(":input-stream")))
 
     testFixturesImplementation(libs.s3)

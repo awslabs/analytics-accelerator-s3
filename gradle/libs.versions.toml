@@ -26,6 +26,7 @@ sdk-url-connection-client = { module = "software.amazon.awssdk:url-connection-cl
 sdk-bom = { group = "software.amazon.awssdk", name = "bom", version.ref = "s3" }
 crt = { module = "software.amazon.awssdk.crt:aws-crt", version.ref = "crt" }
 netty-nio-client = { module = "software.amazon.awssdk:netty-nio-client", version.ref = "s3" }
+apache-client = {module = "software.amazon.awssdk:apache-client", version.ref = "s3" }
 parquet-format = { module = "org.apache.parquet:parquet-format", version.ref = "parquetFormat" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j"}
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
