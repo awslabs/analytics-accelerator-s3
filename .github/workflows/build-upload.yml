@@ -62,7 +62,7 @@ jobs:
 #          ./gradlew -PsnapshotBuild=true publishToMavenLocal
 #
 #      - name: Setup Hadoop SSH deploy key
-#        uses: webfactory/ssh-agent@v0.9.0
+#        uses: webfactory/ssh-agent@v0.9.1
 #        with:
 #          ssh-private-key: ${{ secrets.HADOOP_STAGING_SSH_KEY }}
 #
@@ -104,7 +104,7 @@ jobs:
           ./gradlew -PsnapshotBuild=true publishToMavenLocal 
 
       - name: Setup Iceberg SSH deploy key
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.ICEBERG_STAGING_SSH_KEY }}
 
