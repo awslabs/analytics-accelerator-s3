@@ -23,7 +23,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -34,6 +33,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.Warmup;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -63,9 +63,7 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
  */
 public class ConcurrentStreamPerformanceBenchmark {
 
-  public static final String BUCKET_KEY_ASYNC = "S3_TEST_BUCKET_ASYNC";
-  public static final String BUCKET_KEY_SYNC = "S3_TEST_BUCKET_SYNC";
-  public static final String BUCKET_KEY_VECTORED = "S3_TEST_BUCKET_VECTORED";
+  public static final String DATASET_KEY = "S3_DATASET_BUCKET";
   public static final String PREFIX_KEY = "S3_TEST_PREFIX";
 
   /** This class holds the common variables to be used across micro benchmarks in this class. */
@@ -104,10 +102,10 @@ public class ConcurrentStreamPerformanceBenchmark {
       this.maxConcurrency = Runtime.getRuntime().availableProcessors();
       this.executor = Executors.newFixedThreadPool(100);
       this.configuration = new ConnectorConfiguration(System.getenv());
-      this.bucketName = this.configuration.getRequiredString(BUCKET_KEY_ASYNC);
+      this.bucketName = this.configuration.getRequiredString(DATASET_KEY);
       this.s3Objects =
           BenchmarkUtils.getKeys(
-              s3Client, bucketName, configuration.getRequiredString(PREFIX_KEY), 500);
+              s3Client, bucketName, configuration.getRequiredString(PREFIX_KEY), 200);
       this.s3SeekableInputStreamFactory =
           new S3SeekableInputStreamFactory(
               new S3SdkObjectClient(this.s3AsyncClient),
@@ -116,27 +114,19 @@ public class ConcurrentStreamPerformanceBenchmark {
 
     /** Shut down once all micro benchmarks in this class complete. */
     @TearDown
-    public void tearDown() {
-      executor.shutdown();
+    public void tearDown() throws IOException {
+      executor.shutdownNow();
+      s3SeekableInputStreamFactory.close();
     }
   }
 
   @Benchmark
-  @Measurement(iterations = 5)
+  @Warmup(iterations = 1)
+  @Measurement(iterations = 3)
   @Fork(1)
   @BenchmarkMode(Mode.SingleShotTime)
   public void runBenchmark(BenchmarkState state) throws Exception {
-    switch (state.clientKind) {
-      case SDK_ASYNC_JAVA:
-        execute(state, state.configuration.getRequiredString(BUCKET_KEY_ASYNC));
-        break;
-      case SDK_SYNC_JAVA:
-        execute(state, state.configuration.getRequiredString(BUCKET_KEY_SYNC));
-        break;
-      case AAL_ASYNC_READ_VECTORED:
-        execute(state, state.configuration.getRequiredString(BUCKET_KEY_VECTORED));
-        break;
-    }
+    execute(state, state.configuration.getRequiredString(DATASET_KEY));
   }
 
   private void execute(BenchmarkState state, String bucket) throws Exception {
@@ -144,12 +134,12 @@ public class ConcurrentStreamPerformanceBenchmark {
         "\nReading parquet files with: " + state.clientKind + " from bucket: " + bucket);
 
     for (int i = 0; i < state.s3Objects.size() - 1; i = i + state.maxConcurrency) {
-      List<Future<?>> futures = new ArrayList<>();
+      List<CompletableFuture<?>> futures = new ArrayList<>();
 
       for (int j = i; j < i + state.maxConcurrency && j < state.s3Objects.size() - 1; j++) {
         final int k = j;
-        Future<?> f =
-            state.executor.submit(
+        CompletableFuture<?> f =
+            CompletableFuture.runAsync(
                 () -> {
                   try {
                     if (state.clientKind == S3ClientAndReadKind.AAL_ASYNC_READ_VECTORED) {
@@ -160,13 +150,12 @@ public class ConcurrentStreamPerformanceBenchmark {
                   } catch (Exception e) {
                     throw new RuntimeException(e);
                   }
-                });
+                },
+                state.executor);
         futures.add(f);
       }
 
-      for (Future<?> f : futures) {
-        f.get();
-      }
+      CompletableFuture.allOf(futures.toArray(new CompletableFuture<?>[0])).get();
     }
   }
 
@@ -233,21 +222,25 @@ public class ConcurrentStreamPerformanceBenchmark {
     StreamReadPattern streamReadPattern =
         BenchmarkUtils.getQuasiParquetColumnChunkPattern(s3Object.size());
 
-    List<Future<Long>> fList = new ArrayList<>();
+    List<CompletableFuture<Long>> futures = new ArrayList<>();
 
     for (StreamRead streamRead : streamReadPattern.getStreamReads()) {
-      fList.add(
-          state.executor.submit(
-              () ->
-                  readStream(
+      futures.add(
+          CompletableFuture.supplyAsync(
+              () -> {
+                try {
+                  return readStream(
                       getDataStream(bucket, s3Object, state, streamRead),
                       s3Object.key(),
-                      streamRead)));
+                      streamRead);
+                } catch (Exception e) {
+                  throw new RuntimeException(e);
+                }
+              },
+              state.executor));
     }
 
-    for (Future<Long> f : fList) {
-      f.get();
-    }
+    CompletableFuture.allOf(futures.toArray(new CompletableFuture<?>[0])).get();
   }
 
   private ResponseInputStream<GetObjectResponse> getDataStream(
