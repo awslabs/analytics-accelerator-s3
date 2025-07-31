@@ -151,4 +151,28 @@ public class MetadataStoreTest {
     metadataStore.get(s3URI, openStreamInfo);
     verify(mockCallback, times(1)).onHeadRequest();
   }
+
+  @Test
+  public void testTtlBasedEviction() throws IOException, InterruptedException {
+    // MetadataStore with very short TTL (1ms)
+    PhysicalIOConfiguration config =
+        PhysicalIOConfiguration.builder().metadataCacheTtlMilliseconds(1).build();
+
+    ObjectClient objectClient = mock(ObjectClient.class);
+    ObjectMetadata objectMetadata = ObjectMetadata.builder().etag("random").build();
+    when(objectClient.headObject(any(), any()))
+        .thenReturn(CompletableFuture.completedFuture(objectMetadata));
+
+    MetadataStore metadataStore =
+        new MetadataStore(objectClient, TestTelemetry.DEFAULT, config, mock(Metrics.class));
+    S3URI key = S3URI.of("foo", "bar");
+
+    // get entry, wait for TTL expiry, then get again
+    metadataStore.get(key, OpenStreamInformation.DEFAULT);
+    Thread.sleep(10); // Wait for TTL expiry
+    metadataStore.get(key, OpenStreamInformation.DEFAULT);
+
+    // object store was accessed twice due to TTL expiry
+    verify(objectClient, times(2)).headObject(any(), any());
+  }
 }
