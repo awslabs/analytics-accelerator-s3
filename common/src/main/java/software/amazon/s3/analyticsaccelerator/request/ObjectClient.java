@@ -29,8 +29,7 @@ public interface ObjectClient extends Closeable {
    * @param openStreamInformation contains stream information
    * @return an instance of {@link CompletableFuture} of type {@link ObjectMetadata}
    */
-  CompletableFuture<ObjectMetadata> headObject(
-      HeadRequest headRequest, OpenStreamInformation openStreamInformation);
+  ObjectMetadata headObject(HeadRequest headRequest, OpenStreamInformation openStreamInformation);
 
   /**
    * Make a getObject request to the object store.
@@ -39,6 +38,5 @@ public interface ObjectClient extends Closeable {
    * @param openStreamInformation contains stream information
    * @return an instance of {@link CompletableFuture} of type {@link ObjectContent}
    */
-  CompletableFuture<ObjectContent> getObject(
-      GetRequest getRequest, OpenStreamInformation openStreamInformation);
+  ObjectContent getObject(GetRequest getRequest, OpenStreamInformation openStreamInformation);
 }

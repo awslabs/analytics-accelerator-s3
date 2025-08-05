@@ -528,8 +528,7 @@ public class BlockManagerTest {
     ObjectClient objectClient = mock(ObjectClient.class);
     when(objectClient.getObject(any(), any()))
         .thenReturn(
-            CompletableFuture.completedFuture(
-                ObjectContent.builder().stream(new ByteArrayInputStream(new byte[1024])).build()));
+            ObjectContent.builder().stream(new ByteArrayInputStream(new byte[1024])).build());
 
     PhysicalIOConfiguration config =
         PhysicalIOConfiguration.builder()
@@ -753,8 +752,7 @@ public class BlockManagerTest {
                 }),
             any()))
         .thenReturn(
-            CompletableFuture.completedFuture(
-                ObjectContent.builder().stream(new ByteArrayInputStream(new byte[size])).build()));
+            ObjectContent.builder().stream(new ByteArrayInputStream(new byte[size])).build());
 
     /*
      Here we check if our header is present and the etags don't match then we expect an error to be thrown.

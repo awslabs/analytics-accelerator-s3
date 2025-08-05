@@ -45,7 +45,7 @@ import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 public class MetadataStore implements Closeable {
   private final ObjectClient objectClient;
   private final Telemetry telemetry;
-  private final Map<S3URI, CompletableFuture<ObjectMetadata>> cache;
+  private final Map<S3URI, ObjectMetadata> cache;
   private final PhysicalIOConfiguration configuration;
   private final Metrics aggregatingMetrics;
 
@@ -71,10 +71,9 @@ public class MetadataStore implements Closeable {
     this.aggregatingMetrics = aggregatingMetrics;
     this.cache =
         Collections.synchronizedMap(
-            new LinkedHashMap<S3URI, CompletableFuture<ObjectMetadata>>() {
+            new LinkedHashMap<S3URI, ObjectMetadata>() {
               @Override
-              protected boolean removeEldestEntry(
-                  final Map.Entry<S3URI, CompletableFuture<ObjectMetadata>> eldest) {
+              protected boolean removeEldestEntry(final Map.Entry<S3URI, ObjectMetadata> eldest) {
                 return this.size() > configuration.getMetadataStoreCapacity();
               }
             });
@@ -92,14 +91,7 @@ public class MetadataStore implements Closeable {
    */
   public ObjectMetadata get(S3URI s3URI, OpenStreamInformation openStreamInformation)
       throws IOException {
-    return telemetry.measureJoinCritical(
-        () ->
-            Operation.builder()
-                .name(OPERATION_METADATA_HEAD_JOIN)
-                .attribute(StreamAttributes.uri(s3URI))
-                .build(),
-        this.asyncGet(s3URI, openStreamInformation),
-        this.configuration.getBlockReadTimeout());
+    return this.headObject(s3URI, openStreamInformation);
   }
 
   /**
@@ -120,7 +112,7 @@ public class MetadataStore implements Closeable {
    * @param openStreamInformation contains the open stream information
    * @return returns the {@link CompletableFuture} that holds object's metadata.
    */
-  public synchronized CompletableFuture<ObjectMetadata> asyncGet(
+  public synchronized ObjectMetadata headObject(
       S3URI s3URI, OpenStreamInformation openStreamInformation) {
     return this.cache.computeIfAbsent(
         s3URI,
@@ -132,12 +124,12 @@ public class MetadataStore implements Closeable {
                         .attribute(StreamAttributes.uri(s3URI))
                         .build(),
                 () -> {
-                  CompletableFuture<ObjectMetadata> result =
+                  ObjectMetadata objectMetadata =
                       objectClient.headObject(
                           HeadRequest.builder().s3Uri(s3URI).build(), openStreamInformation);
                   openStreamInformation.getRequestCallback().onHeadRequest();
                   this.aggregatingMetrics.add(MetricKey.HEAD_REQUEST_COUNT, 1);
-                  return result;
+                  return objectMetadata;
                 }));
   }
 
@@ -150,7 +142,7 @@ public class MetadataStore implements Closeable {
    */
   public synchronized void storeObjectMetadata(S3URI s3URI, ObjectMetadata objectMetadata) {
     if (objectMetadata != null) {
-      this.cache.put(s3URI, CompletableFuture.completedFuture(objectMetadata));
+      this.cache.put(s3URI, objectMetadata);
     }
   }
 
@@ -172,6 +164,6 @@ public class MetadataStore implements Closeable {
   /** Closes the {@link MetadataStore} and frees up all resources it holds. */
   @Override
   public void close() {
-    this.cache.values().forEach(this::safeCancel);
+    this.cache.clear();
   }
 }
