@@ -91,7 +91,7 @@ public class MetadataStore implements Closeable {
    */
   public ObjectMetadata get(S3URI s3URI, OpenStreamInformation openStreamInformation)
       throws IOException {
-    return this.headObject(s3URI, openStreamInformation);
+    return this.asyncGet(s3URI, openStreamInformation);
   }
 
   /**
@@ -112,7 +112,7 @@ public class MetadataStore implements Closeable {
    * @param openStreamInformation contains the open stream information
    * @return returns the {@link CompletableFuture} that holds object's metadata.
    */
-  public synchronized ObjectMetadata headObject(
+  public synchronized ObjectMetadata asyncGet(
       S3URI s3URI, OpenStreamInformation openStreamInformation) {
     return this.cache.computeIfAbsent(
         s3URI,

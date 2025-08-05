@@ -134,6 +134,7 @@ public class ParquetLogicalIOImplTest {
   @Test
   void testMetadaWithZeroContentLength() throws IOException {
     ObjectClient mockClient = mock(ObjectClient.class);
+
     when(mockClient.headObject(any(HeadRequest.class), any(OpenStreamInformation.class)))
         .thenReturn(ObjectMetadata.builder().contentLength(0).etag("random").build());
     S3URI s3URI = S3URI.of("test", "test");

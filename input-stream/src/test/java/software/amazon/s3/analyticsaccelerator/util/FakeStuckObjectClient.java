@@ -46,11 +46,11 @@ public class FakeStuckObjectClient extends FakeObjectClient {
   }
 
   @Override
-  public CompletableFuture<ObjectContent> getObject(
+  public ObjectContent getObject(
       GetRequest getRequest, OpenStreamInformation openStreamInformation) {
     getCallCount.incrementAndGet();
     CompletableFuture<ObjectContent> failedFuture = new CompletableFuture<>();
     failedFuture.completeExceptionally(new TimeoutException("Request timed out"));
-    return failedFuture;
+    return failedFuture.join();
   }
 }
