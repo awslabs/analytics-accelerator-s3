@@ -25,14 +25,27 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 
+/** Factory to create request builders. */
 public class RequestFactory {
 
   private final UserAgent userAgent;
 
+  /**
+   * Creates a request factory to be used to build S3 SDK V2 requests.
+   *
+   * @param userAgent userAgent to use in requests
+   */
   public RequestFactory(UserAgent userAgent) {
     this.userAgent = userAgent;
   }
 
+  /**
+   * Head object request builder
+   *
+   * @param headRequest Head request.
+   * @param openStreamInformation Open stream information.
+   * @return HeadObjectRequest.Builder
+   */
   public HeadObjectRequest.Builder buildHeadObjectRequest(
       HeadRequest headRequest, OpenStreamInformation openStreamInformation) {
     HeadObjectRequest.Builder builder =
@@ -65,6 +78,13 @@ public class RequestFactory {
     return builder;
   }
 
+  /**
+   * Get object request builder.
+   *
+   * @param getRequest Get request.
+   * @param openStreamInformation Open stream information.
+   * @return GetObjectRequest.Builder
+   */
   public GetObjectRequest.Builder getObjectRequest(
       GetRequest getRequest, OpenStreamInformation openStreamInformation) {
     GetObjectRequest.Builder builder =

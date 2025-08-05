@@ -43,6 +43,7 @@ import software.amazon.s3.analyticsaccelerator.request.RequestFactory;
 import software.amazon.s3.analyticsaccelerator.request.UserAgent;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 
+/** Implementation of the Object client for the AWS SDK's Java sync client. */
 public class S3SyncSdkObjectClient implements ObjectClient {
 
   @Getter @NonNull private final S3Client s3Client;
@@ -50,10 +51,25 @@ public class S3SyncSdkObjectClient implements ObjectClient {
   @NonNull private final UserAgent userAgent;
   RequestFactory requestFactory;
 
+  /**
+   * Create an instance of a S3 client with SDK V2's sync client, with default configuration, for
+   * interaction with Amazon S3 compatible object stores. This takes ownership of the passed client
+   * and will close it on its own close().
+   *
+   * @param s3Client Underlying sync client to be used for making requests to S3.
+   */
   public S3SyncSdkObjectClient(S3Client s3Client) {
     this(s3Client, ObjectClientConfiguration.DEFAULT);
   }
 
+  /**
+   * Create an instance of a S3 Client with SDK V2's sync client and given configuration for
+   * interaction with Amazon S3 compatible object stores. This takes ownership of the passed client
+   * and will close it on its own close().
+   *
+   * @param s3Client Underlying sync client to be used for making requests to S3.
+   * @param objectClientConfiguration Object client configuration.
+   */
   public S3SyncSdkObjectClient(
       S3Client s3Client, ObjectClientConfiguration objectClientConfiguration) {
     this.s3Client = s3Client;

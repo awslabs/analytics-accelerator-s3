@@ -26,8 +26,16 @@ import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.s3.analyticsaccelerator.exceptions.ExceptionHandler;
 import software.amazon.s3.analyticsaccelerator.request.StreamAuditContext;
 
+/** Util class for common methods for client creation. */
 public class ObjectClientUtil {
 
+  /**
+   * Method to translate SDK exceptions into IoExceptions.
+   *
+   * @param s3Uri S3 URI
+   * @param throwable exception to translate
+   * @return translated exception
+   */
   public static Throwable handleException(S3URI s3Uri, Throwable throwable) {
     Throwable cause =
         Optional.ofNullable(throwable.getCause())
@@ -39,6 +47,13 @@ public class ObjectClientUtil {
     throw new UncheckedIOException(ExceptionHandler.toIOException(cause, s3Uri));
   }
 
+  /**
+   * Attach additional information to the request. These parameters are used by execution
+   * interceptors defined in S3A for request auditing.
+   *
+   * @param requestOverrideConfigurationBuilder Request config builder
+   * @param streamAuditContext Audit context for the current request
+   */
   public static void attachStreamContextToExecutionAttributes(
       AwsRequestOverrideConfiguration.Builder requestOverrideConfigurationBuilder,
       StreamAuditContext streamAuditContext) {

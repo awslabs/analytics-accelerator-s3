@@ -146,21 +146,6 @@ public class MetadataStore implements Closeable {
     }
   }
 
-  /**
-   * Utility method that cancels a {@link CompletableFuture} ignoring any exceptions.
-   *
-   * @param future an instance of {@link CompletableFuture} to cancel
-   */
-  private void safeCancel(CompletableFuture<ObjectMetadata> future) {
-    if (!future.isDone()) {
-      try {
-        future.cancel(false);
-      } catch (Exception e) {
-        LOG.error("Error cancelling ObjectMetadata future", e);
-      }
-    }
-  }
-
   /** Closes the {@link MetadataStore} and frees up all resources it holds. */
   @Override
   public void close() {
