@@ -18,6 +18,7 @@ package software.amazon.s3.analyticsaccelerator;
 import static software.amazon.s3.analyticsaccelerator.ObjectClientTelemetry.*;
 import static software.amazon.s3.analyticsaccelerator.util.ObjectClientUtil.handleException;
 
+import java.io.IOException;
 import java.util.Optional;
 import lombok.Getter;
 import lombok.NonNull;
@@ -117,7 +118,7 @@ public class S3SdkObjectClient implements ObjectClient {
 
   @Override
   public ObjectMetadata headObject(
-      HeadRequest headRequest, OpenStreamInformation openStreamInformation) {
+      HeadRequest headRequest, OpenStreamInformation openStreamInformation) throws IOException {
 
     HeadObjectRequest.Builder builder =
         requestFactory.buildHeadObjectRequest(headRequest, openStreamInformation);
@@ -143,8 +144,8 @@ public class S3SdkObjectClient implements ObjectClient {
   }
 
   @Override
-  public ObjectContent getObject(
-      GetRequest getRequest, OpenStreamInformation openStreamInformation) {
+  public ObjectContent getObject(GetRequest getRequest, OpenStreamInformation openStreamInformation)
+      throws IOException {
 
     GetObjectRequest.Builder builder =
         requestFactory.getObjectRequest(getRequest, openStreamInformation);
@@ -165,6 +166,7 @@ public class S3SdkObjectClient implements ObjectClient {
                     .join();
             return ObjectContent.builder().stream(inputStream).build();
           } catch (Throwable t) {
+            // TODO: Exception handling needs to be moved here as this is where the join happens.
             throw handleException(getRequest.getS3Uri(), t);
           }
         });

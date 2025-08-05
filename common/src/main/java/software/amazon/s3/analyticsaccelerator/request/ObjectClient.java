@@ -16,6 +16,7 @@
 package software.amazon.s3.analyticsaccelerator.request;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 
@@ -29,7 +30,8 @@ public interface ObjectClient extends Closeable {
    * @param openStreamInformation contains stream information
    * @return an instance of {@link CompletableFuture} of type {@link ObjectMetadata}
    */
-  ObjectMetadata headObject(HeadRequest headRequest, OpenStreamInformation openStreamInformation);
+  ObjectMetadata headObject(HeadRequest headRequest, OpenStreamInformation openStreamInformation)
+      throws IOException;
 
   /**
    * Make a getObject request to the object store.
@@ -38,5 +40,6 @@ public interface ObjectClient extends Closeable {
    * @param openStreamInformation contains stream information
    * @return an instance of {@link CompletableFuture} of type {@link ObjectContent}
    */
-  ObjectContent getObject(GetRequest getRequest, OpenStreamInformation openStreamInformation);
+  ObjectContent getObject(GetRequest getRequest, OpenStreamInformation openStreamInformation)
+      throws IOException;
 }

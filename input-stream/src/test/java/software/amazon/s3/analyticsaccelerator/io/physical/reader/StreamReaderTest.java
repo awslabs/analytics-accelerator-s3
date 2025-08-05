@@ -223,7 +223,7 @@ public class StreamReaderTest {
   }
 
   @Test
-  void processReadTask_successfulRead_populatesBlocks() {
+  void processReadTask_successfulRead_populatesBlocks() throws IOException {
     Block block = createMockBlock(0, 4);
     List<Block> blocks = Collections.singletonList(block);
 
@@ -248,7 +248,7 @@ public class StreamReaderTest {
   }
 
   @Test
-  void processReadTask_fetchObjectContentFails_callsRemoveBlocks() {
+  void processReadTask_fetchObjectContentFails_callsRemoveBlocks() throws IOException {
     Block block = createMockBlock(0, 4);
     List<Block> blocks = Collections.singletonList(block);
 
@@ -263,7 +263,7 @@ public class StreamReaderTest {
 
   @Test
   void processReadTask_fetchObjectContentIOException_setsErrorOnBlocks()
-      throws InterruptedException {
+      throws InterruptedException, IOException {
     Block block = createMockBlock(0, 4);
     List<Block> blocks = Collections.singletonList(block);
 
@@ -492,7 +492,7 @@ public class StreamReaderTest {
   }
 
   @Test
-  void processReadTask_removeNonFilledBlocksFromStore_filtersCorrectly() {
+  void processReadTask_removeNonFilledBlocksFromStore_filtersCorrectly() throws IOException {
     Block filledBlock = createMockBlock(0, 2);
     Block unfilledBlock = createMockBlock(3, 5);
     when(filledBlock.isDataReady()).thenReturn(true);
@@ -542,7 +542,7 @@ public class StreamReaderTest {
   }
 
   @Test
-  void processReadTask_multipleBlocksWithError_setsErrorOnlyOnNonReadyBlocks() {
+  void processReadTask_multipleBlocksWithError_setsErrorOnlyOnNonReadyBlocks() throws IOException {
     Block readyBlock = createMockBlock(0, 2);
     Block nonReadyBlock1 = createMockBlock(3, 5);
     Block nonReadyBlock2 = createMockBlock(6, 8);

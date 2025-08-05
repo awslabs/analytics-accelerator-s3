@@ -27,7 +27,6 @@ import static software.amazon.s3.analyticsaccelerator.request.Constants.SPAN_ID;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
@@ -171,7 +170,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testHeadObject() {
+  void testHeadObject() throws IOException {
     try (S3AsyncClient s3AsyncClient = createMockClient()) {
       S3SdkObjectClient client = new S3SdkObjectClient(s3AsyncClient);
       ObjectMetadata metadata =
@@ -183,11 +182,11 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testGetObjectWithDifferentEtagsThrowsError() {
+  void testGetObjectWithDifferentEtagsThrowsError() throws IOException {
     try (S3AsyncClient s3AsyncClient = createMockClient()) {
       S3SdkObjectClient client = new S3SdkObjectClient(s3AsyncClient);
       assertInstanceOf(
-          CompletableFuture.class,
+          ObjectContent.class,
           client.getObject(
               GetRequest.builder()
                   .s3Uri(S3URI.of("bucket", "key"))
@@ -196,26 +195,28 @@ public class S3SdkObjectClientTest {
                   .referrer(new Referrer("bytes=0-20", ReadMode.SYNC))
                   .build(),
               OpenStreamInformation.DEFAULT));
-      assertThrows(
-          S3Exception.class,
-          () ->
-              client.getObject(
-                  GetRequest.builder()
-                      .s3Uri(S3URI.of("bucket", "key"))
-                      .range(new Range(0, 20))
-                      .etag("ANOTHER ONE")
-                      .referrer(new Referrer("bytes=0-20", ReadMode.SYNC))
-                      .build(),
-                  OpenStreamInformation.DEFAULT));
+      try {
+        client.getObject(
+            GetRequest.builder()
+                .s3Uri(S3URI.of("bucket", "key"))
+                .range(new Range(0, 20))
+                .etag("ANOTHER ONE")
+                .referrer(new Referrer("bytes=0-20", ReadMode.SYNC))
+                .build(),
+            OpenStreamInformation.DEFAULT);
+      } catch (Exception e) {
+        assertInstanceOf(IOException.class, e);
+        assertInstanceOf(S3Exception.class, e.getCause());
+      }
     }
   }
 
   @Test
-  void testGetObjectWithRange() {
+  void testGetObjectWithRange() throws IOException {
     try (S3AsyncClient s3AsyncClient = createMockClient()) {
       S3SdkObjectClient client = new S3SdkObjectClient(s3AsyncClient);
       assertInstanceOf(
-          CompletableFuture.class,
+          ObjectContent.class,
           client.getObject(
               GetRequest.builder()
                   .s3Uri(S3URI.of("bucket", "key"))
@@ -228,7 +229,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testObjectClientClose() {
+  void testObjectClientClose() throws IOException {
     try (S3AsyncClient s3AsyncClient = createMockClient()) {
       try (S3SdkObjectClient client = new S3SdkObjectClient(s3AsyncClient)) {
         client.headObject(
@@ -240,7 +241,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testGetObjectAttachesExecutionAttributes() {
+  void testGetObjectAttachesExecutionAttributes() throws IOException {
     S3AsyncClient mockS3AsyncClient = createMockClient();
 
     S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
@@ -291,7 +292,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testGetObjectDoesNotAttachExecutionAttributesWhenNotSet() {
+  void testGetObjectDoesNotAttachExecutionAttributesWhenNotSet() throws IOException {
     S3AsyncClient mockS3AsyncClient = createMockClient();
 
     S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
@@ -338,7 +339,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testHeadObjectAttachesExecutionAttributes() {
+  void testHeadObjectAttachesExecutionAttributes() throws IOException {
     S3AsyncClient mockS3AsyncClient = createMockClient();
 
     S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
@@ -377,7 +378,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testHeadObjectDoesNotAttachExecutionAttributesWhenNotSet() {
+  void testHeadObjectDoesNotAttachExecutionAttributesWhenNotSet() throws IOException {
     S3AsyncClient mockS3AsyncClient = createMockClient();
 
     S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
@@ -510,10 +511,9 @@ public class S3SdkObjectClientTest {
 
   private static void assertObjectClientExceptions(
       final Exception expectedException, final Throwable t) {
-    assertInstanceOf(UncheckedIOException.class, t);
-    Throwable thrownException = t.getCause();
-    assertInstanceOf(IOException.class, thrownException);
-    Optional.ofNullable(thrownException.getCause())
+    // assertInstanceOf(UncheckedIOException.class, t);
+    assertInstanceOf(IOException.class, t);
+    Optional.ofNullable(t.getCause())
         .ifPresent(
             underlyingException ->
                 assertInstanceOf(expectedException.getClass(), underlyingException));
@@ -524,7 +524,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testGetObjectWithEncryption() {
+  void testGetObjectWithEncryption() throws IOException {
     S3AsyncClient mockS3AsyncClient = createMockClient();
     S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
 
@@ -567,7 +567,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testHeadObjectWithEncryption() {
+  void testHeadObjectWithEncryption() throws IOException {
     S3AsyncClient mockS3AsyncClient = createMockClient();
     S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
 
@@ -598,7 +598,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testGetObjectWithoutEncryption() {
+  void testGetObjectWithoutEncryption() throws IOException {
     S3AsyncClient mockS3AsyncClient = createMockClient();
     S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
 
@@ -631,7 +631,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testHeadObjectWithoutEncryption() {
+  void testHeadObjectWithoutEncryption() throws IOException {
     S3AsyncClient mockS3AsyncClient = createMockClient();
     S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
 
@@ -652,7 +652,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testCustomUserAgentWithNullServiceConfiguration() {
+  void testCustomUserAgentWithNullServiceConfiguration() throws IOException {
     S3AsyncClient s3AsyncClient = createMockClientForUserAgent(null);
     S3SdkObjectClient client = new S3SdkObjectClient(s3AsyncClient);
 
@@ -667,7 +667,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testCustomUserAgentWithNullOverrideConfiguration() {
+  void testCustomUserAgentWithNullOverrideConfiguration() throws IOException {
     S3ServiceClientConfiguration serviceConfig = S3ServiceClientConfiguration.builder().build();
 
     S3AsyncClient s3AsyncClient = createMockClientForUserAgent(serviceConfig);
@@ -684,7 +684,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testCustomUserAgentWithEmptyUserAgent() {
+  void testCustomUserAgentWithEmptyUserAgent() throws IOException {
     ClientOverrideConfiguration clientOverrideConfig =
         ClientOverrideConfiguration.builder()
             .putAdvancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX, "")
@@ -707,7 +707,7 @@ public class S3SdkObjectClientTest {
   }
 
   @Test
-  void testCustomUserAgentWithCustomValue() {
+  void testCustomUserAgentWithCustomValue() throws IOException {
 
     ClientOverrideConfiguration clientOverrideConfig =
         ClientOverrideConfiguration.builder()

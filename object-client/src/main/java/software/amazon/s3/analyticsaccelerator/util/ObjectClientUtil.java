@@ -18,7 +18,6 @@ package software.amazon.s3.analyticsaccelerator.util;
 import static software.amazon.s3.analyticsaccelerator.request.Constants.OPERATION_NAME;
 import static software.amazon.s3.analyticsaccelerator.request.Constants.SPAN_ID;
 
-import java.io.UncheckedIOException;
 import java.util.Optional;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -44,7 +43,7 @@ public class ObjectClientUtil {
                     throwable instanceof CompletionException
                         || throwable instanceof ExecutionException)
             .orElse(throwable);
-    throw new UncheckedIOException(ExceptionHandler.toIOException(cause, s3Uri));
+    return ExceptionHandler.toIOException(cause, s3Uri);
   }
 
   /**

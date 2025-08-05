@@ -101,7 +101,7 @@ public class MetadataStoreTest {
   //  }
 
   @Test
-  void testEvictKey_ExistingKey() {
+  void testEvictKey_ExistingKey() throws IOException {
     // Setup
     ObjectClient objectClient = mock(ObjectClient.class);
     when(objectClient.headObject(any(), any())).thenReturn(mock(ObjectMetadata.class));
