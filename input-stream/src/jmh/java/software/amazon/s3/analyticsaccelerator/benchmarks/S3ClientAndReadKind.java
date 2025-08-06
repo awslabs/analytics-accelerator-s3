@@ -19,5 +19,6 @@ package software.amazon.s3.analyticsaccelerator.benchmarks;
 public enum S3ClientAndReadKind {
   SDK_ASYNC_JAVA,
   SDK_SYNC_JAVA,
-  AAL_ASYNC_READ_VECTORED
+  AAL_ASYNC_READ_VECTORED,
+  AAL_SYNC_READ_VECTORED,
 }

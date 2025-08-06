@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
@@ -81,14 +80,13 @@ public class InMemoryS3SeekableInputStream extends SeekableInputStream {
     }
 
     @Override
-    public CompletableFuture<ObjectMetadata> headObject(
+    public ObjectMetadata headObject(
         HeadRequest headRequest, OpenStreamInformation openStreamInformation) {
-      return CompletableFuture.completedFuture(
-          ObjectMetadata.builder().contentLength(size).etag(etag).build());
+      return ObjectMetadata.builder().contentLength(size).etag(etag).build();
     }
 
     @Override
-    public CompletableFuture<ObjectContent> getObject(
+    public ObjectContent getObject(
         GetRequest getRequest, OpenStreamInformation openStreamInformation) {
       int start = 0;
       int end = size - 1;
@@ -99,8 +97,7 @@ public class InMemoryS3SeekableInputStream extends SeekableInputStream {
       }
 
       byte[] range = Arrays.copyOfRange(this.content, start, end + 1);
-      return CompletableFuture.completedFuture(
-          ObjectContent.builder().stream(new ByteArrayInputStream(range)).build());
+      return ObjectContent.builder().stream(new ByteArrayInputStream(range)).build();
     }
 
     @Override

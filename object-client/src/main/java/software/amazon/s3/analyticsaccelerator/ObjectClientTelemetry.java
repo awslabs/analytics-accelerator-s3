@@ -33,6 +33,9 @@ enum ObjectClientTelemetry {
   public static final String OPERATION_GET = "s3.client.get";
   public static final String OPERATION_HEAD = "s3.client.head";
 
+  public static final String OPERATION_SYNC_GET = "s3.sync.client.get";
+  public static final String OPERATION_SYNC_HEAD = "s3.sync.client.head";
+
   /**
    * Creates an {@link Attribute} for a {@link S3URI}.
    *

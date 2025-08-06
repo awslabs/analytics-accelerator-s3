@@ -48,6 +48,7 @@ import software.amazon.s3.analyticsaccelerator.S3SdkObjectClient;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamConfiguration;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
+import software.amazon.s3.analyticsaccelerator.S3SyncSdkObjectClient;
 import software.amazon.s3.analyticsaccelerator.access.StreamRead;
 import software.amazon.s3.analyticsaccelerator.access.StreamReadPattern;
 import software.amazon.s3.analyticsaccelerator.common.ConnectorConfiguration;
@@ -74,7 +75,8 @@ public class ConcurrentStreamPerformanceBenchmark {
     List<S3Object> s3Objects;
     ExecutorService executor;
     ConnectorConfiguration configuration;
-    S3SeekableInputStreamFactory s3SeekableInputStreamFactory;
+    S3SeekableInputStreamFactory s3AsyncSeekableInputStreamFactory;
+    S3SeekableInputStreamFactory s3SyncSeekableInputStreamFactory;
     String bucketName;
     int maxConcurrency;
 
@@ -106,17 +108,21 @@ public class ConcurrentStreamPerformanceBenchmark {
       this.s3Objects =
           BenchmarkUtils.getKeys(
               s3Client, bucketName, configuration.getRequiredString(PREFIX_KEY), 200);
-      this.s3SeekableInputStreamFactory =
+      this.s3AsyncSeekableInputStreamFactory =
           new S3SeekableInputStreamFactory(
               new S3SdkObjectClient(this.s3AsyncClient),
               S3SeekableInputStreamConfiguration.DEFAULT);
+      this.s3SyncSeekableInputStreamFactory =
+          new S3SeekableInputStreamFactory(
+              new S3SyncSdkObjectClient(this.s3Client), S3SeekableInputStreamConfiguration.DEFAULT);
     }
 
     /** Shut down once all micro benchmarks in this class complete. */
     @TearDown
     public void tearDown() throws IOException {
       executor.shutdownNow();
-      s3SeekableInputStreamFactory.close();
+      s3AsyncSeekableInputStreamFactory.close();
+      s3SyncSeekableInputStreamFactory.close();
     }
   }
 
@@ -143,7 +149,17 @@ public class ConcurrentStreamPerformanceBenchmark {
                 () -> {
                   try {
                     if (state.clientKind == S3ClientAndReadKind.AAL_ASYNC_READ_VECTORED) {
-                      fetchObjectsFromAAL(bucket, state.s3Objects.get(k), state);
+                      fetchObjectsFromAAL(
+                          bucket,
+                          state.s3Objects.get(k),
+                          state,
+                          state.s3AsyncSeekableInputStreamFactory);
+                    } else if (state.clientKind == S3ClientAndReadKind.AAL_SYNC_READ_VECTORED) {
+                      fetchObjectsFromAAL(
+                          bucket,
+                          state.s3Objects.get(k),
+                          state,
+                          state.s3SyncSeekableInputStreamFactory);
                     } else {
                       fetchObjectChunksByRange(bucket, state.s3Objects.get(k), state);
                     }
@@ -162,7 +178,11 @@ public class ConcurrentStreamPerformanceBenchmark {
   @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(
       value = "RR_NOT_CHECKED",
       justification = "ok to ignore return value from the read here")
-  private void fetchObjectsFromAAL(String bucketName, S3Object s3Object, BenchmarkState state)
+  private void fetchObjectsFromAAL(
+      String bucketName,
+      S3Object s3Object,
+      BenchmarkState state,
+      S3SeekableInputStreamFactory streamFactory)
       throws InterruptedException, ExecutionException, IOException {
 
     StreamReadPattern streamReadPattern =
@@ -177,7 +197,7 @@ public class ConcurrentStreamPerformanceBenchmark {
     }
 
     S3SeekableInputStream inputStream =
-        state.s3SeekableInputStreamFactory.createStream(
+        streamFactory.createStream(
             S3URI.of(bucketName, s3Object.key()),
             OpenStreamInformation.builder()
                 .objectMetadata(

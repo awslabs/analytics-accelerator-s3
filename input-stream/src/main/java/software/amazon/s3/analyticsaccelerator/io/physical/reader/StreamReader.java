@@ -278,16 +278,7 @@ public class StreamReader implements Closeable {
    */
   private ObjectContent fetchObjectContent(GetRequest getRequest) throws IOException {
     this.aggregatingMetrics.add(MetricKey.GET_REQUEST_COUNT, 1);
-    return telemetry.measureJoinCritical(
-        () ->
-            Operation.builder()
-                .name(OPERATION_GET_OBJECT)
-                .attribute(StreamAttributes.uri(getRequest.getS3Uri()))
-                .attribute(StreamAttributes.rangeLength(getRequest.getRange().getLength()))
-                .attribute(StreamAttributes.range(getRequest.getRange()))
-                .build(),
-        this.objectClient.getObject(getRequest, this.openStreamInformation),
-        this.physicalIOConfiguration.getBlockReadTimeout());
+    return this.objectClient.getObject(getRequest, this.openStreamInformation);
   }
 
   /**

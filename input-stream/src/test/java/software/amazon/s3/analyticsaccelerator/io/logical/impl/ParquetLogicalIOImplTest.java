@@ -20,7 +20,6 @@ import static org.mockito.Mockito.*;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
@@ -135,10 +134,9 @@ public class ParquetLogicalIOImplTest {
   @Test
   void testMetadaWithZeroContentLength() throws IOException {
     ObjectClient mockClient = mock(ObjectClient.class);
+
     when(mockClient.headObject(any(HeadRequest.class), any(OpenStreamInformation.class)))
-        .thenReturn(
-            CompletableFuture.completedFuture(
-                ObjectMetadata.builder().contentLength(0).etag("random").build()));
+        .thenReturn(ObjectMetadata.builder().contentLength(0).etag("random").build());
     S3URI s3URI = S3URI.of("test", "test");
     MetadataStore metadataStore =
         new MetadataStore(
