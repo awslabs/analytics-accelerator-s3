@@ -423,11 +423,15 @@ public class S3SdkObjectClientTest {
     S3SdkObjectClient client = new S3SdkObjectClient(mockS3AsyncClient);
 
     HeadRequest headRequest = HeadRequest.builder().s3Uri(TEST_URI).build();
-    try {
-      ObjectMetadata objectMetadata = client.headObject(headRequest, OpenStreamInformation.DEFAULT);
-    } catch (Throwable t) {
-      assertObjectClientExceptions(exception, t);
-    }
+
+    Throwable actualException =
+        assertThrows(
+            Throwable.class,
+            () -> {
+              client.headObject(headRequest, OpenStreamInformation.DEFAULT);
+            });
+
+    assertObjectClientExceptions(exception, actualException);
   }
 
   @SuppressWarnings("unchecked")
@@ -450,11 +454,15 @@ public class S3SdkObjectClientTest {
             .range(new Range(0, 20))
             .referrer(new Referrer("original-referrer", ReadMode.SYNC))
             .build();
-    try {
-      ObjectContent objectContent = client.getObject(getRequest, OpenStreamInformation.DEFAULT);
-    } catch (Throwable t) {
-      assertObjectClientExceptions(exception, t);
-    }
+
+    Throwable actualException =
+        assertThrows(
+            Throwable.class,
+            () -> {
+              client.getObject(getRequest, OpenStreamInformation.DEFAULT);
+            });
+
+    assertObjectClientExceptions(exception, actualException);
   }
 
   @SuppressWarnings("unchecked")

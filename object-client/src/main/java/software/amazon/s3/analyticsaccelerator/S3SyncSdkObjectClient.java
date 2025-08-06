@@ -26,7 +26,6 @@ import lombok.NonNull;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.SdkServiceClientConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
