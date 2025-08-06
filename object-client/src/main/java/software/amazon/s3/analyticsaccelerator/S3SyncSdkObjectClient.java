@@ -26,6 +26,7 @@ import lombok.NonNull;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.SdkServiceClientConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
@@ -58,7 +59,7 @@ public class S3SyncSdkObjectClient implements ObjectClient {
    *
    * @param s3Client Underlying sync client to be used for making requests to S3.
    */
-  public S3SyncSdkObjectClient(S3Client s3Client) {
+  public S3SyncSdkObjectClient(@NonNull S3Client s3Client) {
     this(s3Client, ObjectClientConfiguration.DEFAULT);
   }
 
