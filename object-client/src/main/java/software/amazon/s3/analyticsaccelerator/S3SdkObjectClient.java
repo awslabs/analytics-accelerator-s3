@@ -153,7 +153,7 @@ public class S3SdkObjectClient implements ObjectClient {
     return this.telemetry.measureCritical(
         () ->
             Operation.builder()
-                .name(OPERATION_SYNC_GET)
+                .name(OPERATION_GET)
                 .attribute(ObjectClientTelemetry.uri(getRequest.getS3Uri()))
                 .attribute(ObjectClientTelemetry.rangeLength(getRequest.getRange()))
                 .attribute(ObjectClientTelemetry.range(getRequest.getRange()))
