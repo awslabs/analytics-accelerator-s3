@@ -33,7 +33,8 @@ import software.amazon.s3.analyticsaccelerator.io.physical.prefetcher.Sequential
 public class PhysicalIOConfiguration {
   private static final long DEFAULT_MEMORY_CAPACITY_BYTES = 2 * ONE_GB;
   private static final long DEFAULT_CACHE_DATA_TIMEOUT_MILLISECONDS = 1000;
-  private static final int DEFAULT_CAPACITY_METADATA_STORE = 50;
+  private static final long DEFAULT_METADATA_STORE_TTL_MILLISECONDS = 86_400_000; // 24 hours
+  private static final int DEFAULT_CAPACITY_METADATA_STORE = 5000;
   private static final boolean DEFAULT_USE_SINGLE_CACHE = true;
   private static final long DEFAULT_BLOCK_SIZE_BYTES = 8 * ONE_MB;
   private static final long DEFAULT_READ_AHEAD_BYTES = 64 * ONE_KB;
@@ -76,7 +77,17 @@ public class PhysicalIOConfiguration {
   private static final String CACHE_DATA_TIMEOUT_MILLISECONDS_KEY = "cache.timeout";
 
   /**
-   * Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_CAPACITY_METADATA_STORE} by default.
+   * TTL for metadata cache entries, in milliseconds. {@link
+   * PhysicalIOConfiguration#DEFAULT_METADATA_STORE_TTL_MILLISECONDS} by default.
+   */
+  @Builder.Default
+  private long metadataCacheTtlMilliseconds = DEFAULT_METADATA_STORE_TTL_MILLISECONDS;
+
+  private static final String METADATA_CACHE_TTL_MILLISECONDS_KEY = "metadatastore.ttl";
+
+  /**
+   * Maximum size for metadata cache entries. {@link
+   * PhysicalIOConfiguration#DEFAULT_CAPACITY_METADATA_STORE} by default.
    */
   @Builder.Default private int metadataStoreCapacity = DEFAULT_CAPACITY_METADATA_STORE;
 
@@ -178,6 +189,9 @@ public class PhysicalIOConfiguration {
         .cacheDataTimeoutMilliseconds(
             configuration.getLong(
                 CACHE_DATA_TIMEOUT_MILLISECONDS_KEY, DEFAULT_CACHE_DATA_TIMEOUT_MILLISECONDS))
+        .metadataCacheTtlMilliseconds(
+            configuration.getLong(
+                METADATA_CACHE_TTL_MILLISECONDS_KEY, DEFAULT_METADATA_STORE_TTL_MILLISECONDS))
         .metadataStoreCapacity(
             configuration.getInt(METADATA_STORE_CAPACITY_KEY, DEFAULT_CAPACITY_METADATA_STORE))
         .blockSizeBytes(configuration.getLong(BLOCK_SIZE_BYTES_KEY, DEFAULT_BLOCK_SIZE_BYTES))
@@ -211,7 +225,8 @@ public class PhysicalIOConfiguration {
    * @param memoryCapacityBytes The capacity of the BlobStore
    * @param memoryCleanupFrequencyMilliseconds The blobstore clean up frequency
    * @param cacheDataTimeoutMilliseconds The ttl of items in blobstore
-   * @param metadataStoreCapacity The capacity of the MetadataStore
+   * @param metadataCacheTtlMilliseconds The TTL for metadata cache entries in milliseconds
+   * @param metadataStoreCapacity The maximum size for metadata cache entries
    * @param blockSizeBytes Block size, in bytes
    * @param readAheadBytes Read ahead, in bytes
    * @param sequentialPrefetchBase Scale factor to control the size of sequentially prefetched
@@ -232,6 +247,7 @@ public class PhysicalIOConfiguration {
       long memoryCapacityBytes,
       int memoryCleanupFrequencyMilliseconds,
       long cacheDataTimeoutMilliseconds,
+      long metadataCacheTtlMilliseconds,
       int metadataStoreCapacity,
       long blockSizeBytes,
       long readAheadBytes,
@@ -251,6 +267,8 @@ public class PhysicalIOConfiguration {
         "`memoryCleanupFrequencyMilliseconds` must be positive");
     Preconditions.checkArgument(
         cacheDataTimeoutMilliseconds > 0, "`cacheDataTimeoutMilliseconds` must be positive");
+    Preconditions.checkArgument(
+        metadataCacheTtlMilliseconds >= 0, "`metadataCacheTTLMilliseconds` must be positive");
     Preconditions.checkArgument(
         metadataStoreCapacity > 0, "`metadataStoreCapacity` must be positive");
     Preconditions.checkArgument(blockSizeBytes > 0, "`blockSizeBytes` must be positive");
@@ -273,6 +291,7 @@ public class PhysicalIOConfiguration {
     this.memoryCapacityBytes = memoryCapacityBytes;
     this.memoryCleanupFrequencyMilliseconds = memoryCleanupFrequencyMilliseconds;
     this.cacheDataTimeoutMilliseconds = cacheDataTimeoutMilliseconds;
+    this.metadataCacheTtlMilliseconds = metadataCacheTtlMilliseconds;
     this.metadataStoreCapacity = metadataStoreCapacity;
     this.blockSizeBytes = blockSizeBytes;
     this.readAheadBytes = readAheadBytes;
@@ -297,6 +316,7 @@ public class PhysicalIOConfiguration {
     builder.append(
         "\tmemoryCleanupFrequencyMilliseconds: " + memoryCleanupFrequencyMilliseconds + "\n");
     builder.append("\tcacheDataTimeoutMilliseconds: " + cacheDataTimeoutMilliseconds + "\n");
+    builder.append("\tmetadataCacheTtlMilliseconds: " + metadataCacheTtlMilliseconds + "\n");
     builder.append("\tmetadataStoreCapacity: " + metadataStoreCapacity + "\n");
     builder.append("\tblockSizeBytes: " + blockSizeBytes + "\n");
     builder.append("\treadAheadBytes: " + readAheadBytes + "\n");
