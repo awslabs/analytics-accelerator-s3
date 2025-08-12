@@ -166,6 +166,31 @@ Note: We allow only positive values for the below configs.
 * Cleanup frequency can be set using the key `memory.cleanup.frequency` by default which is `5s`.
 To learn more about how to set the configurations, read our [configuration](doc/CONFIGURATION.md) documents.
 
+## Consistency Model
+
+Analytics Accelerator Library for Amazon S3 implements a time-based consistency model using TTL (Time-To-Live) for metadata caching. This ensures bounded staleness while maintaining performance. The library caches object metadata with a configurable TTL period. When metadata TTL expires, the library performs a conditional HEAD request to S3 to verify if the object has changed. If the object is unchanged, the TTL period is reset. If the object has changed, the cache is updated with new metadata.
+
+### Consistency Guarantees and Behaviours
+
+Within-Stream Consistency: Each stream maintains strict consistency throughout its lifetime by locking to a specific object version. If cached blocks are evicted and the object has changed in S3, subsequent reads will fail with 412 Precondition Failed errors rather than serving inconsistent data.
+
+Cross-Stream Consistency: Streams created within the same TTL window see the same object version. When an S3 object is modified, existing streams continue using their original version, while new streams will see the updated version after TTL expiration. This can result in different streams temporarily accessing different versions of the same object, but the maximum staleness is bounded by the configured TTL duration.
+
+The metadata cache may evict entries when reaching its size limit (5000 entries by default), triggering fresh metadata fetching on the next access without affecting existing streams consistency.
+
+### Configuration
+
+You can configure metadata caching using:
+* `metadatastore.ttl` - TTL for metadata cache entries, default is 24 hours
+* `metadatastore.capacity` - Maximum size for metadata cache entries, default is 5000
+
+TTL = 0 (Strong Consistency):
+Setting `metadata.ttl.default=0` provides the strongest consistency guarantees. Every metadata access triggers a fresh HEAD request to S3. This configuration results in higher latency due to increased S3 requests but is recommended when absolute freshness is required.
+
+High TTL Values (Relaxed Consistency):
+Setting a high TTL value (e.g., `metadata.ttl.default` for 1 hour) allows for longer caching of metadata. This configuration offers better performance due to reduced S3 requests and is suitable for static data or when staleness can be tolerated.
+
+
 ## User Agent
 We prepend user agent prefixes from both `USER_AGENT_PREFIX_KEY` set in `ObjectClientConfiguration` and `USER_AGENT_PREFIX` in s3AsyncClient configuration to `s3analyticsaccelerator` user agent. For CRT clients as of today there is no value set in `USER_AGENT_PREFIX`, so if you need to set the custom user agent pass it in the `ObjectClientConfiguration`.
 
