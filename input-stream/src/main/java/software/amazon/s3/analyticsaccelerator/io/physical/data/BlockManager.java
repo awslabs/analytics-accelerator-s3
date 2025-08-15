@@ -59,6 +59,7 @@ public class BlockManager implements Closeable {
   private final SequentialReadProgression sequentialReadProgression;
   private final RangeOptimiser rangeOptimiser;
   private final OpenStreamInformation openStreamInformation;
+  private final int maxGeneration;
 
   private static final String OPERATION_MAKE_RANGE_AVAILABLE = "block.manager.make.range.available";
   private static final Logger LOG = LoggerFactory.getLogger(BlockManager.class);
@@ -106,6 +107,7 @@ public class BlockManager implements Closeable {
             configuration);
     this.sequentialReadProgression = new SequentialReadProgression(configuration);
     this.rangeOptimiser = new RangeOptimiser(configuration);
+    this.maxGeneration = sequentialReadProgression.getMaximumGeneration();
 
     prefetchSmallObject();
   }
@@ -249,7 +251,8 @@ public class BlockManager implements Closeable {
     if (!readMode.allowRequestExtension() || pos < configuration.getReadBufferSize()) return 0;
 
     Optional<Block> previousBlock = blockStore.getBlock(pos - 1);
-    return previousBlock.map(block -> block.getGeneration() + 1).orElse(0L);
+    long generation = previousBlock.map(block -> block.getGeneration() + 1).orElse(0L);
+    return Math.min(generation, maxGeneration);
   }
 
   private long truncatePos(long pos) {

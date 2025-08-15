@@ -35,4 +35,36 @@ public class SequentialReadProgressionTest {
     assertEquals(8 * ONE_MB, sequentialReadProgression.getSizeForGeneration(2));
     assertEquals(16 * ONE_MB, sequentialReadProgression.getSizeForGeneration(3));
   }
+
+  @Test
+  public void test__getMaximumGeneration__asExpected() {
+    // Given: a SequentialReadProgression with 128MB max size
+    PhysicalIOConfiguration config =
+        PhysicalIOConfiguration.builder().sequentialPrefetchMaxSize(128 * ONE_MB).build();
+    SequentialReadProgression sequentialReadProgression = new SequentialReadProgression(config);
+
+    // When: maximum generation is requested
+    int maxGeneration = sequentialReadProgression.getMaximumGeneration();
+
+    // Then: max generation should be 7 (gen 6 = 128MB, gen 7 = 128MB capped)
+    assertEquals(7, maxGeneration);
+    assertEquals(128 * ONE_MB, sequentialReadProgression.getSizeForGeneration(maxGeneration));
+    assertEquals(128 * ONE_MB, sequentialReadProgression.getSizeForGeneration(maxGeneration + 1));
+  }
+
+  @Test
+  public void test__getMaximumGeneration__127MB() {
+    // Given: a SequentialReadProgression with 127MB max size
+    PhysicalIOConfiguration config =
+        PhysicalIOConfiguration.builder().sequentialPrefetchMaxSize(127 * ONE_MB).build();
+    SequentialReadProgression sequentialReadProgression = new SequentialReadProgression(config);
+
+    // When: maximum generation is requested
+    int maxGeneration = sequentialReadProgression.getMaximumGeneration();
+
+    // Then: max generation should be 6 (gen 5 = 64MB, gen 6 = 127MB capped)
+    assertEquals(6, maxGeneration);
+    assertEquals(127 * ONE_MB, sequentialReadProgression.getSizeForGeneration(maxGeneration));
+    assertEquals(127 * ONE_MB, sequentialReadProgression.getSizeForGeneration(maxGeneration + 1));
+  }
 }

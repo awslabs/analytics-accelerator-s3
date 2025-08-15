@@ -561,6 +561,50 @@ public class BlockManagerTest {
   }
 
   @Test
+  @DisplayName("Test generation capping at maximum")
+  void testGenerationCappingAtMaximum() throws IOException {
+    // Given: configuration with small max size to limit maximum generation
+    PhysicalIOConfiguration config =
+        PhysicalIOConfiguration.builder()
+            .sequentialPrefetchMaxSize(8 * ONE_MB)
+            .readBufferSize(8 * ONE_KB)
+            .readAheadBytes(8 * ONE_KB)
+            .build();
+
+    ObjectClient objectClient = mock(ObjectClient.class);
+    when(objectClient.getObject(any(), any()))
+        .thenReturn(
+            ObjectContent.builder().stream(new ByteArrayInputStream(new byte[100 * ONE_MB]))
+                .build());
+
+    BlockManager blockManager = getTestBlockManager(objectClient, 100 * ONE_MB, config);
+
+    // When: making many sequential reads to trigger generation growth
+    blockManager.makePositionAvailable(0, ReadMode.SYNC);
+    blockManager.makePositionAvailable(8 * ONE_KB, ReadMode.SYNC);
+    blockManager.makePositionAvailable(8 * ONE_KB + 4 * ONE_MB, ReadMode.SYNC);
+    blockManager.makePositionAvailable(8 * ONE_KB + 4 * ONE_MB + 8 * ONE_MB, ReadMode.SYNC);
+    blockManager.makePositionAvailable(
+        8 * ONE_KB + 4 * ONE_MB + 8 * ONE_MB + 8 * ONE_MB, ReadMode.SYNC);
+
+    // Then: verify all request sizes are capped at max prefetch size
+    ArgumentCaptor<GetRequest> requestCaptor = ArgumentCaptor.forClass(GetRequest.class);
+    verify(objectClient, timeout(1_000).times(5)).getObject(requestCaptor.capture(), any());
+
+    List<GetRequest> requests = requestCaptor.getAllValues();
+    for (GetRequest request : requests) {
+      assertTrue(
+          request.getRange().getLength() <= 8 * ONE_MB,
+          "Request size should not exceed max prefetch size: " + request.getRange().getLength());
+    }
+
+    // Verify we see growth up to the limit (proving sequential prefetching works but is capped)
+    long maxRequestSize =
+        requests.stream().mapToLong(r -> r.getRange().getLength()).max().orElse(0);
+    assertEquals(8 * ONE_MB, maxRequestSize, "Max request should reach the configured limit");
+  }
+
+  @Test
   @DisplayName("Test cleanup method")
   void testCleanup() throws InterruptedException, IOException {
     // Given

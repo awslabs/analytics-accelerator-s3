@@ -70,6 +70,7 @@ Options under `<CONNECTOR_PREFIX>.physicalio.`
 | `partsizebytes`                     | `8MB`   | Size of individual parts for transfer                                              |
 | `sequentialprefetch.base`           | `2.0`   | Base factor for sequential prefetch sizing                                         |
 | `sequentialprefetch.speed`          | `1.0`   | Speed factor for sequential prefetch growth                                        |
+| `sequentialprefetch.max.size`       | `128MB` | Maximum size (in bytes) for sequential prefetching                                 |
 | `max.memory.limit`                  | `2GB`   | Maximum memory limit (in bytes) that BlobStore can utilize for storage             |
 | `cache.timeout`                     | `1s`    | Time duration (in milliseconds) a block remains in BlobStore after its last access |
 | `memory.cleanup.frequency`          | `5s`    | Time period (in milliseconds) between consecutive BlobStore eviction cycles        |

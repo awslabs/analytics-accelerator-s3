@@ -40,6 +40,7 @@ public class PhysicalIOConfiguration {
   private static final long DEFAULT_READ_AHEAD_BYTES = 64 * ONE_KB;
   private static final double DEFAULT_SEQUENTIAL_PREFETCH_BASE = 2.0;
   private static final double DEFAULT_SEQUENTIAL_PREFETCH_SPEED = 1.0;
+  private static final long DEFAULT_SEQUENTIAL_PREFETCH_MAX_SIZE = 128 * ONE_MB;
   private static final long DEFAULT_BLOCK_READ_TIMEOUT = 30_000;
   private static final int DEFAULT_BLOCK_READ_RETRY_COUNT = 20;
   private static final int DEFAULT_MEMORY_CLEANUP_FREQUENCY_MILLISECONDS = 5000;
@@ -121,6 +122,11 @@ public class PhysicalIOConfiguration {
 
   private static final String SEQUENTIAL_PREFETCH_SPEED_KEY = "sequentialprefetch.speed";
 
+  /** Defines the maximum size (in bytes) for sequential prefetching */
+  @Builder.Default private long sequentialPrefetchMaxSize = DEFAULT_SEQUENTIAL_PREFETCH_MAX_SIZE;
+
+  private static final String SEQUENTIAL_PREFETCH_MAX_SIZE_KEY = "sequentialprefetch.max.size";
+
   /** Timeout duration (in milliseconds) for reading a block object from S3 */
   @Builder.Default private long blockReadTimeout = DEFAULT_BLOCK_READ_TIMEOUT;
 
@@ -201,6 +207,9 @@ public class PhysicalIOConfiguration {
         .sequentialPrefetchSpeed(
             configuration.getDouble(
                 SEQUENTIAL_PREFETCH_SPEED_KEY, DEFAULT_SEQUENTIAL_PREFETCH_SPEED))
+        .sequentialPrefetchMaxSize(
+            configuration.getLong(
+                SEQUENTIAL_PREFETCH_MAX_SIZE_KEY, DEFAULT_SEQUENTIAL_PREFETCH_MAX_SIZE))
         .blockReadTimeout(configuration.getLong(BLOCK_READ_TIMEOUT_KEY, DEFAULT_BLOCK_READ_TIMEOUT))
         .blockReadRetryCount(
             configuration.getInt(BLOCK_READ_RETRY_COUNT_KEY, DEFAULT_BLOCK_READ_RETRY_COUNT))
@@ -233,6 +242,7 @@ public class PhysicalIOConfiguration {
    *     physical blocks. Example: A constant of 2.0 means doubling the block sizes.
    * @param sequentialPrefetchSpeed Constant controlling the rate of growth of sequentially
    *     prefetched physical blocks.
+   * @param sequentialPrefetchMaxSize Maximum size in bytes for sequential prefetching
    * @param blockReadTimeout Timeout duration (in milliseconds) for reading a block object from S3
    * @param blockReadRetryCount Number of retries for block read failure
    * @param smallObjectsPrefetchingEnabled Whether small object prefetching is enabled
@@ -253,6 +263,7 @@ public class PhysicalIOConfiguration {
       long readAheadBytes,
       double sequentialPrefetchBase,
       double sequentialPrefetchSpeed,
+      long sequentialPrefetchMaxSize,
       long blockReadTimeout,
       int blockReadRetryCount,
       boolean smallObjectsPrefetchingEnabled,
@@ -277,6 +288,8 @@ public class PhysicalIOConfiguration {
         sequentialPrefetchBase > 0, "`sequentialPrefetchBase` must be positive");
     Preconditions.checkArgument(
         sequentialPrefetchSpeed > 0, "`sequentialPrefetchSpeed` must be positive");
+    Preconditions.checkArgument(
+        sequentialPrefetchMaxSize > 0, "`sequentialPrefetchMaxSize` must be positive");
     Preconditions.checkArgument(blockReadTimeout > 0, "`blockReadTimeout` must be positive");
     Preconditions.checkArgument(
         blockReadRetryCount >= 0, "`blockReadRetryCount` must be non-negative");
@@ -297,6 +310,7 @@ public class PhysicalIOConfiguration {
     this.readAheadBytes = readAheadBytes;
     this.sequentialPrefetchBase = sequentialPrefetchBase;
     this.sequentialPrefetchSpeed = sequentialPrefetchSpeed;
+    this.sequentialPrefetchMaxSize = sequentialPrefetchMaxSize;
     this.blockReadTimeout = blockReadTimeout;
     this.blockReadRetryCount = blockReadRetryCount;
     this.smallObjectsPrefetchingEnabled = smallObjectsPrefetchingEnabled;
@@ -322,6 +336,7 @@ public class PhysicalIOConfiguration {
     builder.append("\treadAheadBytes: " + readAheadBytes + "\n");
     builder.append("\tsequentialPrefetchBase: " + sequentialPrefetchBase + "\n");
     builder.append("\tsequentialPrefetchSpeed: " + sequentialPrefetchSpeed + "\n");
+    builder.append("\tsequentialPrefetchMaxSize: " + sequentialPrefetchMaxSize + "\n");
     builder.append("\tblockReadTimeout: " + blockReadTimeout + "\n");
     builder.append("\tblockReadRetryCount: " + blockReadRetryCount + "\n");
     builder.append("\tsmallObjectsPrefetchingEnabled: " + smallObjectsPrefetchingEnabled + "\n");

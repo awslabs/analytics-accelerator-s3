@@ -72,6 +72,7 @@ public class PhysicalIOConfigurationTest {
             + "\treadAheadBytes: 65536\n"
             + "\tsequentialPrefetchBase: 2.0\n"
             + "\tsequentialPrefetchSpeed: 1.0\n"
+            + "\tsequentialPrefetchMaxSize: 134217728\n"
             + "\tblockReadTimeout: 30000\n"
             + "\tblockReadRetryCount: 20\n"
             + "\tsmallObjectsPrefetchingEnabled: true\n"
