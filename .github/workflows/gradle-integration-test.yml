@@ -45,7 +45,7 @@ jobs:
       uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582
 
     - name: Configure aws credentials
-      uses: aws-actions/configure-aws-credentials@v4.0.2
+      uses: aws-actions/configure-aws-credentials@v5
       with:
         role-to-assume: ${{ env.ROLE_TO_ASSUME }}
         role-session-name: GitHub_to_AWS_via_FederatedOIDC
