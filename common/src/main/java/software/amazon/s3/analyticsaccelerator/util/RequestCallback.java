@@ -19,8 +19,16 @@ package software.amazon.s3.analyticsaccelerator.util;
  * GET and HEAD requests.
  */
 public interface RequestCallback {
+
   /** Called when a GET request is made. */
   void onGetRequest();
+
   /** Called when a HEAD request is made. */
   void onHeadRequest();
+
+  /** Called when a block prefetch is made. */
+  void onBlockPrefetch(long start, long end);
+
+
+  void footerParsingFailed();
 }

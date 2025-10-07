@@ -26,6 +26,7 @@ import org.apache.parquet.format.RowGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetColumnPrefetchStore;
+import software.amazon.s3.analyticsaccelerator.util.RequestCallback;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 /**
@@ -37,6 +38,7 @@ public class ParquetMetadataParsingTask {
   private final S3URI s3URI;
   private final ParquetParser parquetParser;
   private final ParquetColumnPrefetchStore parquetColumnPrefetchStore;
+  private final RequestCallback requestCallback;
 
   private static final Logger LOG = LoggerFactory.getLogger(ParquetMetadataParsingTask.class);
 
@@ -47,8 +49,8 @@ public class ParquetMetadataParsingTask {
    * @param parquetColumnPrefetchStore object containing Parquet usage information
    */
   public ParquetMetadataParsingTask(
-      S3URI s3URI, ParquetColumnPrefetchStore parquetColumnPrefetchStore) {
-    this(s3URI, parquetColumnPrefetchStore, new ParquetParser());
+      S3URI s3URI, ParquetColumnPrefetchStore parquetColumnPrefetchStore, RequestCallback requestCallback) {
+    this(s3URI, parquetColumnPrefetchStore, new ParquetParser(), requestCallback);
   }
 
   /**
@@ -62,10 +64,12 @@ public class ParquetMetadataParsingTask {
   ParquetMetadataParsingTask(
       @NonNull S3URI s3URI,
       @NonNull ParquetColumnPrefetchStore parquetColumnPrefetchStore,
-      @NonNull ParquetParser parquetParser) {
+      @NonNull ParquetParser parquetParser,
+      @NonNull RequestCallback requestCallback) {
     this.s3URI = s3URI;
     this.parquetParser = parquetParser;
     this.parquetColumnPrefetchStore = parquetColumnPrefetchStore;
+    this.requestCallback = requestCallback;
   }
 
   /**
@@ -83,6 +87,7 @@ public class ParquetMetadataParsingTask {
       parquetColumnPrefetchStore.putColumnMappers(this.s3URI, columnMappers);
       return columnMappers;
     } catch (Exception e) {
+      requestCallback.footerParsingFailed();
       LOG.debug(
           "Unable to parse parquet footer for {}, parquet prefetch optimisations will be disabled for this key.",
           this.s3URI.getKey(),

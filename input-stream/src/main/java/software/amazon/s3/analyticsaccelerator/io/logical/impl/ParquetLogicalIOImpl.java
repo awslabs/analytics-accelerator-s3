@@ -20,6 +20,7 @@ import lombok.NonNull;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
+import software.amazon.s3.analyticsaccelerator.util.RequestCallback;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 /**
@@ -40,17 +41,18 @@ public class ParquetLogicalIOImpl extends DefaultLogicalIOImpl {
    * @param parquetColumnPrefetchStore object where Parquet usage information is aggregated
    */
   public ParquetLogicalIOImpl(
-      @NonNull S3URI s3Uri,
-      @NonNull PhysicalIO physicalIO,
-      @NonNull Telemetry telemetry,
-      @NonNull LogicalIOConfiguration logicalIOConfiguration,
-      @NonNull ParquetColumnPrefetchStore parquetColumnPrefetchStore) {
+          @NonNull S3URI s3Uri,
+          @NonNull PhysicalIO physicalIO,
+          @NonNull Telemetry telemetry,
+          @NonNull LogicalIOConfiguration logicalIOConfiguration,
+          @NonNull ParquetColumnPrefetchStore parquetColumnPrefetchStore,
+          @NonNull RequestCallback requestCallback) {
     super(s3Uri, physicalIO, telemetry);
 
     // Initialise prefetcher and start prefetching
     this.parquetPrefetcher =
         new ParquetPrefetcher(
-            s3Uri, physicalIO, telemetry, logicalIOConfiguration, parquetColumnPrefetchStore);
+            s3Uri, physicalIO, telemetry, logicalIOConfiguration, parquetColumnPrefetchStore, requestCallback);
     this.parquetPrefetcher.prefetchFooterAndBuildMetadata();
   }
 

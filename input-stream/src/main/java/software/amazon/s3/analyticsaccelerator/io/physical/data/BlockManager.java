@@ -39,6 +39,7 @@ import software.amazon.s3.analyticsaccelerator.util.AnalyticsAcceleratorUtils;
 import software.amazon.s3.analyticsaccelerator.util.BlockKey;
 import software.amazon.s3.analyticsaccelerator.util.ObjectKey;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
+import software.amazon.s3.analyticsaccelerator.util.RequestCallback;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
 /** Implements a Block Manager responsible for planning and scheduling reads on a key. */
@@ -59,6 +60,7 @@ public class BlockManager implements Closeable {
   private final SequentialReadProgression sequentialReadProgression;
   private final RangeOptimiser rangeOptimiser;
   private final OpenStreamInformation openStreamInformation;
+  private final RequestCallback requestCallback;
   private final int maxGeneration;
 
   private static final String OPERATION_MAKE_RANGE_AVAILABLE = "block.manager.make.range.available";
@@ -95,6 +97,7 @@ public class BlockManager implements Closeable {
     this.indexCache = indexCache;
     this.blockStore = new BlockStore(indexCache, aggregatingMetrics, configuration);
     this.openStreamInformation = openStreamInformation;
+    this.requestCallback = openStreamInformation.getRequestCallback();
     this.streamReader =
         new StreamReader(
             objectClient,
@@ -155,6 +158,12 @@ public class BlockManager implements Closeable {
     // Range is available, return
     if (isRangeAvailable(pos, endPos)) return;
 
+    if (readMode.isPrefetch()) {
+      System.out.println("READ MODE IS" + readMode.name());
+      requestCallback.onBlockPrefetch(pos, endPos);
+    }
+
+
     long generation = getGeneration(pos, readMode);
 
     /*
@@ -171,6 +180,10 @@ public class BlockManager implements Closeable {
     if (generation > 0) {
       maxReadLength =
           Math.max(maxReadLength, sequentialReadProgression.getSizeForGeneration(generation));
+
+      System.out.println(maxReadLength);
+
+      requestCallback.onBlockPrefetch(endPos, pos + maxReadLength - 1);
     }
     // Truncate end position to the object length
     long effectiveEnd = truncatePos(pos + maxReadLength - 1);

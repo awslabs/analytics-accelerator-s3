@@ -40,7 +40,7 @@ public class SequentialReadProgression {
   public long getSizeForGeneration(long generation) {
     Preconditions.checkArgument(0 <= generation, "`generation` must be non-negative");
 
-    // 2, 8, 32, 64
+    // 4, 8, 16, 32
     return Math.min(
         2
             * ONE_MB
