@@ -62,10 +62,10 @@ public enum ReadMode {
     return coalesceRequests;
   }
 
-  /**
-   * Is the request a prefetch?
+   /**
+   * Is the read mode a prefetch?
    *
-   * @return boolean
+   * @return true if read originates from a prefetch operation.
    */
   public boolean isPrefetch() {
     return isPrefetch;

@@ -26,9 +26,14 @@ public interface RequestCallback {
   /** Called when a HEAD request is made. */
   void onHeadRequest();
 
-  /** Called when a block prefetch is made. */
+  /**
+   * Called when a block prefetch is made.
+   *
+   * @param start start of prefetch block
+   * @param end end of prefetch block
+   */
   void onBlockPrefetch(long start, long end);
 
-
+  /** Called when footer parsing fails. */
   void footerParsingFailed();
 }

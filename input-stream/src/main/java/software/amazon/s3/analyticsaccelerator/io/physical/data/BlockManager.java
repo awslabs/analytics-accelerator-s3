@@ -159,10 +159,8 @@ public class BlockManager implements Closeable {
     if (isRangeAvailable(pos, endPos)) return;
 
     if (readMode.isPrefetch()) {
-      System.out.println("READ MODE IS" + readMode.name());
       requestCallback.onBlockPrefetch(pos, endPos);
     }
-
 
     long generation = getGeneration(pos, readMode);
 
@@ -181,8 +179,7 @@ public class BlockManager implements Closeable {
       maxReadLength =
           Math.max(maxReadLength, sequentialReadProgression.getSizeForGeneration(generation));
 
-      System.out.println(maxReadLength);
-
+      // Record any range extension due to sequential prefetching
       requestCallback.onBlockPrefetch(endPos, pos + maxReadLength - 1);
     }
     // Truncate end position to the object length

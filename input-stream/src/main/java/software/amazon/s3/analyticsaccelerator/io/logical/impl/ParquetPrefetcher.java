@@ -72,14 +72,15 @@ public class ParquetPrefetcher {
    * @param telemetry an instance of {@link Telemetry} to use
    * @param logicalIOConfiguration the LogicalIO's configuration
    * @param parquetColumnPrefetchStore a common place for Parquet usage information
+   * @param requestCallback callback for tracking IoStats to upstream integrations such as S3A
    */
   public ParquetPrefetcher(
-          S3URI s3Uri,
-          PhysicalIO physicalIO,
-          Telemetry telemetry,
-          LogicalIOConfiguration logicalIOConfiguration,
-          ParquetColumnPrefetchStore parquetColumnPrefetchStore,
-          RequestCallback requestCallback) {
+      S3URI s3Uri,
+      PhysicalIO physicalIO,
+      Telemetry telemetry,
+      LogicalIOConfiguration logicalIOConfiguration,
+      ParquetColumnPrefetchStore parquetColumnPrefetchStore,
+      RequestCallback requestCallback) {
     this(
         s3Uri,
         logicalIOConfiguration,

@@ -47,9 +47,12 @@ public class ParquetMetadataParsingTask {
    *
    * @param s3URI the S3Uri of the object
    * @param parquetColumnPrefetchStore object containing Parquet usage information
+   * @param requestCallback callback for tracking IoStats to upstream integrations such as S3A
    */
   public ParquetMetadataParsingTask(
-      S3URI s3URI, ParquetColumnPrefetchStore parquetColumnPrefetchStore, RequestCallback requestCallback) {
+      S3URI s3URI,
+      ParquetColumnPrefetchStore parquetColumnPrefetchStore,
+      RequestCallback requestCallback) {
     this(s3URI, parquetColumnPrefetchStore, new ParquetParser(), requestCallback);
   }
 
@@ -60,6 +63,7 @@ public class ParquetMetadataParsingTask {
    * @param s3URI the S3Uri of the object
    * @param parquetColumnPrefetchStore object containing Parquet usage information
    * @param parquetParser parser for getting the file metadata
+   * @param requestCallback callback for tracking IoStats to upstream integrations such as S3A
    */
   ParquetMetadataParsingTask(
       @NonNull S3URI s3URI,

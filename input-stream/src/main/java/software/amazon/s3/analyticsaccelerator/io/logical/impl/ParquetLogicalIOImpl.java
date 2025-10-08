@@ -39,20 +39,26 @@ public class ParquetLogicalIOImpl extends DefaultLogicalIOImpl {
    * @param telemetry an instance of {@link Telemetry} to use
    * @param logicalIOConfiguration configuration for this logical IO implementation
    * @param parquetColumnPrefetchStore object where Parquet usage information is aggregated
+   * @param requestCallback callback for tracking IoStats to upstream integrations such as S3A
    */
   public ParquetLogicalIOImpl(
-          @NonNull S3URI s3Uri,
-          @NonNull PhysicalIO physicalIO,
-          @NonNull Telemetry telemetry,
-          @NonNull LogicalIOConfiguration logicalIOConfiguration,
-          @NonNull ParquetColumnPrefetchStore parquetColumnPrefetchStore,
-          @NonNull RequestCallback requestCallback) {
+      @NonNull S3URI s3Uri,
+      @NonNull PhysicalIO physicalIO,
+      @NonNull Telemetry telemetry,
+      @NonNull LogicalIOConfiguration logicalIOConfiguration,
+      @NonNull ParquetColumnPrefetchStore parquetColumnPrefetchStore,
+      @NonNull RequestCallback requestCallback) {
     super(s3Uri, physicalIO, telemetry);
 
     // Initialise prefetcher and start prefetching
     this.parquetPrefetcher =
         new ParquetPrefetcher(
-            s3Uri, physicalIO, telemetry, logicalIOConfiguration, parquetColumnPrefetchStore, requestCallback);
+            s3Uri,
+            physicalIO,
+            telemetry,
+            logicalIOConfiguration,
+            parquetColumnPrefetchStore,
+            requestCallback);
     this.parquetPrefetcher.prefetchFooterAndBuildMetadata();
   }
 

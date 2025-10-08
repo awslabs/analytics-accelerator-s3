@@ -47,6 +47,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanState;
 import software.amazon.s3.analyticsaccelerator.request.ReadMode;
 import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
+import software.amazon.s3.analyticsaccelerator.util.RequestCallback;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 @SuppressFBWarnings(
@@ -63,7 +64,8 @@ public class ParquetPrefetcherTest {
             mock(PhysicalIO.class),
             mock(Telemetry.class),
             mock(LogicalIOConfiguration.class),
-            mock(ParquetColumnPrefetchStore.class)));
+            mock(ParquetColumnPrefetchStore.class),
+            mock(RequestCallback.class)));
   }
 
   @Test
@@ -195,7 +197,8 @@ public class ParquetPrefetcherTest {
                 mock(PhysicalIO.class),
                 mock(Telemetry.class),
                 mock(LogicalIOConfiguration.class),
-                mock(ParquetColumnPrefetchStore.class)));
+                mock(ParquetColumnPrefetchStore.class),
+                mock(RequestCallback.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -204,7 +207,8 @@ public class ParquetPrefetcherTest {
                 null,
                 mock(Telemetry.class),
                 mock(LogicalIOConfiguration.class),
-                mock(ParquetColumnPrefetchStore.class)));
+                mock(ParquetColumnPrefetchStore.class),
+                mock(RequestCallback.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -213,7 +217,8 @@ public class ParquetPrefetcherTest {
                 mock(PhysicalIO.class),
                 null,
                 mock(LogicalIOConfiguration.class),
-                mock(ParquetColumnPrefetchStore.class)));
+                mock(ParquetColumnPrefetchStore.class),
+                mock(RequestCallback.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -222,7 +227,8 @@ public class ParquetPrefetcherTest {
                 mock(PhysicalIO.class),
                 mock(Telemetry.class),
                 null,
-                mock(ParquetColumnPrefetchStore.class)));
+                mock(ParquetColumnPrefetchStore.class),
+                mock(RequestCallback.class)));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -231,7 +237,8 @@ public class ParquetPrefetcherTest {
                 mock(PhysicalIO.class),
                 mock(Telemetry.class),
                 mock(LogicalIOConfiguration.class),
-                null));
+                null,
+                mock(RequestCallback.class)));
   }
 
   @Test
