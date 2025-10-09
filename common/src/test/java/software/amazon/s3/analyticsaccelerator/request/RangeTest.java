@@ -15,8 +15,7 @@
  */
 package software.amazon.s3.analyticsaccelerator.request;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -48,6 +47,23 @@ public class RangeTest {
   void testSize() {
     assertEquals(1, new Range(0, 0).getLength());
     assertEquals(100, new Range(0, 99).getLength());
+  }
+
+  @Test
+  void testContains() {
+    Range range = new Range(0, 100);
+    assertTrue(range.contains(50));
+    assertFalse(range.contains(120));
+  }
+
+  @Test
+  void testCompareTo() {
+    Range range1 = new Range(0, 100);
+    Range range2 = new Range(100, 200);
+    Range range3 = new Range(200, 300);
+    assertTrue(range1.compareTo(range2) < 0);
+    assertTrue(range2.compareTo(range3) < 0);
+    assertTrue(range3.compareTo(range1) > 0);
   }
 
   static Stream<Arguments> validStringRanges() {
