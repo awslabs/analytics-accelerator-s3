@@ -393,7 +393,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
                           blobStore,
                           TestTelemetry.DEFAULT,
                           OpenStreamInformation.DEFAULT,
-                          executorService);
+                          executorService,
+                          PhysicalIOConfiguration.DEFAULT);
                   LogicalIO logicalIO =
                       new ParquetLogicalIOImpl(
                           TEST_OBJECT,
@@ -592,7 +593,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
                 blobStore,
                 TestTelemetry.DEFAULT,
                 OpenStreamInformation.DEFAULT,
-                executorService),
+                executorService,
+                PhysicalIOConfiguration.DEFAULT),
             TestTelemetry.DEFAULT,
             LogicalIOConfiguration.DEFAULT,
             new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT)),
@@ -622,7 +624,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
                 blobStore,
                 TestTelemetry.DEFAULT,
                 OpenStreamInformation.DEFAULT,
-                executorService),
+                executorService,
+                PhysicalIOConfiguration.DEFAULT),
             TestTelemetry.DEFAULT,
             LogicalIOConfiguration.DEFAULT,
             new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT));

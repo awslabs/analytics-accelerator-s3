@@ -23,17 +23,18 @@ import lombok.AllArgsConstructor;
  */
 @AllArgsConstructor
 public enum ReadMode {
-  SYNC(true),
-  ASYNC(true),
-  SMALL_OBJECT_PREFETCH(true),
-  SEQUENTIAL_FILE_PREFETCH(true),
-  DICTIONARY_PREFETCH(false),
-  COLUMN_PREFETCH(false),
-  REMAINING_COLUMN_PREFETCH(false),
-  PREFETCH_TAIL(false),
-  READ_VECTORED(false);
+  SYNC(true, false),
+  ASYNC(true, false),
+  SMALL_OBJECT_PREFETCH(true, false),
+  SEQUENTIAL_FILE_PREFETCH(true, false),
+  DICTIONARY_PREFETCH(false, false),
+  COLUMN_PREFETCH(false, true),
+  REMAINING_COLUMN_PREFETCH(false, false),
+  PREFETCH_TAIL(false, false),
+  READ_VECTORED(false, true);
 
   private final boolean allowRequestExtension;
+  private final boolean coalesceRequests;
 
   /**
    * Should requests be extended for this read mode?
@@ -45,5 +46,18 @@ public enum ReadMode {
    */
   public boolean allowRequestExtension() {
     return allowRequestExtension;
+  }
+
+  /**
+   * Should requests be coalesced for this read mode?
+   *
+   * <p>When the read is from the parquet prefetcher or readVectored(), we know the exact ranges we
+   * want to read, so in this case don't extend the ranges. Yet if we are reading consecutive
+   * columns we want to merge requests into one.
+   *
+   * @return true if requests should be coalesced
+   */
+  public boolean coalesceRequests() {
+    return coalesceRequests;
   }
 }

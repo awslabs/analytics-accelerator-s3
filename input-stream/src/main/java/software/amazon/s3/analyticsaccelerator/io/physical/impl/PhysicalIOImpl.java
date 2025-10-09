@@ -31,6 +31,7 @@ import software.amazon.s3.analyticsaccelerator.common.Preconditions;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Operation;
 import software.amazon.s3.analyticsaccelerator.common.telemetry.Telemetry;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
+import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.Blob;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
@@ -53,6 +54,7 @@ public class PhysicalIOImpl implements PhysicalIO {
   private ObjectKey objectKey;
   private final ObjectMetadata metadata;
   private final ExecutorService threadPool;
+  private final PhysicalIOConfiguration configuration;
 
   private final long physicalIOBirth = System.nanoTime();
 
@@ -73,6 +75,7 @@ public class PhysicalIOImpl implements PhysicalIO {
    * @param telemetry The {@link Telemetry} to use to report measurements.
    * @param openStreamInformation contains stream information
    * @param threadPool Thread pool for async operations
+   * @param configuration PhysicalIO Configuration
    */
   public PhysicalIOImpl(
       @NonNull S3URI s3URI,
@@ -80,7 +83,8 @@ public class PhysicalIOImpl implements PhysicalIO {
       @NonNull BlobStore blobStore,
       @NonNull Telemetry telemetry,
       @NonNull OpenStreamInformation openStreamInformation,
-      @NonNull ExecutorService threadPool)
+      @NonNull ExecutorService threadPool,
+      @NonNull PhysicalIOConfiguration configuration)
       throws IOException {
     this.metadataStore = metadataStore;
     this.blobStore = blobStore;
@@ -89,6 +93,7 @@ public class PhysicalIOImpl implements PhysicalIO {
     this.metadata = this.metadataStore.get(s3URI, openStreamInformation);
     this.objectKey = ObjectKey.builder().s3URI(s3URI).etag(metadata.getEtag()).build();
     this.threadPool = threadPool;
+    this.configuration = configuration;
   }
 
   /**
@@ -213,10 +218,14 @@ public class PhysicalIOImpl implements PhysicalIO {
    * Async method capable of executing a logical IO plan.
    *
    * @param ioPlan the plan to execute asynchronously
+   * @param readMode the read mode for which this IoPlan is being executed
    * @return an IOPlanExecution object tracking the execution of the submitted plan
    */
   @Override
   public IOPlanExecution execute(IOPlan ioPlan, ReadMode readMode) {
+    if (readMode.coalesceRequests() && configuration.isRequestCoalesce()) {
+      ioPlan.coalesce(configuration.getRequestCoalesceTolerance());
+    }
     return telemetry.measureVerbose(
         () ->
             Operation.builder()

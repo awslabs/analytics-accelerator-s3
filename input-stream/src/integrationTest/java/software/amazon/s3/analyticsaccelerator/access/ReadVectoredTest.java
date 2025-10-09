@@ -48,26 +48,33 @@ public class ReadVectoredTest extends IntegrationTestBase {
 
   @ParameterizedTest
   @MethodSource("vectoredReads")
-  void testVectoredReads(S3ClientKind s3ClientKind, IntFunction<ByteBuffer> allocate)
+  void testVectoredReads(
+      S3ClientKind s3ClientKind,
+      IntFunction<ByteBuffer> allocate,
+      AALInputStreamConfigurationKind configurationKind)
       throws IOException {
-    testReadVectored(
-        s3ClientKind, S3Object.RANDOM_1GB, AALInputStreamConfigurationKind.DEFAULT, allocate);
+    testReadVectored(s3ClientKind, S3Object.RANDOM_1GB, configurationKind, allocate);
   }
 
   @ParameterizedTest
   @MethodSource("vectoredReads")
-  void testVectoredReadsInSingleBlock(S3ClientKind s3ClientKind, IntFunction<ByteBuffer> allocate)
+  void testVectoredReadsInSingleBlock(
+      S3ClientKind s3ClientKind,
+      IntFunction<ByteBuffer> allocate,
+      AALInputStreamConfigurationKind configurationKind)
       throws IOException {
-    testReadVectoredInSingleBlock(
-        s3ClientKind, S3Object.RANDOM_1GB, AALInputStreamConfigurationKind.DEFAULT, allocate);
+    testReadVectoredInSingleBlock(s3ClientKind, S3Object.RANDOM_1GB, configurationKind, allocate);
   }
 
   @ParameterizedTest
   @MethodSource("vectoredReads")
   void testVectoredReadsForSequentialRanges(
-      S3ClientKind s3ClientKind, IntFunction<ByteBuffer> allocate) throws IOException {
+      S3ClientKind s3ClientKind,
+      IntFunction<ByteBuffer> allocate,
+      AALInputStreamConfigurationKind configurationKind)
+      throws IOException {
     testReadVectoredForSequentialRanges(
-        s3ClientKind, S3Object.RANDOM_1GB, AALInputStreamConfigurationKind.DEFAULT, allocate);
+        s3ClientKind, S3Object.RANDOM_1GB, configurationKind, allocate);
   }
 
   @Test
@@ -281,13 +288,18 @@ public class ReadVectoredTest extends IntegrationTestBase {
     s3ClientKinds.add(S3ClientKind.SDK_V2_JAVA_ASYNC);
     s3ClientKinds.add(S3ClientKind.SDK_V2_JAVA_SYNC);
 
+    List<AALInputStreamConfigurationKind> configurationKinds = new ArrayList<>();
+    configurationKinds.add(AALInputStreamConfigurationKind.DEFAULT);
+    configurationKinds.add(AALInputStreamConfigurationKind.NO_REQUEST_COALESCING);
+
     List<IntFunction<ByteBuffer>> allocate = new ArrayList<>();
     allocate.add(ByteBuffer::allocate);
     allocate.add(ByteBuffer::allocateDirect);
 
     for (S3ClientKind s3ClientKind : s3ClientKinds) {
       for (IntFunction<ByteBuffer> allocator : allocate) {
-        testCases.add(Arguments.of(s3ClientKind, allocator));
+        for (AALInputStreamConfigurationKind configurationKind : configurationKinds)
+          testCases.add(Arguments.of(s3ClientKind, allocator, configurationKind));
       }
     }
 
@@ -300,26 +312,26 @@ public class ReadVectoredTest extends IntegrationTestBase {
    *
    * @param s3ClientKind S3 client kind to use
    * @param s3Object S3 object to read
-   * @param AALInputStreamConfigurationKind configuration kind
+   * @param configurationKind configuration kind
    * @param allocate method to allocate the buffer, can be direct or non-direct
    * @throws IOException on any IOException
    */
   protected void testReadVectored(
       @NonNull S3ClientKind s3ClientKind,
       @NonNull S3Object s3Object,
-      @NonNull AALInputStreamConfigurationKind AALInputStreamConfigurationKind,
+      @NonNull AALInputStreamConfigurationKind configurationKind,
       @NonNull IntFunction<ByteBuffer> allocate)
       throws IOException {
 
     try (S3AALClientStreamReader s3AALClientStreamReader =
-        getStreamReader(s3ClientKind, AALInputStreamConfigurationKind)) {
+        getStreamReader(s3ClientKind, configurationKind)) {
 
       S3SeekableInputStream s3SeekableInputStream =
           s3AALClientStreamReader.createReadStream(s3Object, OpenStreamInformation.ofDefaults());
 
       List<ObjectRange> objectRanges = new ArrayList<>();
       objectRanges.add(new ObjectRange(new CompletableFuture<>(), 50, ONE_MB));
-      objectRanges.add(new ObjectRange(new CompletableFuture<>(), 2 * ONE_MB, 800));
+      objectRanges.add(new ObjectRange(new CompletableFuture<>(), 3 * ONE_MB, 800));
 
       // a range that should be within a single block
       objectRanges.add(new ObjectRange(new CompletableFuture<>(), 200 * ONE_MB, 8 * ONE_MB));
@@ -340,7 +352,8 @@ public class ReadVectoredTest extends IntegrationTestBase {
         objectRange.getByteBuffer().join();
       }
 
-      // Range [50MB - 51MB, 2MB - 2.8MB] will make 2 GET requests
+      // Range [50 - 1MB, 3MB - 3.8MB] will make 2 GET requests -- will not be coalesced with 1MB
+      // tolerance
       // Range [200MB - 208MB] will make a single GET as it is an 8MB block.
       // Range [260MB - 284MB] will make 3 GET requests
       assertEquals(
@@ -357,12 +370,12 @@ public class ReadVectoredTest extends IntegrationTestBase {
   protected void testReadVectoredInSingleBlock(
       @NonNull S3ClientKind s3ClientKind,
       @NonNull S3Object s3Object,
-      @NonNull AALInputStreamConfigurationKind AALInputStreamConfigurationKind,
+      @NonNull AALInputStreamConfigurationKind configurationKind,
       @NonNull IntFunction<ByteBuffer> allocate)
       throws IOException {
 
     try (S3AALClientStreamReader s3AALClientStreamReader =
-        this.getStreamReader(s3ClientKind, AALInputStreamConfigurationKind)) {
+        this.getStreamReader(s3ClientKind, configurationKind)) {
 
       S3SeekableInputStream s3SeekableInputStream =
           s3AALClientStreamReader.createReadStream(s3Object, OpenStreamInformation.ofDefaults());
@@ -391,12 +404,12 @@ public class ReadVectoredTest extends IntegrationTestBase {
   protected void testReadVectoredForSequentialRanges(
       @NonNull S3ClientKind s3ClientKind,
       @NonNull S3Object s3Object,
-      @NonNull AALInputStreamConfigurationKind AALInputStreamConfigurationKind,
+      @NonNull AALInputStreamConfigurationKind configurationKind,
       @NonNull IntFunction<ByteBuffer> allocate)
       throws IOException {
 
     try (S3AALClientStreamReader s3AALClientStreamReader =
-        this.getStreamReader(s3ClientKind, AALInputStreamConfigurationKind)) {
+        this.getStreamReader(s3ClientKind, configurationKind)) {
 
       S3SeekableInputStream s3SeekableInputStream =
           s3AALClientStreamReader.createReadStream(s3Object, OpenStreamInformation.ofDefaults());
@@ -416,12 +429,18 @@ public class ReadVectoredTest extends IntegrationTestBase {
         objectRange.getByteBuffer().join();
       }
 
+      int expectedRequests =
+          (configurationKind == AALInputStreamConfigurationKind.NO_REQUEST_COALESCING)
+              ? objectRanges.size()
+              : 3;
+
       assertEquals(
-          5,
+          expectedRequests,
           s3AALClientStreamReader
               .getS3SeekableInputStreamFactory()
               .getMetrics()
               .get(MetricKey.GET_REQUEST_COUNT));
+      verifyStreamContents(objectRanges, s3AALClientStreamReader, s3Object);
     }
   }
 

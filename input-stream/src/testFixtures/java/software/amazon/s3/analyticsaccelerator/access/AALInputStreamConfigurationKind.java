@@ -30,7 +30,8 @@ public enum AALInputStreamConfigurationKind {
   GRAY_FAILURE("GRAY_FAILURE", grayFailureConfiguration()),
   READ_CORRECTNESS("READ_CORRECTNESS", readCorrectnessConfiguration()),
   CONCURRENCY_CORRECTNESS("CONCURRENCY_CORRECTNESS", concurrencyCorrectnessConfiguration()),
-  NO_RETRY("NO_RETRY", noRetryConfiguration());
+  NO_RETRY("NO_RETRY", noRetryConfiguration()),
+  NO_REQUEST_COALESCING("NO_COALESCING", noRequestCoalescing());
 
   private final String name;
   private final S3SeekableInputStreamConfiguration value;
@@ -74,6 +75,15 @@ public enum AALInputStreamConfigurationKind {
     Map<String, String> customConfiguration = new HashMap<>();
     customConfiguration.put(
         configurationPrefix + ".physicalio.max.memory.limit", getMemoryCapacity());
+    ConnectorConfiguration config =
+        new ConnectorConfiguration(customConfiguration, configurationPrefix);
+    return S3SeekableInputStreamConfiguration.fromConfiguration(config);
+  }
+
+  private static S3SeekableInputStreamConfiguration noRequestCoalescing() {
+    String configurationPrefix = "noCoalescing";
+    Map<String, String> customConfiguration = new HashMap<>();
+    customConfiguration.put(configurationPrefix + ".physicalio.request.coalesce", "false");
     ConnectorConfiguration config =
         new ConnectorConfiguration(customConfiguration, configurationPrefix);
     return S3SeekableInputStreamConfiguration.fromConfiguration(config);

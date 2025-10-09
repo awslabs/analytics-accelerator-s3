@@ -50,6 +50,8 @@ public class PhysicalIOConfiguration {
   private static final long DEFAULT_READ_BUFFER_SIZE = 128 * ONE_KB;
   private static final long DEFAULT_TARGET_REQUEST_SIZE = 8 * ONE_MB;
   private static final double DEFAULT_REQUEST_TOLERANCE_RATIO = 1.4;
+  private static final boolean DEFAULT_COALESCE_REQUEST = true;
+  private static final long DEFAULT_COALESCE_REQUEST_TOLERANCE = ONE_MB;
 
   /**
    * Capacity, in blobs. {@link PhysicalIOConfiguration#DEFAULT_MEMORY_CAPACITY_BYTES} by default.
@@ -175,6 +177,16 @@ public class PhysicalIOConfiguration {
 
   private static final String REQUEST_TOLERANCE_RATIO_KEY = "request.tolerance.ratio";
 
+  /** Flag to enable request Coalescing */
+  @Builder.Default private boolean requestCoalesce = DEFAULT_COALESCE_REQUEST;
+
+  private static final String REQUEST_COALESCE_KEY = "request.coalesce";
+
+  /** Number of bytes to read and swallow when merging two requests */
+  @Builder.Default private long requestCoalesceTolerance = DEFAULT_COALESCE_REQUEST_TOLERANCE;
+
+  private static final String REQUEST_COALESCE_TOLERANCE_KEY = "request.coalesce.tolerance";
+
   /** Default set of settings for {@link PhysicalIO} */
   public static final PhysicalIOConfiguration DEFAULT = PhysicalIOConfiguration.builder().build();
 
@@ -225,6 +237,10 @@ public class PhysicalIOConfiguration {
             configuration.getLong(TARGET_REQUEST_SIZE_KEY, DEFAULT_TARGET_REQUEST_SIZE))
         .requestToleranceRatio(
             configuration.getDouble(REQUEST_TOLERANCE_RATIO_KEY, DEFAULT_REQUEST_TOLERANCE_RATIO))
+        .requestCoalesce(configuration.getBoolean(REQUEST_COALESCE_KEY, DEFAULT_COALESCE_REQUEST))
+        .requestCoalesceTolerance(
+            configuration.getLong(
+                REQUEST_COALESCE_TOLERANCE_KEY, DEFAULT_COALESCE_REQUEST_TOLERANCE))
         .build();
   }
 
@@ -251,6 +267,9 @@ public class PhysicalIOConfiguration {
    * @param readBufferSize Size of the maximum buffer for read operations
    * @param targetRequestSize Target S3 request size, in bytes
    * @param requestToleranceRatio Request tolerance ratio
+   * @param requestCoalesce Flag to enable request Coalescing
+   * @param requestCoalesceTolerance Number of bytes to read and swallow when merging two requests
+   * @throws IllegalArgumentException if any of the parameters are invalid
    */
   @Builder
   private PhysicalIOConfiguration(
@@ -271,7 +290,9 @@ public class PhysicalIOConfiguration {
       int threadPoolSize,
       long readBufferSize,
       long targetRequestSize,
-      double requestToleranceRatio) {
+      double requestToleranceRatio,
+      boolean requestCoalesce,
+      long requestCoalesceTolerance) {
     Preconditions.checkArgument(memoryCapacityBytes > 0, "`memoryCapacityBytes` must be positive");
     Preconditions.checkArgument(
         memoryCleanupFrequencyMilliseconds > 0,
@@ -319,6 +340,8 @@ public class PhysicalIOConfiguration {
     this.readBufferSize = readBufferSize;
     this.targetRequestSize = targetRequestSize;
     this.requestToleranceRatio = requestToleranceRatio;
+    this.requestCoalesce = requestCoalesce;
+    this.requestCoalesceTolerance = requestCoalesceTolerance;
   }
 
   @Override
@@ -345,7 +368,8 @@ public class PhysicalIOConfiguration {
     builder.append("\treadBufferSize: " + readBufferSize + "\n");
     builder.append("\ttargetRequestSize: " + targetRequestSize + "\n");
     builder.append("\trequestToleranceRatio: " + requestToleranceRatio + "\n");
-
+    builder.append("\trequestCoalesce: " + requestCoalesce + "\n");
+    builder.append("\trequestCoalesceTolerance: " + requestCoalesceTolerance + "\n");
     return builder.toString();
   }
 }

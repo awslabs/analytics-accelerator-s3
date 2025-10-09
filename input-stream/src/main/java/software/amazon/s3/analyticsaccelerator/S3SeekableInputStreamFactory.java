@@ -171,7 +171,13 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
   PhysicalIO createPhysicalIO(S3URI s3URI, OpenStreamInformation openStreamInformation)
       throws IOException {
     return new PhysicalIOImpl(
-        s3URI, objectMetadataStore, objectBlobStore, telemetry, openStreamInformation, threadPool);
+        s3URI,
+        objectMetadataStore,
+        objectBlobStore,
+        telemetry,
+        openStreamInformation,
+        threadPool,
+        configuration.getPhysicalIOConfiguration());
   }
 
   void storeObjectMetadata(S3URI s3URI, ObjectMetadata metadata) {

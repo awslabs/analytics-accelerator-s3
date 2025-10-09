@@ -72,7 +72,8 @@ public class S3SeekableInputStreamTestBase {
                   blobStore,
                   TestTelemetry.DEFAULT,
                   OpenStreamInformation.DEFAULT,
-                  executorService),
+                  executorService,
+                  PhysicalIOConfiguration.DEFAULT),
               TestTelemetry.DEFAULT,
               logicalIOConfiguration,
               new ParquetColumnPrefetchStore(logicalIOConfiguration));

@@ -158,7 +158,8 @@ public class ParquetLogicalIOImplTest {
             blobStore,
             TestTelemetry.DEFAULT,
             OpenStreamInformation.DEFAULT,
-            mock(ExecutorService.class));
+            mock(ExecutorService.class),
+            PhysicalIOConfiguration.DEFAULT);
     assertDoesNotThrow(
         () ->
             new ParquetLogicalIOImpl(

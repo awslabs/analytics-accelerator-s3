@@ -80,6 +80,8 @@ public class PhysicalIOConfigurationTest {
             + "\tthreadPoolSize: 96\n"
             + "\treadBufferSize: 131072\n"
             + "\ttargetRequestSize: 20\n"
-            + "\trequestToleranceRatio: 1.4\n");
+            + "\trequestToleranceRatio: 1.4\n"
+            + "\trequestCoalesce: true\n"
+            + "\trequestCoalesceTolerance: 1048576\n");
   }
 }

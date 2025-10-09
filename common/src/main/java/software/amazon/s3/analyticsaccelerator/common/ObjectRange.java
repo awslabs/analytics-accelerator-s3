@@ -46,4 +46,10 @@ public class ObjectRange {
     this.offset = offset;
     this.length = length;
   }
+
+  @Override
+  public String toString() {
+    return String.format(
+        "offset: %d, length: %d, completable-future: %s", offset, length, byteBuffer.toString());
+  }
 }

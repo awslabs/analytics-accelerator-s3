@@ -264,6 +264,45 @@ public class ConnectorConfigurationTest {
         IllegalArgumentException.class, () -> configuration.getRequiredString("stringConfig1"));
   }
 
+  @Test
+  void testGetPositiveLong() {
+    ConnectorConfiguration configuration = getDefaultConfiguration(TEST_PREFIX);
+    long positiveLong = configuration.getPositiveLong("longConfig", 5);
+    assertEquals(1, positiveLong);
+  }
+
+  @Test
+  void testGetPositiveLongWithDefault() {
+    ConnectorConfiguration configuration = getDefaultConfiguration(TEST_PREFIX);
+    long positiveLong = configuration.getPositiveLong("nonExistentKey", 10);
+    assertEquals(10, positiveLong);
+  }
+
+  @Test
+  void testGetPositiveLongThrowsOnZero() {
+    Map<String, String> configMap = new HashMap<>();
+    configMap.put(TEST_PREFIX + ".zeroConfig", "0");
+    ConnectorConfiguration configuration = new ConnectorConfiguration(configMap, TEST_PREFIX);
+    assertThrows(
+        IllegalArgumentException.class, () -> configuration.getPositiveLong("zeroConfig", 5));
+  }
+
+  @Test
+  void testGetPositiveLongThrowsOnNegative() {
+    Map<String, String> configMap = new HashMap<>();
+    configMap.put(TEST_PREFIX + ".negativeConfig", "-5");
+    ConnectorConfiguration configuration = new ConnectorConfiguration(configMap, TEST_PREFIX);
+    assertThrows(
+        IllegalArgumentException.class, () -> configuration.getPositiveLong("negativeConfig", 5));
+  }
+
+  @Test
+  void testGetPositiveLongThrowsOnNegativeDefault() {
+    ConnectorConfiguration configuration = getDefaultConfiguration(TEST_PREFIX);
+    assertThrows(
+        IllegalArgumentException.class, () -> configuration.getPositiveLong("nonExistentKey", -1));
+  }
+
   private static ConnectorConfiguration getDefaultConfiguration(String prefix) {
 
     return new ConnectorConfiguration(getDefaultConfigurationMap(prefix), prefix);

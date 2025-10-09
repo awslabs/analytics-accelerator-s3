@@ -25,7 +25,7 @@ import software.amazon.s3.analyticsaccelerator.common.Preconditions;
  * like "bytes=0-555" -- this is SDK detail we should not care about in layers above Object Client.
  */
 @Value
-public class Range {
+public class Range implements Comparable<Range> {
   @Getter long start;
   @Getter long end;
 
@@ -84,5 +84,16 @@ public class Range {
    */
   public String toHttpString() {
     return String.format(TO_HTTP_STRING_FORMAT, start, end);
+  }
+
+  /**
+   * Allows sorting ranges based on their start position.
+   *
+   * @param other
+   * @return
+   */
+  @Override
+  public int compareTo(Range other) {
+    return Long.compare(this.start, other.start);
   }
 }

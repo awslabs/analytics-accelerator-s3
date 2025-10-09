@@ -72,7 +72,8 @@ public class PhysicalIOImplTest {
               mock(BlobStore.class),
               TestTelemetry.DEFAULT,
               OpenStreamInformation.DEFAULT,
-              executorService);
+              executorService,
+              PhysicalIOConfiguration.DEFAULT);
         });
 
     assertThrows(
@@ -84,7 +85,8 @@ public class PhysicalIOImplTest {
               mock(BlobStore.class),
               TestTelemetry.DEFAULT,
               mock(OpenStreamInformation.class),
-              executorService);
+              executorService,
+              PhysicalIOConfiguration.DEFAULT);
         });
 
     assertThrows(
@@ -96,7 +98,8 @@ public class PhysicalIOImplTest {
               null,
               TestTelemetry.DEFAULT,
               mock(OpenStreamInformation.class),
-              executorService);
+              executorService,
+              PhysicalIOConfiguration.DEFAULT);
         });
 
     assertThrows(
@@ -108,7 +111,8 @@ public class PhysicalIOImplTest {
               mock(BlobStore.class),
               null,
               mock(OpenStreamInformation.class),
-              executorService);
+              executorService,
+              PhysicalIOConfiguration.DEFAULT);
         });
 
     assertThrows(
@@ -120,7 +124,8 @@ public class PhysicalIOImplTest {
               mock(BlobStore.class),
               TestTelemetry.DEFAULT,
               null,
-              null);
+              null,
+              PhysicalIOConfiguration.DEFAULT);
         });
 
     assertThrows(
@@ -132,7 +137,8 @@ public class PhysicalIOImplTest {
               mock(BlobStore.class),
               TestTelemetry.DEFAULT,
               OpenStreamInformation.DEFAULT,
-              executorService);
+              executorService,
+              PhysicalIOConfiguration.DEFAULT);
         });
 
     assertThrows(
@@ -144,7 +150,8 @@ public class PhysicalIOImplTest {
               null,
               TestTelemetry.DEFAULT,
               OpenStreamInformation.DEFAULT,
-              executorService);
+              executorService,
+              PhysicalIOConfiguration.DEFAULT);
         });
 
     assertThrows(
@@ -156,7 +163,8 @@ public class PhysicalIOImplTest {
               mock(BlobStore.class),
               null,
               OpenStreamInformation.DEFAULT,
-              executorService);
+              executorService,
+              PhysicalIOConfiguration.DEFAULT);
         });
 
     assertThrows(
@@ -168,7 +176,8 @@ public class PhysicalIOImplTest {
               mock(BlobStore.class),
               TestTelemetry.DEFAULT,
               OpenStreamInformation.DEFAULT,
-              null);
+              null,
+              PhysicalIOConfiguration.DEFAULT);
         });
   }
 
@@ -197,7 +206,8 @@ public class PhysicalIOImplTest {
             blobStore,
             TestTelemetry.DEFAULT,
             OpenStreamInformation.DEFAULT,
-            executorService);
+            executorService,
+            PhysicalIOConfiguration.DEFAULT);
 
     // When: we read
     // Then: returned data is correct
@@ -233,7 +243,8 @@ public class PhysicalIOImplTest {
             blobStore,
             TestTelemetry.DEFAULT,
             OpenStreamInformation.DEFAULT,
-            executorService);
+            executorService,
+            PhysicalIOConfiguration.DEFAULT);
 
     // When: we read
     // Then: returned data is correct
@@ -264,7 +275,8 @@ public class PhysicalIOImplTest {
             blobStore,
             TestTelemetry.DEFAULT,
             OpenStreamInformation.DEFAULT,
-            executorService);
+            executorService,
+            PhysicalIOConfiguration.DEFAULT);
 
     byte[] buffer = new byte[5];
     assertEquals(5, physicalIOImplV2.read(buffer, 0, 5, 5));
@@ -294,7 +306,8 @@ public class PhysicalIOImplTest {
             blobStore,
             TestTelemetry.DEFAULT,
             OpenStreamInformation.DEFAULT,
-            executorService);
+            executorService,
+            PhysicalIOConfiguration.DEFAULT);
     byte[] buffer = new byte[5];
     assertEquals(5, physicalIOImplV2.readTail(buffer, 0, 5));
     assertEquals(1, blobStore.blobCount());
@@ -341,7 +354,8 @@ public class PhysicalIOImplTest {
             blobStore,
             TestTelemetry.DEFAULT,
             OpenStreamInformation.DEFAULT,
-            executorService);
+            executorService,
+            PhysicalIOConfiguration.DEFAULT);
 
     assertThrows(IOException.class, () -> physicalIOImplV2.read(0));
     assertEquals(0, blobStore.blobCount());
@@ -383,7 +397,8 @@ public class PhysicalIOImplTest {
             blobStore,
             TestTelemetry.DEFAULT,
             OpenStreamInformation.DEFAULT,
-            executorService);
+            executorService,
+            PhysicalIOConfiguration.DEFAULT);
 
     assertThrows(IOException.class, () -> physicalIOImplV2.read(0));
     assertEquals(0, blobStore.blobCount());
@@ -416,7 +431,8 @@ public class PhysicalIOImplTest {
             blobStore,
             TestTelemetry.DEFAULT,
             OpenStreamInformation.DEFAULT,
-            executorService);
+            executorService,
+            PhysicalIOConfiguration.DEFAULT);
 
     // When: Read data to ensure blob is created
     byte[] buffer = new byte[4];
@@ -459,7 +475,8 @@ public class PhysicalIOImplTest {
             mockBlobStore,
             TestTelemetry.DEFAULT,
             OpenStreamInformation.DEFAULT,
-            executorService);
+            executorService,
+            PhysicalIOConfiguration.DEFAULT);
     ObjectKey objectKey = ObjectKey.builder().s3URI(s3URI).etag(fakeObjectClient.getEtag()).build();
     // When
     physicalIO.close(true);
@@ -493,7 +510,8 @@ public class PhysicalIOImplTest {
             blobStore,
             TestTelemetry.DEFAULT,
             OpenStreamInformation.DEFAULT,
-            executorService);
+            executorService,
+            PhysicalIOConfiguration.DEFAULT);
 
     // When: Read partial data
     byte[] buffer = new byte[4];
@@ -538,7 +556,8 @@ public class PhysicalIOImplTest {
             blobStore,
             TestTelemetry.DEFAULT,
             OpenStreamInformation.DEFAULT,
-            executorService);
+            executorService,
+            PhysicalIOConfiguration.DEFAULT);
 
     List<ObjectRange> objectRanges = new ArrayList<>();
     objectRanges.add(new ObjectRange(new CompletableFuture<>(), 2, 3));
