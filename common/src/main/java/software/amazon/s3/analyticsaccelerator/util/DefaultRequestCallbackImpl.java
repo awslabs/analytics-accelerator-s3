@@ -41,4 +41,9 @@ public class DefaultRequestCallbackImpl implements RequestCallback {
   public void footerParsingFailed() {
     LOG.trace("Footer parsing failed");
   }
+
+  @Override
+  public void onReadVectored(int numIncomingRanges, int numCombinedRanges) {
+    LOG.trace("Read vectored made");
+  }
 }

@@ -15,7 +15,11 @@
  */
 package software.amazon.s3.analyticsaccelerator.util;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfiguration;
+import software.amazon.s3.analyticsaccelerator.request.Range;
 
 /**
  * Utility class for object size-related operations and determinations. Provides methods to classify
@@ -32,5 +36,31 @@ public class AnalyticsAcceleratorUtils {
   public static boolean isSmallObject(PhysicalIOConfiguration configuration, long contentLength) {
     return configuration.isSmallObjectsPrefetchingEnabled()
         && contentLength <= configuration.getSmallObjectSizeThreshold();
+  }
+
+  public static List<Range> coalesceRanges(List<Range> currentRanges, long tolerance) {
+
+    List<Range> coalescedRages = new ArrayList<>();
+
+    if (currentRanges.size() < 2) {
+      return currentRanges;
+    }
+
+    // Ensure ranges are ordered by their start position.
+    Collections.sort(currentRanges);
+    Range currentRange = currentRanges.get(0);
+    for (int i = 1; i < currentRanges.size(); i++) {
+      Range nextRange = currentRanges.get(i);
+
+      if (currentRange.getEnd() + tolerance >= nextRange.getStart()) {
+        currentRange =
+            new Range(currentRange.getStart(), Math.max(currentRange.getEnd(), nextRange.getEnd()));
+      } else {
+        coalescedRages.add(currentRange);
+        currentRange = nextRange;
+      }
+    }
+
+    return coalescedRages;
   }
 }

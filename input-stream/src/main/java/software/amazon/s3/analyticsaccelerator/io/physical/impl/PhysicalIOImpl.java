@@ -224,7 +224,15 @@ public class PhysicalIOImpl implements PhysicalIO {
   @Override
   public IOPlanExecution execute(IOPlan ioPlan, ReadMode readMode) {
     if (readMode.coalesceRequests() && configuration.isRequestCoalesce()) {
+      int rangeSizeBeforeCoalescing = ioPlan.getPrefetchRanges().size();
       ioPlan.coalesce(configuration.getRequestCoalesceTolerance());
+      int coalescedRangeSize = ioPlan.getPrefetchRanges().size();
+
+      if (readMode == ReadMode.READ_VECTORED) {
+        openStreamInformation
+            .getRequestCallback()
+            .onReadVectored(rangeSizeBeforeCoalescing, coalescedRangeSize);
+      }
     }
     return telemetry.measureVerbose(
         () ->

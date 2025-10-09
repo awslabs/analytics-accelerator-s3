@@ -36,4 +36,12 @@ public interface RequestCallback {
 
   /** Called when footer parsing fails. */
   void footerParsingFailed();
+
+  /**
+   * Called when a read vectored is made.
+   *
+   * @param numIncomingRanges num of ranges in the read request
+   * @param numCombinedRanges num of ranges after range coalescing
+   */
+  void onReadVectored(int numIncomingRanges, int numCombinedRanges);
 }
