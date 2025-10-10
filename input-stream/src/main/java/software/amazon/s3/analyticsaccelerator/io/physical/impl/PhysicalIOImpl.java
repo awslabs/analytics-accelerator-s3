@@ -264,7 +264,7 @@ public class PhysicalIOImpl implements PhysicalIO {
     Blob blob = blobStore.get(objectKey, this.metadata, openStreamInformation);
 
     makeReadVectoredRangesAvailable(objectRanges);
-
+    
     for (ObjectRange objectRange : objectRanges) {
       ByteBuffer buffer = allocate.apply(objectRange.getLength());
       threadPool.submit(
@@ -284,7 +284,7 @@ public class PhysicalIOImpl implements PhysicalIO {
               } else {
                 // there is no use of a temp byte buffer, or buffer.put() calls,
                 // so flip() is not needed.
-                blob.read(buffer.array(), 0, objectRange.getLength(), objectRange.getOffset());
+                blob.read(buffer.array(), 0, objectRange.getLength(), objectRange.getOffset(), ReadMode.READ_VECTORED);
               }
               objectRange.getByteBuffer().complete(buffer);
             } catch (Exception e) {
@@ -312,7 +312,7 @@ public class PhysicalIOImpl implements PhysicalIO {
           (readBytes + tmpBufferMaxSize) < length ? tmpBufferMaxSize : (length - readBytes);
       LOG.debug(
           "Reading {} bytes from position {} (bytes read={}", currentLength, position, readBytes);
-      blob.read(tmp, 0, currentLength, position);
+      blob.read(tmp, 0, currentLength, position, ReadMode.READ_VECTORED);
       buffer.put(tmp, 0, currentLength);
       position = position + currentLength;
       readBytes = readBytes + currentLength;

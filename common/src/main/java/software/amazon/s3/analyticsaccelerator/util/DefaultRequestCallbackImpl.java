@@ -46,4 +46,9 @@ public class DefaultRequestCallbackImpl implements RequestCallback {
   public void onReadVectored(int numIncomingRanges, int numCombinedRanges) {
     LOG.trace("Read vectored made");
   }
+
+  @Override
+  public void onCacheHit() {
+    LOG.trace("Data was present in cache");
+  }
 }

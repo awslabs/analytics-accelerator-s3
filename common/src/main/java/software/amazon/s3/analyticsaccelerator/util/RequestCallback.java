@@ -44,4 +44,6 @@ public interface RequestCallback {
    * @param numCombinedRanges num of ranges after range coalescing
    */
   void onReadVectored(int numIncomingRanges, int numCombinedRanges);
+
+  void onCacheHit();
 }

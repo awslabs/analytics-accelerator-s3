@@ -156,7 +156,12 @@ public class BlockManager implements Closeable {
     long endPos = pos + len - 1;
 
     // Range is available, return
-    if (isRangeAvailable(pos, endPos)) return;
+    if (isRangeAvailable(pos, endPos)) {
+      if (readMode == ReadMode.SYNC) {
+        openStreamInformation.getRequestCallback().onCacheHit();
+      }
+      return;
+    }
 
     if (readMode.isPrefetch()) {
       requestCallback.onBlockPrefetch(pos, endPos);
