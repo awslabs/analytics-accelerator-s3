@@ -45,5 +45,6 @@ public interface RequestCallback {
    */
   void onReadVectored(int numIncomingRanges, int numCombinedRanges);
 
+  /** Called when the request read range is present in the block store. */
   void onCacheHit();
 }

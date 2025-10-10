@@ -19,7 +19,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -131,6 +130,7 @@ public class Blob implements Closeable {
    * @param off start position in buffer at which data is written
    * @param len length of data to be read
    * @param pos the position to begin reading from
+   * @param readMode mode to define the read type
    * @return the total number of bytes read into the buffer
    * @throws IOException if an I/O error occurs
    */
