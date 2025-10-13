@@ -185,7 +185,7 @@ public class BlockManager implements Closeable {
           Math.max(maxReadLength, sequentialReadProgression.getSizeForGeneration(generation));
 
       // Record any range extension due to sequential prefetching
-      requestCallback.onBlockPrefetch(endPos, pos + maxReadLength - 1);
+      requestCallback.onBlockPrefetch(endPos + 1, truncatePos(pos + maxReadLength - 1));
     }
     // Truncate end position to the object length
     long effectiveEnd = truncatePos(pos + maxReadLength - 1);
