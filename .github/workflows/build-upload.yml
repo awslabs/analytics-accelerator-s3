@@ -7,6 +7,7 @@ on:
     branches:
       - main
       - cicd-builds
+  workflow_dispatch:
 
 env:
   AWS_REGION :  ${{ vars.AWS_REGION }} # Change to reflect your region
@@ -15,6 +16,8 @@ env:
   ROLE_TO_ASSUME: ${{ secrets.ASSUME_ROLE_ARN }}
   STATE_MACHINE_INPUT_S3A: ${{ vars.STATE_MACHINE_INPUT_S3A }}
   STATE_MACHINE_INPUT_S3FILEIO: ${{ vars.STATE_MACHINE_INPUT_S3FILEIO }}
+  ICEBERG_JAR_NAME: "iceberg-spark-runtime-4.0_2.13-1.10.0-SNAPSHOT.jar"
+  ICEBERG_JAR_PATTERN: "iceberg-spark-runtime-4.0_2.13-[0-9a-f]*\\.jar"
 
 # Permission can be added at job level or workflow level    
 permissions:
@@ -95,7 +98,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '17'
           distribution: 'corretto'
           
       - uses: actions/download-artifact@v4
@@ -137,15 +140,15 @@ jobs:
 
       - name: Rename iceberg-spark-runtime JAR path
         run: |
-          FILE_PATH_BASE=/home/runner/work/analytics-accelerator-s3/analytics-accelerator-s3/iceberg/spark/v3.5/spark-runtime/build/libs/
+          FILE_PATH_BASE=/home/runner/work/analytics-accelerator-s3/analytics-accelerator-s3/iceberg/spark/v4.0/spark-runtime/build/libs/
           cd "$FILE_PATH_BASE"
-          FILE_NAME=$(ls | grep "iceberg-spark-runtime-3.5_2.12-[0-9a-f]*\.jar" | head -n 1)
-          mv "$FILE_NAME" "iceberg-spark-runtime-3.5_2.12-1.6.0-SNAPSHOT.jar"
+          FILE_NAME=$(ls | grep "${{ env.ICEBERG_JAR_PATTERN }}" | head -n 1)
+          mv "$FILE_NAME" "${{ env.ICEBERG_JAR_NAME }}"
 
       - uses: actions/upload-artifact@v4
         with:
-          path: "/home/runner/work/analytics-accelerator-s3/analytics-accelerator-s3/iceberg/spark/v3.5/spark-runtime/build/libs/iceberg-spark-runtime-3.5_2.12-1.6.0-SNAPSHOT.jar"
-          name: "iceberg-spark-runtime-3.5_2.12-1.6.0-SNAPSHOT.jar"
+          path: "/home/runner/work/analytics-accelerator-s3/analytics-accelerator-s3/iceberg/spark/v4.0/spark-runtime/build/libs/${{ env.ICEBERG_JAR_NAME }}"
+          name: "${{ env.ICEBERG_JAR_NAME }}"
 
   UploadArtifactsToS3:
     name: Upload all artifacts to S3
@@ -161,7 +164,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: "iceberg-spark-runtime-3.5_2.12-1.6.0-SNAPSHOT.jar"
+          name: "${{ env.ICEBERG_JAR_NAME }}"
 
 #      - uses: actions/download-artifact@v4
 #        with:
@@ -181,7 +184,7 @@ jobs:
         run: aws s3 cp analyticsaccelerator-s3-SNAPSHOT.jar s3://${{ env.S3_BUCKET }}/s3fileio/analyticsaccelerator-s3-SNAPSHOT.jar
 
       - name: Upload Iceberg JAR to S3FileIO treatment bucket
-        run: aws s3 cp iceberg-spark-runtime-3.5_2.12-1.6.0-SNAPSHOT.jar s3://${{ env.S3_BUCKET }}/s3fileio/iceberg-spark-runtime-3.5_2.12-1.6.0-SNAPSHOT.jar
+        run: aws s3 cp ${{ env.ICEBERG_JAR_NAME }} s3://${{ env.S3_BUCKET }}/s3fileio/${{ env.ICEBERG_JAR_NAME }}
 
 #      - name: Upload Hadoop JAR to S3A treatment bucket
 #        run: aws s3 cp hadoop-aws-3.5.0-SNAPSHOT.jar s3://${{ env.S3_BUCKET }}/s3a/hadoop-aws-3.5.0-SNAPSHOT.jar
