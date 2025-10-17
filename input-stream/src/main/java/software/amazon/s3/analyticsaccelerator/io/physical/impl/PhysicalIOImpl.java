@@ -293,6 +293,7 @@ public class PhysicalIOImpl implements PhysicalIO {
               }
               objectRange.getByteBuffer().complete(buffer);
             } catch (Exception e) {
+              handleOperationExceptions(e);
               objectRange.getByteBuffer().completeExceptionally(e);
               release.accept(buffer);
             }
@@ -374,6 +375,7 @@ public class PhysicalIOImpl implements PhysicalIO {
   public void close(boolean shouldEvict) throws IOException {
     if (shouldEvict) {
       blobStore.evictKey(this.objectKey);
+      metadataStore.evictKey(this.objectKey.getS3URI());
     }
   }
 
