@@ -40,6 +40,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.util.DefaultRequestCallbackImpl;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
@@ -401,7 +402,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
                           physicalIO,
                           TestTelemetry.DEFAULT,
                           LogicalIOConfiguration.DEFAULT,
-                          new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT));
+                          new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT),
+                          new DefaultRequestCallbackImpl());
                   try (SeekableInputStream stream =
                       new S3SeekableInputStream(TEST_URI, logicalIO, TestTelemetry.DEFAULT)) {
                     byte[] buffer = new byte[4];
@@ -597,7 +599,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
                 PhysicalIOConfiguration.DEFAULT),
             TestTelemetry.DEFAULT,
             LogicalIOConfiguration.DEFAULT,
-            new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT)),
+            new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT),
+            new DefaultRequestCallbackImpl()),
         TestTelemetry.DEFAULT);
   }
 
@@ -628,7 +631,8 @@ public class S3SeekableInputStreamTest extends S3SeekableInputStreamTestBase {
                 PhysicalIOConfiguration.DEFAULT),
             TestTelemetry.DEFAULT,
             LogicalIOConfiguration.DEFAULT,
-            new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT));
+            new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT),
+            new DefaultRequestCallbackImpl());
 
     try (S3SeekableInputStream stream =
         new S3SeekableInputStream(TEST_URI, logicalIO, TestTelemetry.DEFAULT)) {

@@ -23,18 +23,19 @@ import lombok.AllArgsConstructor;
  */
 @AllArgsConstructor
 public enum ReadMode {
-  SYNC(true, false),
-  ASYNC(true, false),
-  SMALL_OBJECT_PREFETCH(true, false),
-  SEQUENTIAL_FILE_PREFETCH(true, false),
-  DICTIONARY_PREFETCH(false, false),
-  COLUMN_PREFETCH(false, true),
-  REMAINING_COLUMN_PREFETCH(false, false),
-  PREFETCH_TAIL(false, false),
-  READ_VECTORED(false, true);
+  SYNC(true, false, false),
+  ASYNC(true, false, true),
+  SMALL_OBJECT_PREFETCH(true, false, true),
+  SEQUENTIAL_FILE_PREFETCH(true, false, true),
+  DICTIONARY_PREFETCH(false, false, true),
+  COLUMN_PREFETCH(false, true, true),
+  REMAINING_COLUMN_PREFETCH(false, false, true),
+  PREFETCH_TAIL(false, false, true),
+  READ_VECTORED(false, true, false);
 
   private final boolean allowRequestExtension;
   private final boolean coalesceRequests;
+  private final boolean isPrefetch;
 
   /**
    * Should requests be extended for this read mode?
@@ -59,5 +60,14 @@ public enum ReadMode {
    */
   public boolean coalesceRequests() {
     return coalesceRequests;
+  }
+
+  /**
+   * Is the read mode a prefetch?
+   *
+   * @return true if read originates from a prefetch operation.
+   */
+  public boolean isPrefetch() {
+    return isPrefetch;
   }
 }

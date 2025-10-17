@@ -34,6 +34,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
 import software.amazon.s3.analyticsaccelerator.request.HeadRequest;
 import software.amazon.s3.analyticsaccelerator.request.ObjectClient;
 import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.util.DefaultRequestCallbackImpl;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
@@ -53,7 +54,8 @@ public class ParquetLogicalIOImplTest {
             mock(PhysicalIO.class),
             TestTelemetry.DEFAULT,
             mock(LogicalIOConfiguration.class),
-            mock(ParquetColumnPrefetchStore.class)));
+            mock(ParquetColumnPrefetchStore.class),
+            new DefaultRequestCallbackImpl()));
   }
 
   @Test
@@ -66,7 +68,8 @@ public class ParquetLogicalIOImplTest {
                 null,
                 TestTelemetry.DEFAULT,
                 mock(LogicalIOConfiguration.class),
-                mock(ParquetColumnPrefetchStore.class)));
+                mock(ParquetColumnPrefetchStore.class),
+                new DefaultRequestCallbackImpl()));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -75,7 +78,8 @@ public class ParquetLogicalIOImplTest {
                 mock(PhysicalIO.class),
                 TestTelemetry.DEFAULT,
                 null,
-                mock(ParquetColumnPrefetchStore.class)));
+                mock(ParquetColumnPrefetchStore.class),
+                new DefaultRequestCallbackImpl()));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -84,7 +88,8 @@ public class ParquetLogicalIOImplTest {
                 mock(PhysicalIO.class),
                 null,
                 mock(LogicalIOConfiguration.class),
-                mock(ParquetColumnPrefetchStore.class)));
+                mock(ParquetColumnPrefetchStore.class),
+                new DefaultRequestCallbackImpl()));
     assertThrows(
         NullPointerException.class,
         () ->
@@ -93,7 +98,8 @@ public class ParquetLogicalIOImplTest {
                 mock(PhysicalIO.class),
                 TestTelemetry.DEFAULT,
                 mock(LogicalIOConfiguration.class),
-                null));
+                null,
+                new DefaultRequestCallbackImpl()));
 
     assertThrows(
         NullPointerException.class,
@@ -103,7 +109,8 @@ public class ParquetLogicalIOImplTest {
                 mock(PhysicalIO.class),
                 TestTelemetry.DEFAULT,
                 mock(LogicalIOConfiguration.class),
-                mock(ParquetColumnPrefetchStore.class)));
+                mock(ParquetColumnPrefetchStore.class),
+                new DefaultRequestCallbackImpl()));
   }
 
   @Test
@@ -122,7 +129,8 @@ public class ParquetLogicalIOImplTest {
             physicalIO,
             TestTelemetry.DEFAULT,
             configuration,
-            new ParquetColumnPrefetchStore(configuration));
+            new ParquetColumnPrefetchStore(configuration),
+            new DefaultRequestCallbackImpl());
 
     // When: close called
     logicalIO.close();
@@ -167,6 +175,7 @@ public class ParquetLogicalIOImplTest {
                 physicalIO,
                 TestTelemetry.DEFAULT,
                 LogicalIOConfiguration.DEFAULT,
-                new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT)));
+                new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT),
+                new DefaultRequestCallbackImpl()));
   }
 }

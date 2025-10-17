@@ -31,4 +31,24 @@ public class DefaultRequestCallbackImpl implements RequestCallback {
   public void onHeadRequest() {
     LOG.trace("HEAD request made");
   }
+
+  @Override
+  public void onBlockPrefetch(long start, long end) {
+    LOG.trace("Block prefetch made");
+  }
+
+  @Override
+  public void footerParsingFailed() {
+    LOG.trace("Footer parsing failed");
+  }
+
+  @Override
+  public void onReadVectored(int numIncomingRanges, int numCombinedRanges) {
+    LOG.trace("Read vectored made");
+  }
+
+  @Override
+  public void onCacheHit() {
+    LOG.trace("Data was present in cache");
+  }
 }

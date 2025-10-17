@@ -30,6 +30,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIO;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanExecution;
 import software.amazon.s3.analyticsaccelerator.io.physical.plan.IOPlanState;
 import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
+import software.amazon.s3.analyticsaccelerator.util.RequestCallback;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 import software.amazon.s3.analyticsaccelerator.util.StreamAttributes;
 
@@ -71,19 +72,21 @@ public class ParquetPrefetcher {
    * @param telemetry an instance of {@link Telemetry} to use
    * @param logicalIOConfiguration the LogicalIO's configuration
    * @param parquetColumnPrefetchStore a common place for Parquet usage information
+   * @param requestCallback callback for tracking IoStats to upstream integrations such as S3A
    */
   public ParquetPrefetcher(
       S3URI s3Uri,
       PhysicalIO physicalIO,
       Telemetry telemetry,
       LogicalIOConfiguration logicalIOConfiguration,
-      ParquetColumnPrefetchStore parquetColumnPrefetchStore) {
+      ParquetColumnPrefetchStore parquetColumnPrefetchStore,
+      RequestCallback requestCallback) {
     this(
         s3Uri,
         logicalIOConfiguration,
         parquetColumnPrefetchStore,
         telemetry,
-        new ParquetMetadataParsingTask(s3Uri, parquetColumnPrefetchStore),
+        new ParquetMetadataParsingTask(s3Uri, parquetColumnPrefetchStore, requestCallback),
         new ParquetPrefetchTailTask(s3Uri, telemetry, logicalIOConfiguration, physicalIO),
         new ParquetReadTailTask(s3Uri, telemetry, logicalIOConfiguration, physicalIO),
         new ParquetPrefetchRemainingColumnTask(

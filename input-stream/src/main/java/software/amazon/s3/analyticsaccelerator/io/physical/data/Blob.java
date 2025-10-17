@@ -110,7 +110,7 @@ public class Blob implements Closeable {
   }
 
   /**
-   * Reads data into the provided buffer
+   * Reads data into the provided buffer.
    *
    * @param buf buffer to read data into
    * @param off start position in buffer at which data is written
@@ -120,6 +120,21 @@ public class Blob implements Closeable {
    * @throws IOException if an I/O error occurs
    */
   public int read(byte[] buf, int off, int len, long pos) throws IOException {
+    return read(buf, off, len, pos, ReadMode.SYNC);
+  }
+
+  /**
+   * Reads data into the provided buffer and accepts a readMode.
+   *
+   * @param buf buffer to read data into
+   * @param off start position in buffer at which data is written
+   * @param len length of data to be read
+   * @param pos the position to begin reading from
+   * @param readMode mode to define the read type
+   * @return the total number of bytes read into the buffer
+   * @throws IOException if an I/O error occurs
+   */
+  public int read(byte[] buf, int off, int len, long pos, ReadMode readMode) throws IOException {
     Preconditions.checkArgument(0 <= pos, "`pos` must not be negative");
     Preconditions.checkArgument(pos < contentLength(), "`pos` must be less than content length");
     Preconditions.checkArgument(0 <= off, "`off` must not be negative");
@@ -128,7 +143,7 @@ public class Blob implements Closeable {
 
     try {
       lock.readLock().lock();
-      blockManager.makeRangeAvailable(pos, len, ReadMode.SYNC);
+      blockManager.makeRangeAvailable(pos, len, readMode);
 
       long nextPosition = pos;
       int numBytesRead = 0;

@@ -29,6 +29,7 @@ import software.amazon.s3.analyticsaccelerator.io.physical.PhysicalIOConfigurati
 import software.amazon.s3.analyticsaccelerator.io.physical.data.BlobStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.data.MetadataStore;
 import software.amazon.s3.analyticsaccelerator.io.physical.impl.PhysicalIOImpl;
+import software.amazon.s3.analyticsaccelerator.util.DefaultRequestCallbackImpl;
 import software.amazon.s3.analyticsaccelerator.util.FakeObjectClient;
 import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
@@ -76,7 +77,8 @@ public class S3SeekableInputStreamTestBase {
                   PhysicalIOConfiguration.DEFAULT),
               TestTelemetry.DEFAULT,
               logicalIOConfiguration,
-              new ParquetColumnPrefetchStore(logicalIOConfiguration));
+              new ParquetColumnPrefetchStore(logicalIOConfiguration),
+              new DefaultRequestCallbackImpl());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

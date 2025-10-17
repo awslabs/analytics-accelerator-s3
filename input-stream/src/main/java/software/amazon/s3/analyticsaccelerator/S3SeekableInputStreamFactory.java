@@ -153,7 +153,8 @@ public class S3SeekableInputStreamFactory implements AutoCloseable {
             createPhysicalIO(s3URI, openStreamInformation),
             telemetry,
             configuration.getLogicalIOConfiguration(),
-            parquetColumnPrefetchStore);
+            parquetColumnPrefetchStore,
+            openStreamInformation.getRequestCallback());
 
       case SEQUENTIAL:
         return new SequentialLogicalIOImpl(

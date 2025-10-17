@@ -45,6 +45,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import software.amazon.awssdk.utils.ImmutableMap;
 import software.amazon.s3.analyticsaccelerator.io.logical.LogicalIOConfiguration;
 import software.amazon.s3.analyticsaccelerator.io.logical.impl.ParquetColumnPrefetchStore;
+import software.amazon.s3.analyticsaccelerator.util.DefaultRequestCallbackImpl;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 @SuppressFBWarnings(
@@ -57,7 +58,9 @@ public class ParquetMetadataParsingTaskTest {
   void testConstructor() {
     assertNotNull(
         new ParquetMetadataParsingTask(
-            TEST_URI, new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT)));
+            TEST_URI,
+            new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT),
+            new DefaultRequestCallbackImpl()));
   }
 
   @Test
@@ -66,19 +69,26 @@ public class ParquetMetadataParsingTaskTest {
         NullPointerException.class,
         () ->
             new ParquetMetadataParsingTask(
-                null, new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT)));
-    assertThrows(NullPointerException.class, () -> new ParquetMetadataParsingTask(TEST_URI, null));
+                null,
+                new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT),
+                new DefaultRequestCallbackImpl()));
+    assertThrows(
+        NullPointerException.class,
+        () -> new ParquetMetadataParsingTask(TEST_URI, null, new DefaultRequestCallbackImpl()));
     assertThrows(
         NullPointerException.class,
         () ->
             new ParquetMetadataParsingTask(
                 null,
                 new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT),
-                mock(ParquetParser.class)));
+                mock(ParquetParser.class),
+                new DefaultRequestCallbackImpl()));
 
     assertThrows(
         NullPointerException.class,
-        () -> new ParquetMetadataParsingTask(TEST_URI, null, mock(ParquetParser.class)));
+        () ->
+            new ParquetMetadataParsingTask(
+                TEST_URI, null, mock(ParquetParser.class), new DefaultRequestCallbackImpl()));
 
     assertThrows(
         NullPointerException.class,
@@ -236,7 +246,8 @@ public class ParquetMetadataParsingTaskTest {
         new ParquetMetadataParsingTask(
             TEST_URI,
             new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT),
-            mockedParquetParser);
+            mockedParquetParser,
+            new DefaultRequestCallbackImpl());
     CompletableFuture<ColumnMappers> parquetMetadataTaskFuture =
         CompletableFuture.supplyAsync(
             () ->
@@ -264,7 +275,8 @@ public class ParquetMetadataParsingTaskTest {
         new ParquetMetadataParsingTask(
             TEST_URI,
             new ParquetColumnPrefetchStore(LogicalIOConfiguration.DEFAULT),
-            mockedParquetParser);
+            mockedParquetParser,
+            new DefaultRequestCallbackImpl());
 
     return parquetMetadataParsingTask.storeColumnMappers(new FileTail(ByteBuffer.allocate(0), 0));
   }
