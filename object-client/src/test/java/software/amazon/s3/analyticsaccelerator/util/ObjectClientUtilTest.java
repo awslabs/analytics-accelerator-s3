@@ -48,24 +48,31 @@ public class ObjectClientUtilTest {
   @Test
   void testExceptionHandlerWithExecutionException() {
     ExecutionException executionException =
-        new ExecutionException("Execution failed", InvalidObjectStateException.builder().build());
+        new ExecutionException(
+            "Execution failed",
+            InvalidObjectStateException.builder().message("InvalidObjectState").build());
 
     Throwable result = ObjectClientUtil.handleException(S3_URI, executionException);
 
     assertInstanceOf(IOException.class, result);
     assertInstanceOf(InvalidObjectStateException.class, result.getCause());
-    assertEquals("Object s3://test-bucket/test-key is in invalid state", result.getMessage());
+    assertEquals(
+        "Object s3://test-bucket/test-key is in invalid state, failed with: InvalidObjectState",
+        result.getMessage());
   }
 
   @Test
   void testExceptionHandlerWithSDKClientException() {
-    SdkClientException sdkClientException = SdkClientException.builder().build();
+    SdkClientException sdkClientException =
+        SdkClientException.builder().message("SdkClientException").build();
 
     Throwable result = ObjectClientUtil.handleException(S3_URI, sdkClientException);
 
     assertInstanceOf(IOException.class, result);
     assertInstanceOf(SdkClientException.class, result.getCause());
-    assertEquals("Client error accessing s3://test-bucket/test-key", result.getMessage());
+    assertEquals(
+        "Client error accessing s3://test-bucket/test-key, failed with: SdkClientException",
+        result.getMessage());
   }
 
   @Test

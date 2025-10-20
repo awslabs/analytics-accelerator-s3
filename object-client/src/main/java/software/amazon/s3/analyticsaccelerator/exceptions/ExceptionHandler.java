@@ -33,18 +33,21 @@ public enum ExceptionHandler {
 
   INVALID_OBJECT_STATE(
       InvalidObjectStateException.class,
-      (cause, uri) -> createIOException("Object %s is in invalid state", uri, cause)),
+      (cause, uri) ->
+          createIOException("Object %s is in invalid state, failed with: %s", uri, cause)),
 
   SDK_CLIENT(
       SdkClientException.class,
-      (cause, uri) -> createIOException("Client error accessing %s", uri, cause)),
+      (cause, uri) -> createIOException("Client error accessing %s, failed with: %s", uri, cause)),
 
   S3_SERVICE(
       S3Exception.class,
-      (cause, uri) -> createIOException("Server error accessing %s", uri, cause)),
+      (cause, uri) ->
+          createIOException("Server error accessing %s, request failed with: %s", uri, cause)),
 
   SDK_GENERAL(
-      SdkException.class, (cause, uri) -> createIOException("SDK error accessing %s", uri, cause));
+      SdkException.class,
+      (cause, uri) -> createIOException("SDK error accessing %s, failed with: %s", uri, cause));
 
   private final Class<? extends Exception> exceptionClass;
   private final ExceptionMapper mapper;
@@ -91,7 +94,7 @@ public enum ExceptionHandler {
   }
 
   private static IOException createIOException(String message, S3URI uri, Throwable cause) {
-    return new IOException(String.format(message, uri), cause);
+    return new IOException(String.format(message, uri, cause.getMessage()), cause);
   }
 
   private static FileNotFoundException createFileNotFoundException(String message, S3URI uri) {
