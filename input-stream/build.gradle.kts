@@ -10,7 +10,7 @@ import com.github.jk1.license.render.TextReportRenderer
 
 val group = "software.amazon.s3.analyticsaccelerator"
 val artefact = "analyticsaccelerator-s3"
-val currentVersionNumber = "1.3.0"
+val currentVersionNumber = "1.3.1"
 
 val isSnapshot = findProperty("snapshotBuild") == "true"
 val currentVersion = if (isSnapshot) "SNAPSHOT" else currentVersionNumber;

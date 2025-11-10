@@ -1,3 +1,8 @@
+## v1.3.1 (November 10, 2025)
+* Coalesce ranges for vectored reads https://github.com/awslabs/analytics-accelerator-s3/pull/356
+* Adds support for IoStats for S3A https://github.com/awslabs/analytics-accelerator-s3/pull/358
+* Adds exception to cause during exception translation https://github.com/awslabs/analytics-accelerator-s3/pull/361
+
 ## v1.3.0 (August 20, 2025)
 * Introduce max read bytes config for sequential read https://github.com/awslabs/analytics-accelerator-s3/pull/348
 * Add TTL to metadata store cache https://github.com/awslabs/analytics-accelerator-s3/pull/338
