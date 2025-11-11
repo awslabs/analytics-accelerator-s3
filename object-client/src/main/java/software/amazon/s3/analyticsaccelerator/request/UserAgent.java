@@ -24,7 +24,7 @@ public final class UserAgent {
   // Hard-coded user-agent string
   private static final String UA_STRING = "s3analyticsaccelerator";
 
-  private static final String VERSION_INFO = "1.3.0";
+  private static final String VERSION_INFO = "1.3.1";
   /**
    * Disallowed characters in the user agent token: @see <a
    * href="https://tools.ietf.org/html/rfc7230#section-3.2.6">RFC 7230</a>
