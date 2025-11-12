@@ -24,7 +24,7 @@ jobs:
         settings-path: ${{ github.workspace }}
 
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
+      uses: aws-actions/configure-aws-credentials@v5
       with:
         role-to-assume: ${{ secrets.ASSUME_ROLE_ARN }}
         aws-region: ${{ vars.AWS_REGION }}

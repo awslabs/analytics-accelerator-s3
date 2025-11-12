@@ -168,7 +168,7 @@ jobs:
 #          name: "hadoop-aws-3.5.0-SNAPSHOT.jar"
 
       - name: Configure aws credentials
-        uses: aws-actions/configure-aws-credentials@v4.0.2
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ env.ROLE_TO_ASSUME }}
           role-session-name: GitHub_to_AWS_via_FederatedOIDC
