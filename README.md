@@ -123,7 +123,7 @@ Analytics Accelerator Library for Amazon S3 is currently being integrated into [
 </property>
 ```
 
-For [S3 General Purpose Buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingBucket.html) and [S3 Directory Buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-overview.html) set the `<CATALOG_NAME>`to `spark_catalog`, the default catalog. 
+For [S3 General Purpose Buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingBucket.html) and [S3 Directory Buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-overview.html) set the `<CATALOG_NAME>` to `spark_catalog`, the default catalog. 
 
 [S3 Table Buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-buckets.html) require you to set a custom catalog name, as outlined [here](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-open-source-spark.html).
 Once you set the catalog, you can replace the `<CATALOG_NAME>` parameter with your chosen name.
@@ -175,7 +175,7 @@ We prepend user agent prefixes from both `USER_AGENT_PREFIX_KEY` set in `ObjectC
 
 The current benchmarking results are provided for reference only. It is important to note that the performance of these queries can be affected by a variety of factors, including compute and storage variability, cluster configuration, and compute choice. All of the results presented have a margin of error of up to 3%.
 
-To establish the performance impact of changes, we rely on a benchmark derived from an industry standard TPC-DS benchmark at a 3 TB scale. It is important to note that our TPC-DS derived benchmark results are not directly comparable with official TPC-DS benchmark results. We also found that the sizing of Apache Parquet files and partitioning of the dataset have a substantive impact on the workload performance. As a result, we have created several versions of the test dataset, with a focus on different object sizes, ranging from singular MiBs to tens of GiBs, as well as various partitioning approaches
+To establish the performance impact of changes, we rely on a benchmark derived from an industry standard TPC-DS benchmark at a 3 TB scale. It is important to note that our TPC-DS derived benchmark results are not directly comparable with official TPC-DS benchmark results. We also found that the sizing of Apache Parquet files and partitioning of the dataset have a substantive impact on the workload performance. As a result, we have created several versions of the test dataset, with a focus on different object sizes, ranging from singular MiBs to tens of GiBs, as well as various partitioning approaches.
 
 On S3A, we have observed a total suite execution acceleration between 10% and 27%, with some queries showing a speed-up of up to 40%. 
 
