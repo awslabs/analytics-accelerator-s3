@@ -101,6 +101,8 @@ public class BenchmarkDataGeneratorDriver {
             context, S3ObjectKind.RANDOM_SEQUENTIAL_ENCRYPTED);
       case RANDOM_PARQUET_ENCRYPTED:
         return new ParquetObjectGenerator(context, S3ObjectKind.RANDOM_PARQUET_ENCRYPTED);
+      case RANDOM_PARQUET:
+        return new ParquetObjectGenerator(context, S3ObjectKind.RANDOM_PARQUET);
       case RANDOM_SEQUENTIAL:
         return new RandomSequentialObjectGenerator(context, S3ObjectKind.RANDOM_SEQUENTIAL);
       default:

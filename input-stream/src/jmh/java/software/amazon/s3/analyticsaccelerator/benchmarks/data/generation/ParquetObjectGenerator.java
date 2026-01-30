@@ -42,6 +42,9 @@ public class ParquetObjectGenerator extends BenchmarkObjectGenerator {
   public void generate(S3URI s3URI, long size) {
     String fileName = s3URI.getKey().substring(s3URI.getKey().lastIndexOf('/') + 1);
     File sourceFile = new File("input-stream/src/jmh/resources/" + fileName);
+    if (!sourceFile.exists()) {
+      sourceFile = new File("input-stream/src/integrationTest/resources/parquet/" + fileName);
+    }
     String progressPrefix = createProgressPrefix(s3URI);
     System.out.println(progressPrefix + "Starting upload from: " + sourceFile.getAbsolutePath());
 
