@@ -15,7 +15,10 @@
  */
 package software.amazon.s3.analyticsaccelerator.access;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Set;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -36,12 +39,14 @@ public class ParquetDictionaryPrefetchingTest extends ParquetIntegrationTestBase
   /**
    * Tests that dictionary reads and column data reads are tracked separately.
    *
-   * <p>In Parquet, for selective queries like "SELECT col WHERE col = 'value'", the dictionary
-   * page is read first for predicate pushdown, then column data is read if the predicate matches.
-   * The library tracks these separately to optimize prefetching for selective queries.
+   * <p>In Parquet, for selective queries like "SELECT col WHERE col = 'value'", the dictionary page
+   * is read first for predicate pushdown, then column data is read if the predicate matches. The
+   * library tracks these separately to optimize prefetching for selective queries.
    *
    * <p>Classification logic: - Dictionary read: readSize <= (dataPageOffset - dictionaryOffset) -
    * Column read: readSize > (dataPageOffset - dictionaryOffset)
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
@@ -115,6 +120,8 @@ public class ParquetDictionaryPrefetchingTest extends ParquetIntegrationTestBase
    *
    * <p>Ensures dictionaries read from one schema are not tracked when opening files with different
    * schemas. Each schema maintains its own independent dictionary tracking list.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
@@ -187,6 +194,8 @@ public class ParquetDictionaryPrefetchingTest extends ParquetIntegrationTestBase
    * <p>When dictionary prefetching encounters corrupted data, the library should gracefully handle
    * the error by skipping prefetch while still allowing successful read operations without
    * propagating exceptions to users.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")

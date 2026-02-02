@@ -15,7 +15,11 @@
  */
 package software.amazon.s3.analyticsaccelerator.access;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
 import java.util.Set;
@@ -36,60 +40,39 @@ import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTestBase {
 
   /**
-   * Tests that files with identical schemas produce matching schema hashes.
+   * Tests schema hash generation for files with same and different schemas.
    *
-   * <p>Validates the core schema grouping mechanism: files with the same column names should be
-   * assigned the same schema hash, enabling schema-based predictive column prefetching.
+   * <p>Validates that files with identical column names produce matching schema hashes, while files
+   * with different column names produce different hashes.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
-  void testFilesWithSameSchemaHaveMatchingHashes(S3ClientKind s3ClientKind) throws Exception {
+  void testSchemaHashGeneration(S3ClientKind s3ClientKind) throws Exception {
     S3SeekableInputStreamConfiguration config = createParquetConfig(false);
 
     try (S3AALClientStreamReader reader = getStreamReader(s3ClientKind, config)) {
       S3Object file1 = S3Object.SCHEMA_MATCH_FILE1_PARQUET;
       S3Object file2 = S3Object.SCHEMA_MATCH_FILE2_PARQUET;
+      S3Object file3 = S3Object.VALID_SMALL_PARQUET;
 
       int hash1 = getSchemaHash(reader, file1);
       int hash2 = getSchemaHash(reader, file2);
+      int hash3 = getSchemaHash(reader, file3);
 
       Set<String> columns1 = getColumnNames(reader, file1);
       Set<String> columns2 = getColumnNames(reader, file2);
+      Set<String> columns3 = getColumnNames(reader, file3);
 
-      // Verify files have identical columns
-      assertEquals(columns1, columns2, "Files should have identical column names");
+      // Verify files with identical schemas have matching hashes
+      assertEquals(columns1, columns2, "File1 and File2 should have identical column names");
       assertFalse(columns1.isEmpty(), "Files should have at least one column");
-
-      // Verify schema hashes match
       assertEquals(hash1, hash2, "Files with identical schemas should have matching hashes");
-    }
-  }
 
-  /**
-   * Tests that files with different schemas produce different schema hashes.
-   *
-   * <p>Validates schema isolation: files with different column names should have different hashes.
-   */
-  @ParameterizedTest
-  @MethodSource("clientKinds")
-  void testFilesWithDifferentSchemasHaveDifferentHashes(S3ClientKind s3ClientKind) throws Exception {
-    S3SeekableInputStreamConfiguration config = createParquetConfig(false);
-
-    try (S3AALClientStreamReader reader = getStreamReader(s3ClientKind, config)) {
-      S3Object file1 = S3Object.SCHEMA_MATCH_FILE1_PARQUET;
-      S3Object file2 = S3Object.VALID_SMALL_PARQUET;
-
-      int hash1 = getSchemaHash(reader, file1);
-      int hash2 = getSchemaHash(reader, file2);
-
-      Set<String> columns1 = getColumnNames(reader, file1);
-      Set<String> columns2 = getColumnNames(reader, file2);
-
-      // Verify files have different columns
-      assertNotEquals(columns1, columns2, "Files should have different column names");
-
-      // Verify schema hashes differ
-      assertNotEquals(hash1, hash2, "Files with different schemas should have different hashes");
+      // Verify files with different schemas have different hashes
+      assertNotEquals(columns1, columns3, "File1 and File3 should have different column names");
+      assertNotEquals(hash1, hash3, "Files with different schemas should have different hashes");
     }
   }
 
@@ -98,6 +81,8 @@ public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTest
    *
    * <p>Validates that when a column is read from a Parquet file, the library automatically detects
    * and tracks it for that schema, enabling predictive prefetching for subsequent files.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
@@ -111,7 +96,8 @@ public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTest
           reader.createReadStream(file, OpenStreamInformation.DEFAULT)) {
         ParquetColumnPrefetchStore store = getStore(reader);
         ColumnMappers columnMappers = waitForColumnMappers(reader, stream);
-        assertFalse(columnMappers.getOffsetIndexToColumnMap().isEmpty(), "Column map should not be empty");
+        assertFalse(
+            columnMappers.getOffsetIndexToColumnMap().isEmpty(), "Column map should not be empty");
 
         int schemaHash =
             columnMappers.getOffsetIndexToColumnMap().values().iterator().next().getSchemaHash();
@@ -152,6 +138,8 @@ public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTest
   /**
    * Tests that tracked columns for one schema don't affect files with different schemas. Validates
    * schema isolation.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
@@ -182,23 +170,23 @@ public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTest
 
       // Schema 1 should have its column tracked
       assertTrue(
-              schema1Tracked.contains(schema1Column),
-              "Schema1 should have '" + schema1Column + "' tracked");
+          schema1Tracked.contains(schema1Column),
+          "Schema1 should have '" + schema1Column + "' tracked");
 
       // Schema 2 should have its column tracked
       assertTrue(
-              schema2Tracked.contains(schema2Column),
-              "Schema2 should have '" + schema2Column + "' tracked");
+          schema2Tracked.contains(schema2Column),
+          "Schema2 should have '" + schema2Column + "' tracked");
 
       // Schema 1 should NOT have Schema 2's column
       assertFalse(
-              schema1Tracked.contains(schema2Column),
-              "Schema1 should NOT have Schema2's column '" + schema2Column + "'");
+          schema1Tracked.contains(schema2Column),
+          "Schema1 should NOT have Schema2's column '" + schema2Column + "'");
 
       // Schema 2 should NOT have Schema 1's column
       assertFalse(
-              schema2Tracked.contains(schema1Column),
-              "Schema2 should NOT have Schema1's column '" + schema1Column + "'");
+          schema2Tracked.contains(schema1Column),
+          "Schema2 should NOT have Schema1's column '" + schema1Column + "'");
     }
   }
 
@@ -211,11 +199,11 @@ public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTest
       S3Object file = S3Object.SCHEMA_MATCH_FILE1_PARQUET;
 
       try (S3SeekableInputStream stream =
-                   reader.createReadStream(file, OpenStreamInformation.DEFAULT)) {
+          reader.createReadStream(file, OpenStreamInformation.DEFAULT)) {
         ParquetColumnPrefetchStore store = getStore(reader);
         ColumnMappers columnMappers = waitForColumnMappers(reader, stream);
         int schemaHash =
-                columnMappers.getOffsetIndexToColumnMap().values().iterator().next().getSchemaHash();
+            columnMappers.getOffsetIndexToColumnMap().values().iterator().next().getSchemaHash();
 
         // Find a column with sufficient size
         ColumnMetadata targetColumn = null;
@@ -223,7 +211,7 @@ public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTest
         String columnName = null;
 
         for (Map.Entry<Long, ColumnMetadata> entry :
-                columnMappers.getOffsetIndexToColumnMap().entrySet()) {
+            columnMappers.getOffsetIndexToColumnMap().entrySet()) {
           if (entry.getValue().getCompressedSize() > 600000) {
             targetColumn = entry.getValue();
             columnStart = entry.getKey();
@@ -239,17 +227,20 @@ public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTest
         int readSize = 550000;
 
         stream.seek(unalignedPosition);
-        stream.read(new byte[readSize]);
+        int bytesRead = stream.read(new byte[readSize]);
+        assertTrue(bytesRead > 0, "Should read bytes from unaligned position");
         Thread.sleep(ASYNC_TRACKING_WAIT_MS);
 
         Set<String> trackedAfter = store.getUniqueRecentColumnsForSchema(schemaHash);
-        assertTrue(trackedAfter.contains(columnName),
-                "Unaligned read should track column '" + columnName + "'");
+        assertTrue(
+            trackedAfter.contains(columnName),
+            "Unaligned read should track column '" + columnName + "'");
       }
     }
   }
 
-  private ColumnMappers getColumnMappersForFile(S3AALClientStreamReader reader, S3Object file) throws Exception {
+  private ColumnMappers getColumnMappersForFile(S3AALClientStreamReader reader, S3Object file)
+      throws Exception {
     try (S3SeekableInputStream stream =
         reader.createReadStream(file, OpenStreamInformation.DEFAULT)) {
       ColumnMappers mappers = waitForColumnMappers(reader, stream);
@@ -273,16 +264,21 @@ public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTest
 
   /**
    * Helper method to read a column from a schema and return schema hash and column name.
+   *
+   * @param reader the stream reader
+   * @param file the S3 object to read from
+   * @param store the prefetch store
+   * @return schema column information
    */
   private SchemaColumnInfo readColumnFromSchema(
-      S3AALClientStreamReader reader,
-      S3Object file,
-      ParquetColumnPrefetchStore store) throws Exception {
+      S3AALClientStreamReader reader, S3Object file, ParquetColumnPrefetchStore store)
+      throws Exception {
     try (S3SeekableInputStream stream =
         reader.createReadStream(file, OpenStreamInformation.DEFAULT)) {
       ColumnMappers columnMappers = waitForColumnMappers(reader, stream);
-      assertFalse(columnMappers.getOffsetIndexToColumnMap().isEmpty(), "Column map should not be empty");
-      
+      assertFalse(
+          columnMappers.getOffsetIndexToColumnMap().isEmpty(), "Column map should not be empty");
+
       int schemaHash =
           columnMappers.getOffsetIndexToColumnMap().values().iterator().next().getSchemaHash();
 
@@ -296,20 +292,19 @@ public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTest
       int readSize = calculateColumnReadSize(dictionarySize);
 
       stream.seek(firstColumn.getKey());
-      stream.read(new byte[readSize]);
+      int bytesRead = stream.read(new byte[readSize]);
+      assertTrue(bytesRead > 0, "Should read bytes from column");
       Thread.sleep(ASYNC_TRACKING_WAIT_MS);
-      
+
       return new SchemaColumnInfo(schemaHash, columnName);
     }
   }
 
-  /**
-   * Simple data class to hold schema hash and column name.
-   */
+  /** Simple data class to hold schema hash and column name. */
   private static class SchemaColumnInfo {
     final int schemaHash;
     final String columnName;
-    
+
     SchemaColumnInfo(int schemaHash, String columnName) {
       this.schemaHash = schemaHash;
       this.columnName = columnName;

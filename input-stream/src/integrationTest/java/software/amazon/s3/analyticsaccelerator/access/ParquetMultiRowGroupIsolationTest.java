@@ -15,7 +15,11 @@
  */
 package software.amazon.s3.analyticsaccelerator.access;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -40,8 +44,10 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
    * represented in the column mappers.
    *
    * <p>When a Parquet file contains multiple row groups, the ParquetMetadataParsingTask should
-   * create ColumnMetadata entries for each column in each row group. Each ColumnMetadata contains
-   * a rowGroupIndex field that identifies which row group it belongs to.
+   * create ColumnMetadata entries for each column in each row group. Each ColumnMetadata contains a
+   * rowGroupIndex field that identifies which row group it belongs to.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
@@ -89,7 +95,7 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
           List<ColumnMetadata> columnInstances =
               columnMappers.getColumnNameToColumnMap().get(columnName);
           assertNotNull(columnInstances, "Column " + columnName + " should exist in map");
-          
+
           assertEquals(
               columnsPerRowGroup.size(),
               columnInstances.size(),
@@ -116,10 +122,12 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
   /**
    * Tests that column reads are correctly identified and tracked per row group.
    *
-   * When reading from a specific position in a Parquet file, the library uses the
+   * <p>When reading from a specific position in a Parquet file, the library uses the
    * offsetIndexToColumnMap to determine which column is being read. Since each row group has
-   * columns at different file offsets, the library must correctly identify both the column name
-   * AND the row group index.
+   * columns at different file offsets, the library must correctly identify both the column name AND
+   * the row group index.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
@@ -148,8 +156,7 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
 
         assertNotNull(testColumnName, "Should find a column that exists in multiple row groups");
         assertNotNull(columnInstances, "Column instances should not be null");
-        assertTrue(
-            columnInstances.size() >= 2, "Column should exist in at least 2 row groups");
+        assertTrue(columnInstances.size() >= 2, "Column should exist in at least 2 row groups");
 
         // Get column metadata for row group 0 and row group 1
         ColumnMetadata rowGroup0Column =
@@ -202,12 +209,14 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
     }
   }
 
-
   /**
-   * Tests that column tracking works correctly when reading the same column from different row groups.
-   * The library maintains a recentlyReadColumnsPerSchema list that tracks column NAMES (not per row group).
-   * This test verifies that reading the same column name from different row groups doesn't inflate
-   * the unique column count, as the library tracks by column name for predictive prefetching.
+   * Tests that column tracking works correctly when reading the same column from different row
+   * groups. The library maintains a recentlyReadColumnsPerSchema list that tracks column NAMES (not
+   * per row group). This test verifies that reading the same column name from different row groups
+   * doesn't inflate the unique column count, as the library tracks by column name for predictive
+   * prefetching.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
@@ -218,14 +227,14 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
       S3Object parquetFile = S3Object.MULTI_ROW_GROUP_PARQUET;
 
       try (S3SeekableInputStream stream =
-                   reader.createReadStream(parquetFile, OpenStreamInformation.DEFAULT)) {
+          reader.createReadStream(parquetFile, OpenStreamInformation.DEFAULT)) {
         ParquetColumnPrefetchStore store = getStore(reader);
         ColumnMappers columnMappers = waitForColumnMappers(reader, stream);
 
-        assertFalse(columnMappers.getOffsetIndexToColumnMap().isEmpty(), "Column map should not be empty");
+        assertFalse(
+            columnMappers.getOffsetIndexToColumnMap().isEmpty(), "Column map should not be empty");
         int schemaHash =
-                columnMappers.getOffsetIndexToColumnMap().values().iterator().next().getSchemaHash();
-
+            columnMappers.getOffsetIndexToColumnMap().values().iterator().next().getSchemaHash();
 
         // Find a column in multiple row groups
         String testColumnName = null;
@@ -233,7 +242,7 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
         ColumnMetadata rowGroup1Column = null;
 
         for (Map.Entry<String, List<ColumnMetadata>> entry :
-                columnMappers.getColumnNameToColumnMap().entrySet()) {
+            columnMappers.getColumnNameToColumnMap().entrySet()) {
           if (entry.getValue().size() >= 2) {
             testColumnName = entry.getKey();
             for (ColumnMetadata metadata : entry.getValue()) {
@@ -255,8 +264,12 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
 
         // Read from row group 0
         long rg0Offset = rowGroup0Column.getStartPos();
-        long dictionarySize = rowGroup0Column.getDataPageOffset() - rowGroup0Column.getDictionaryOffset();
-        int rg0ReadSize = (int) Math.min(rowGroup0Column.getCompressedSize(), calculateColumnReadSize(dictionarySize));
+        long dictionarySize =
+            rowGroup0Column.getDataPageOffset() - rowGroup0Column.getDictionaryOffset();
+        int rg0ReadSize =
+            (int)
+                Math.min(
+                    rowGroup0Column.getCompressedSize(), calculateColumnReadSize(dictionarySize));
 
         stream.seek(rg0Offset);
         int bytesRead = stream.read(new byte[rg0ReadSize]);
@@ -265,16 +278,20 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
 
         Set<String> trackedAfterRG0 = store.getUniqueRecentColumnsForSchema(schemaHash);
         assertTrue(
-                trackedAfterRG0.contains(testColumnName),
-                "Column should be tracked after reading from row group 0");
+            trackedAfterRG0.contains(testColumnName),
+            "Column should be tracked after reading from row group 0");
 
         // After reading from RG0, verify tracking count
         int trackingCountAfterRG0 = trackedAfterRG0.size();
 
         // Read from row group 1
         long rg1Offset = rowGroup1Column.getStartPos();
-        dictionarySize = rowGroup1Column.getDataPageOffset() - rowGroup1Column.getDictionaryOffset();
-        int rg1ReadSize = (int) Math.min(rowGroup1Column.getCompressedSize(), calculateColumnReadSize(dictionarySize));
+        dictionarySize =
+            rowGroup1Column.getDataPageOffset() - rowGroup1Column.getDictionaryOffset();
+        int rg1ReadSize =
+            (int)
+                Math.min(
+                    rowGroup1Column.getCompressedSize(), calculateColumnReadSize(dictionarySize));
 
         stream.seek(rg1Offset);
         bytesRead = stream.read(new byte[rg1ReadSize]);
@@ -283,24 +300,28 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
 
         Set<String> trackedAfterRG1 = store.getUniqueRecentColumnsForSchema(schemaHash);
         assertTrue(
-                trackedAfterRG1.contains(testColumnName),
-                "Column should still be tracked after reading from row group 1");
+            trackedAfterRG1.contains(testColumnName),
+            "Column should still be tracked after reading from row group 1");
 
-        // The unique set should not grow since we're reading the same column name from different row groups.
-        assertEquals(trackingCountAfterRG0, trackedAfterRG1.size(),
-                "Unique column count should remain same when reading same column from different row groups");
+        // The unique set should not grow since we're reading the same column name from different
+        // row groups.
+        assertEquals(
+            trackingCountAfterRG0,
+            trackedAfterRG1.size(),
+            "Unique column count should remain same when reading same column from different row groups");
       }
     }
   }
-
 
   /**
    * Tests that row group prefetch tracking works correctly to avoid duplicate prefetches.
    *
    * <p>When prefetch mode is ROW_GROUP, the library prefetches columns only from the current row
-   * group being read. To avoid prefetching the same row group multiple times, the library
-   * maintains a columnRowGroupsPrefetched map that tracks which row groups have been prefetched
-   * for each file.
+   * group being read. To avoid prefetching the same row group multiple times, the library maintains
+   * a columnRowGroupsPrefetched map that tracks which row groups have been prefetched for each
+   * file.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
@@ -313,7 +334,7 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
       try (S3SeekableInputStream stream =
           reader.createReadStream(parquetFile, OpenStreamInformation.DEFAULT)) {
         ParquetColumnPrefetchStore store = getStore(reader);
-        ColumnMappers columnMappers = waitForColumnMappers(reader, stream);
+        waitForColumnMappers(reader, stream);
         S3URI uri = getS3URI(stream);
 
         // Initially, no row groups should be prefetched
@@ -327,11 +348,9 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
         // Mark row group 0 as prefetched
         store.storeColumnPrefetchedRowGroupIndex(uri, 0);
         assertTrue(
-            store.isColumnRowGroupPrefetched(uri, 0),
-            "Row group 0 should be marked as prefetched");
+            store.isColumnRowGroupPrefetched(uri, 0), "Row group 0 should be marked as prefetched");
         assertFalse(
-            store.isColumnRowGroupPrefetched(uri, 1),
-            "Row group 1 should still not be prefetched");
+            store.isColumnRowGroupPrefetched(uri, 1), "Row group 1 should still not be prefetched");
 
         // Mark row group 1 as prefetched
         store.storeColumnPrefetchedRowGroupIndex(uri, 1);
@@ -343,13 +362,14 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
       }
     }
   }
-  
 
   /**
    * Tests that the parser correctly assigns row group indexes to each column.
    *
-   * <p>The library must correctly increment rowGroupIndex when parsing the footer,
-   * ensuring each column in each row group gets the correct index (0, 1, 2, ...).
+   * <p>The library must correctly increment rowGroupIndex when parsing the footer, ensuring each
+   * column in each row group gets the correct index (0, 1, 2, ...).
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
@@ -360,18 +380,21 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
       S3Object parquetFile = S3Object.MULTI_ROW_GROUP_PARQUET;
 
       try (S3SeekableInputStream stream =
-                   reader.createReadStream(parquetFile, OpenStreamInformation.DEFAULT)) {
+          reader.createReadStream(parquetFile, OpenStreamInformation.DEFAULT)) {
         ColumnMappers columnMappers = waitForColumnMappers(reader, stream);
 
-        assertFalse(columnMappers.getColumnNameToColumnMap().isEmpty(), "Column name map should not be empty");
+        assertFalse(
+            columnMappers.getColumnNameToColumnMap().isEmpty(),
+            "Column name map should not be empty");
         String testColumn = columnMappers.getColumnNameToColumnMap().keySet().iterator().next();
-        List<ColumnMetadata> columnInstances = columnMappers.getColumnNameToColumnMap().get(testColumn);
-
+        List<ColumnMetadata> columnInstances =
+            columnMappers.getColumnNameToColumnMap().get(testColumn);
 
         assertTrue(columnInstances.size() >= 3, "Test file should have at least 3 row groups");
 
         // Sort by row group index to ensure correct ordering
-        List<ColumnMetadata> sortedInstances = columnInstances.stream()
+        List<ColumnMetadata> sortedInstances =
+            columnInstances.stream()
                 .sorted(Comparator.comparingInt(ColumnMetadata::getRowGroupIndex))
                 .collect(Collectors.toList());
 
@@ -387,8 +410,14 @@ public class ParquetMultiRowGroupIsolationTest extends ParquetIntegrationTestBas
         assertEquals(testColumn, rg1.getColumnName());
         assertEquals(testColumn, rg2.getColumnName());
 
-        assertNotEquals(rg0.getStartPos(), rg1.getStartPos(), "Different row groups should have different offsets");
-        assertNotEquals(rg1.getStartPos(), rg2.getStartPos(), "Different row groups should have different offsets");
+        assertNotEquals(
+            rg0.getStartPos(),
+            rg1.getStartPos(),
+            "Different row groups should have different offsets");
+        assertNotEquals(
+            rg1.getStartPos(),
+            rg2.getStartPos(),
+            "Different row groups should have different offsets");
       }
     }
   }

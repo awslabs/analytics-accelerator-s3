@@ -15,7 +15,10 @@
  */
 package software.amazon.s3.analyticsaccelerator.access;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -28,6 +31,11 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 public class ParquetFooterCachingIntegrationTest extends ParquetIntegrationTestBase {
 
+  /**
+   * Tests basic footer prefetch functionality.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
+   */
   @ParameterizedTest
   @MethodSource("clientKinds")
   void testBasicFooterPrefetch(S3ClientKind s3ClientKind) throws IOException, InterruptedException {
@@ -71,10 +79,13 @@ public class ParquetFooterCachingIntegrationTest extends ParquetIntegrationTestB
    * Verifies that footer is fetched once on first stream open and reused when opening the same file
    * again, confirming footer caching works across multiple stream instances without additional GET
    * requests.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
-  void testFooterCacheReuseAcrossStreams(S3ClientKind s3ClientKind) throws IOException, InterruptedException {
+  void testFooterCacheReuseAcrossStreams(S3ClientKind s3ClientKind)
+      throws IOException, InterruptedException {
     S3SeekableInputStreamConfiguration streamConfig = createFooterConfig(FOOTER_PREFETCH_SIZE);
 
     try (S3AALClientStreamReader reader = getStreamReader(s3ClientKind, streamConfig)) {
@@ -134,6 +145,8 @@ public class ParquetFooterCachingIntegrationTest extends ParquetIntegrationTestB
    * Verifies that when footer parsing fails due to corrupted schema, the library gracefully
    * degrades by setting column mapper to null while still allowing successful read operations
    * without throwing exceptions to users.
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")
@@ -170,6 +183,8 @@ public class ParquetFooterCachingIntegrationTest extends ParquetIntegrationTestB
    * Verifies that parsing failure for one malformed file doesn't affect parsing of other files,
    * ensuring error isolation and that the shared cache remains functional for subsequent valid
    * files
+   *
+   * @param s3ClientKind the S3 client type to use for testing
    */
   @ParameterizedTest
   @MethodSource("clientKinds")

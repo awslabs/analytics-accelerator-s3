@@ -15,14 +15,16 @@
  */
 package software.amazon.s3.analyticsaccelerator.access;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamConfiguration;
 import software.amazon.s3.analyticsaccelerator.common.ConnectorConfiguration;
@@ -37,8 +39,6 @@ import software.amazon.s3.analyticsaccelerator.util.S3URI;
  */
 public abstract class ParquetIntegrationTestBase extends IntegrationTestBase {
 
-  protected static final Duration FOOTER_PARSE_TIMEOUT = Duration.ofSeconds(2);
-  protected static final int POLL_INTERVAL_MS = 50;
   protected static final int ASYNC_TRACKING_WAIT_MS = 200;
   protected static final int DICTIONARY_READ_SIZE = 100;
   protected static final int COLUMN_READ_BUFFER = 1000;
@@ -64,15 +64,22 @@ public abstract class ParquetIntegrationTestBase extends IntegrationTestBase {
     ParquetColumnPrefetchStore store = getStore(reader);
     S3URI uri = getS3URI(stream);
 
-    long startTime = System.currentTimeMillis();
-    ColumnMappers mappers;
-    while ((mappers = store.getColumnMappers(uri)) == null) {
-      if (System.currentTimeMillis() - startTime > FOOTER_PARSE_TIMEOUT.toMillis()) {
-        fail("Footer parsing timed out after " + FOOTER_PARSE_TIMEOUT.toMillis() / 1000 + " seconds");
-      }
-      Thread.sleep(POLL_INTERVAL_MS);
-    }
+    CompletableFuture<ColumnMappers> task =
+        CompletableFuture.supplyAsync(
+            () -> {
+              ColumnMappers mappers;
+              while ((mappers = store.getColumnMappers(uri)) == null) {
+                try {
+                  Thread.sleep(50);
+                } catch (InterruptedException e) {
+                  Thread.currentThread().interrupt();
+                  return null;
+                }
+              }
+              return mappers;
+            });
 
+    ColumnMappers mappers = task.get(2, TimeUnit.SECONDS);
     assertNotNull(mappers, "ColumnMappers should be populated after footer parsing");
     return mappers;
   }
@@ -90,7 +97,12 @@ public abstract class ParquetIntegrationTestBase extends IntegrationTestBase {
             .getS3SeekableInputStreamFactory()
             .getClass()
             .getDeclaredField("parquetColumnPrefetchStore");
-    field.setAccessible(true);
+    java.security.AccessController.doPrivileged(
+        (java.security.PrivilegedAction<Void>)
+            () -> {
+              field.setAccessible(true);
+              return null;
+            });
     return (ParquetColumnPrefetchStore) field.get(reader.getS3SeekableInputStreamFactory());
   }
 
@@ -103,7 +115,12 @@ public abstract class ParquetIntegrationTestBase extends IntegrationTestBase {
    */
   protected S3URI getS3URI(S3SeekableInputStream stream) throws Exception {
     Field field = stream.getClass().getDeclaredField("s3URI");
-    field.setAccessible(true);
+    java.security.AccessController.doPrivileged(
+        (java.security.PrivilegedAction<Void>)
+            () -> {
+              field.setAccessible(true);
+              return null;
+            });
     return (S3URI) field.get(stream);
   }
 
