@@ -121,7 +121,7 @@ public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTest
         // Read from column (read more than dictionary size to trigger column tracking)
         stream.seek(columnOffset);
         int bytesRead = stream.read(new byte[readSize]);
-        assertTrue(bytesRead > 0, "Should read bytes from column");
+        assertEquals(readSize, bytesRead, "Should read exact number of bytes requested");
 
         // Async tracking
         Thread.sleep(ASYNC_TRACKING_WAIT_MS);
@@ -293,7 +293,7 @@ public class ParquetColumnTrackingIntegrationTest extends ParquetIntegrationTest
 
       stream.seek(firstColumn.getKey());
       int bytesRead = stream.read(new byte[readSize]);
-      assertTrue(bytesRead > 0, "Should read bytes from column");
+      assertEquals(readSize, bytesRead, "Should read exact number of bytes requested");
       Thread.sleep(ASYNC_TRACKING_WAIT_MS);
 
       return new SchemaColumnInfo(schemaHash, columnName);
