@@ -64,7 +64,16 @@ public enum S3Object {
   RANDOM_SSEC_ENCRYPTED_PARQUET_10MB(
       "random-encrypted-10mb.parquet",
       10 * SizeConstants.ONE_MB_IN_BYTES,
-      S3ObjectKind.RANDOM_PARQUET_ENCRYPTED);
+      S3ObjectKind.RANDOM_PARQUET_ENCRYPTED),
+
+  VALID_SMALL_PARQUET("valid_small.parquet", 454_233, S3ObjectKind.RANDOM_PARQUET),
+  CORRUPTED_DICTIONARY_PARQUET("corrupted_dict.parquet", 2_850, S3ObjectKind.RANDOM_PARQUET),
+  CORRUPTED_SCHEMA_PARQUET("corrupted_footer.parquet", 451, S3ObjectKind.RANDOM_PARQUET),
+  MULTI_ROW_GROUP_PARQUET("multi_row_group.parquet", 2_048, S3ObjectKind.RANDOM_PARQUET),
+  SCHEMA_MATCH_FILE1_PARQUET(
+      "large_file1.parquet", 7 * SizeConstants.ONE_MB_IN_BYTES, S3ObjectKind.RANDOM_PARQUET),
+  SCHEMA_MATCH_FILE2_PARQUET(
+      "large_file2.parquet", 7 * SizeConstants.ONE_MB_IN_BYTES, S3ObjectKind.RANDOM_PARQUET);
 
   private final String name;
   private final long size;
