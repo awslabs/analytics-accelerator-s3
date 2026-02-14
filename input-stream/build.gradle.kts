@@ -18,7 +18,7 @@ val currentVersion = if (isSnapshot) "SNAPSHOT" else currentVersionNumber;
 plugins {
     id("buildlogic.java-library-conventions")
     id("io.freefair.lombok") version "8.14"
-    id("me.champeau.jmh") version "0.7.2"
+    id("me.champeau.jmh") version "0.7.3"
     id("com.github.johnrengelman.shadow") version "8.1.1"
     id("io.morethan.jmhreport") version "0.9.6"
     `java-test-fixtures`
