@@ -26,7 +26,7 @@ jobs:
     name: Build library artifacts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-java@v4
         with:
           java-version: '8'
@@ -49,7 +49,7 @@ jobs:
 #    name: Build Hadoop artifacts
 #    runs-on: ubuntu-latest
 #    steps:
-#      - uses: actions/checkout@v4
+#      - uses: actions/checkout@v5
 #      - uses: actions/setup-java@v4
 #        with:
 #          java-version: '8'
@@ -68,7 +68,7 @@ jobs:
 #          ssh-private-key: ${{ secrets.HADOOP_STAGING_SSH_KEY }}
 #
 #      - name: Checkout Hadoop
-#        uses: actions/checkout@v4
+#        uses: actions/checkout@v5
 #        with:
 #          repository: ${{ secrets.HADOOP_STAGING_PATH }}
 #          ref: s3-connector-framework
@@ -92,7 +92,7 @@ jobs:
     name: Build Iceberg artifacts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-java@v4
         with:
           java-version: '11'
@@ -122,7 +122,7 @@ jobs:
           ssh-private-key: ${{ secrets.ICEBERG_STAGING_SSH_KEY }}
 
       - name: Checkout Iceberg
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ secrets.ICEBERG_STAGING_PATH }}
           ref: analytics-accelerator
