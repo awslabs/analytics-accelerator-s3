@@ -175,9 +175,9 @@ public class S3SeekableInputStream extends SeekableInputStream {
    */
   @Override
   public void seek(long pos) throws IOException {
-    // TODO: S3A throws an EOFException here, S3FileIO does IllegalArgumentException
-    // TODO: https://github.com/awslabs/analytics-accelerator-s3/issues/84
-    Preconditions.checkArgument(pos >= 0, "position must be non-negative");
+    if (pos < 0) {
+      throw new EOFException("Cannot seek to negative position: " + pos);
+    }
     throwIfClosed("cannot seek on closed stream");
 
     // As we are seeking lazily, we support seek beyond the stream size .
