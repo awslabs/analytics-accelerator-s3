@@ -15,6 +15,7 @@
  */
 package software.amazon.s3.analyticsaccelerator;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -101,11 +102,13 @@ public abstract class SeekableInputStream extends InputStream {
    * @param buffer the buffer to read into
    * @param offset the offset in the buffer to start writing at
    * @param length the number of bytes to read
-   * @throws IllegalArgumentException if the position, offset or length is negative
+   * @throws EOFException if the position is negative
+   * @throws IllegalArgumentException if the offset or length is negative
    * @throws NullPointerException if the buffer is null
    * @throws IndexOutOfBoundsException if the offset or length are invalid for the given buffer
    */
-  protected void validatePositionedReadArgs(long position, byte[] buffer, int offset, int length) {
+  protected void validatePositionedReadArgs(long position, byte[] buffer, int offset, int length)
+      throws EOFException {
     Preconditions.checkNotNull(buffer, "Null destination buffer");
     Preconditions.checkArgument(length >= 0, "Length is negative");
 
@@ -113,9 +116,9 @@ public abstract class SeekableInputStream extends InputStream {
       throw new IndexOutOfBoundsException("Offset is negative");
     }
 
-    // TODO: S3A throws an EOFException here, S3FileIO does IllegalArgumentException
-    // TODO: https://github.com/awslabs/analytics-accelerator-s3/issues/84
-    Preconditions.checkArgument(position >= 0, "Position is negative");
+    if (position < 0) {
+      throw new EOFException("Cannot seek to negative position: " + position);
+    }
     Preconditions.checkPositionIndex(
         length,
         buffer.length - offset,
