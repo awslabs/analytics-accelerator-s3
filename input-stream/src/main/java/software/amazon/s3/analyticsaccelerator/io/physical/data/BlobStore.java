@@ -113,7 +113,9 @@ public class BlobStore implements Closeable {
     LOG.debug(
         "Current memory usage of blobMap in bytes before eviction is: {}",
         metrics.get(MetricKey.MEMORY_USAGE));
-    blobMap.forEach((k, v) -> v.asyncCleanup());
+    // A blob whose last blocks were just cleaned up caches nothing, but its entry would otherwise
+    // stay until the store is closed, one for every object ever read.
+    blobMap.values().removeIf(Blob::asyncCleanup);
     LOG.debug(
         "Current memory usage of blobMap in bytes after eviction is: {}",
         metrics.get(MetricKey.MEMORY_USAGE));

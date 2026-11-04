@@ -319,6 +319,73 @@ public class BlobStoreTest {
   }
 
   @Test
+  @DisplayName("Test cleanup removes blobs whose blocks have all been cleaned up")
+  void testCleanupRemovesEmptyBlobs() throws IOException, InterruptedException {
+    PhysicalIOConfiguration config =
+        PhysicalIOConfiguration.builder()
+            .cacheDataTimeoutMilliseconds(1)
+            .memoryCleanupFrequencyMilliseconds(1)
+            .build();
+    BlobStore blobStore =
+        new BlobStore(
+            new FakeObjectClient(TEST_DATA),
+            TestTelemetry.DEFAULT,
+            config,
+            new Metrics(),
+            threadPool);
+    blobStore.schedulePeriodicCleanup();
+
+    // When: many distinct objects are read once
+    byte[] data = new byte[TEST_DATA.length()];
+    for (int i = 0; i < 100; i++) {
+      ObjectKey key = ObjectKey.builder().s3URI(S3URI.of("test", "test" + i)).etag(ETAG).build();
+      blobStore
+          .get(key, objectMetadata, OpenStreamInformation.DEFAULT)
+          .read(data, 0, data.length, 0);
+    }
+
+    // Then: once their data expires, their blobs are removed too, not only their blocks
+    long deadline = System.currentTimeMillis() + 5000;
+    while (blobStore.blobCount() > 0 && System.currentTimeMillis() < deadline) {
+      Thread.sleep(10);
+    }
+    assertEquals(0, blobStore.blobCount(), "Blobs with no blocks left should be removed");
+    assertEquals(0, blobStore.getMetrics().get(MetricKey.MEMORY_USAGE));
+
+    // And: an object whose blob was removed can be read again
+    Blob blob = blobStore.get(objectKey, objectMetadata, OpenStreamInformation.DEFAULT);
+    assertEquals(data.length, blob.read(data, 0, data.length, 0));
+    assertEquals(TEST_DATA, new String(data, StandardCharsets.UTF_8));
+    blobStore.close();
+  }
+
+  @Test
+  @DisplayName("Test cleanup keeps blobs that still hold blocks")
+  void testCleanupKeepsBlobsWithBlocks() throws IOException {
+    // Given: data that stays in the index cache for longer than the test
+    PhysicalIOConfiguration config =
+        PhysicalIOConfiguration.builder().cacheDataTimeoutMilliseconds(60_000).build();
+    BlobStore blobStore =
+        new BlobStore(
+            new FakeObjectClient(TEST_DATA),
+            TestTelemetry.DEFAULT,
+            config,
+            new Metrics(),
+            threadPool);
+    byte[] data = new byte[TEST_DATA.length()];
+    blobStore
+        .get(objectKey, objectMetadata, OpenStreamInformation.DEFAULT)
+        .read(data, 0, data.length, 0);
+
+    // When
+    blobStore.asyncCleanup();
+
+    // Then
+    assertEquals(1, blobStore.blobCount(), "A blob that still holds blocks should be kept");
+    blobStore.close();
+  }
+
+  @Test
   @DisplayName("Test cleanup not triggered when memory usage is below capacity")
   void testCleanupNotTriggeredBelowCapacity() {
     // Setup memory usage below capacity
