@@ -206,14 +206,20 @@ public class Blob implements Closeable {
         });
   }
 
-  /** clean up blob */
-  public final void asyncCleanup() {
+  /**
+   * Cleans up the blob's blocks.
+   *
+   * @return true if this cleanup removed the blob's last blocks, so it now caches nothing and the
+   *     {@link BlobStore} can drop it: a later read of the object gets a new blob
+   */
+  public final boolean asyncCleanup() {
     if (blockManager.isBlockStoreEmpty()) {
-      return;
+      return false;
     }
     try {
       lock.writeLock().lock();
       blockManager.cleanUp();
+      return blockManager.isBlockStoreEmpty();
     } finally {
       lock.writeLock().unlock();
     }
